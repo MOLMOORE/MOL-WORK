@@ -53,6 +53,11 @@ const STATUS_TABS: { key: TaskStatus | 'all'; label: string }[] = [
   { key: 'done', label: '已完成' }
 ]
 
+function clockText(date: Date): string {
+  const pad = (value: number): string => String(value).padStart(2, '0')
+  return `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
+}
+
 export function TasksPage(): JSX.Element {
   const location = useLocation()
   const navigate = useNavigate()
@@ -78,10 +83,18 @@ export function TasksPage(): JSX.Element {
   const [editing, setEditing] = useState<Task | null>(null)
   const [defaultDue, setDefaultDue] = useState<string | null>(null)
   const [keywordDraft, setKeywordDraft] = useState(filter.keyword)
+  const [suggestOpen, setSuggestOpen] = useState(false)
+  const [now, setNow] = useState(() => new Date())
 
   useEffect(() => {
     void load()
   }, [load])
+
+  // 顶栏实时时钟（精确到秒）
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(new Date()), 1000)
+    return () => window.clearInterval(timer)
+  }, [])
 
   useEffect(() => {
     const state = location.state as { taskId?: number } | null
@@ -148,6 +161,20 @@ export function TasksPage(): JSX.Element {
   const statusCount = (key: TaskStatus | 'all'): number =>
     key === 'all' ? tasks.length : tasks.filter((task) => task.status === key).length
 
+  /** 搜索输入即时候选：按标题 / 说明 / 标签模糊匹配 */
+  const suggestions = useMemo(() => {
+    const keyword = keywordDraft.trim().toLowerCase()
+    if (keyword === '') return []
+    return tasks
+      .filter(
+        (task) =>
+          task.title.toLowerCase().includes(keyword) ||
+          task.detail.toLowerCase().includes(keyword) ||
+          task.tags.some((tag) => tag.toLowerCase().includes(keyword))
+      )
+      .slice(0, 6)
+  }, [tasks, keywordDraft])
+
   const viewTabs: { key: PageView; label: string; icon: JSX.Element }[] = [
     { key: 'day', label: '当日', icon: <CalendarClock className="h-3 w-3" /> },
     { key: 'week', label: '本周', icon: <CalendarDays className="h-3 w-3" /> },
@@ -158,42 +185,29 @@ export function TasksPage(): JSX.Element {
   return (
     <div className="grid gap-5">
       <Card>
-        <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <p className="text-[10px] uppercase tracking-widest text-muted-foreground">今日</p>
-            <h2 className="mt-1 text-2xl font-semibold tracking-tight text-foreground">
+            <h2 className="mt-1 text-4xl font-bold leading-tight tracking-tight text-foreground">
               {formatDateCN(today)}
-              <span className="ml-2 text-sm font-normal text-muted-foreground">{weekdayCN(today)}</span>
+              <span className="ml-3 align-baseline text-xl font-medium text-muted-foreground">
+                {weekdayCN(today)}
+              </span>
             </h2>
-            <p className="mt-1 text-[11px] text-muted-foreground">
+            <p className="mt-2 text-xs text-muted-foreground">
               共 {tasks.length} 项事项 · 优先事项 {priorityCount} 项 · 已完成 {doneCount} 项
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <IconButton label="上一页" onClick={() => shift(-1)}>
-              <ChevronLeft className="h-4 w-4" />
-            </IconButton>
-            <Button size="sm" variant="secondary" onClick={gotoToday}>
-              今天
-            </Button>
-            <IconButton label="下一页" onClick={() => shift(1)}>
-              <ChevronRight className="h-4 w-4" />
-            </IconButton>
-            <Input
-              type="date"
-              value={selectedDay}
-              onChange={(event) => event.target.value && pickDay(event.target.value)}
-              className="w-[150px]"
-            />
-            <Button
-              variant="primary"
-              size="sm"
-              icon={<Plus className="h-3.5 w-3.5" />}
-              onClick={() => openCreate(view === 'day' ? selectedDay : undefined)}
-            >
-              新建任务
-            </Button>
+          <div className="text-right">
+            <p className="text-[10px] uppercase tracking-widest text-muted-foreground">当前时间</p>
+            <p className="mt-1 text-4xl font-bold leading-tight tabular-nums tracking-tight text-foreground">
+              {clockText(now)}
+            </p>
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              {now.getFullYear()}/{String(now.getMonth() + 1).padStart(2, '0')}/
+              {String(now.getDate()).padStart(2, '0')} · {weekdayCN(dateKey(now))}
+            </p>
           </div>
         </div>
 
@@ -201,15 +215,24 @@ export function TasksPage(): JSX.Element {
           <Tabs size="sm" value={view} onChange={(key) => setView(key as PageView)} items={viewTabs} />
 
           <div className="flex flex-wrap items-center gap-3">
-            <div className="flex h-9 min-w-[220px] flex-1 items-center gap-2 rounded-xl border border-border bg-input/60 px-3">
+            <div className="relative flex h-9 min-w-[260px] flex-1 items-center gap-2 rounded-xl border border-border bg-input/60 px-3">
               <Search className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
               <input
                 value={keywordDraft}
-                onChange={(event) => setKeywordDraft(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter') void setFilter({ keyword: keywordDraft })
+                onChange={(event) => {
+                  setKeywordDraft(event.target.value)
+                  setSuggestOpen(true)
                 }}
-                placeholder="搜索任务，回车生效"
+                onFocus={() => setSuggestOpen(true)}
+                onBlur={() => window.setTimeout(() => setSuggestOpen(false), 150)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    setSuggestOpen(false)
+                    void setFilter({ keyword: keywordDraft })
+                  }
+                  if (event.key === 'Escape') setSuggestOpen(false)
+                }}
+                placeholder="搜索任务，输入即时候选，回车筛选"
                 className="h-full flex-1 border-0 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/70 focus:outline-none"
               />
               {keywordDraft ? (
@@ -217,12 +240,51 @@ export function TasksPage(): JSX.Element {
                   type="button"
                   onClick={() => {
                     setKeywordDraft('')
+                    setSuggestOpen(false)
                     void setFilter({ keyword: '' })
                   }}
                   className="text-[11px] text-muted-foreground hover:text-foreground"
                 >
                   清空
                 </button>
+              ) : null}
+
+              {suggestOpen && keywordDraft.trim() !== '' && suggestions.length > 0 ? (
+                <div className="absolute left-0 right-0 top-10 z-40 overflow-hidden rounded-xl border border-border/80 bg-surface/95 shadow-2xl backdrop-blur-xl animate-scale-in">
+                  <p className="border-b border-border/60 px-3 py-1.5 text-[10px] uppercase tracking-widest text-muted-foreground">
+                    候选任务 · {suggestions.length}
+                  </p>
+                  {suggestions.map((task) => (
+                    <button
+                      key={task.id}
+                      type="button"
+                      onMouseDown={(event) => {
+                        event.preventDefault()
+                        setSuggestOpen(false)
+                        void openDetail(task.id)
+                      }}
+                      className="flex w-full items-center gap-2 px-3 py-2 text-left transition-colors hover:bg-muted/60"
+                    >
+                      {task.isPriority ? (
+                        <Star className="h-3 w-3 shrink-0 fill-danger text-danger" />
+                      ) : (
+                        <CalendarClock className="h-3 w-3 shrink-0 text-muted-foreground" />
+                      )}
+                      <span
+                        className={cn(
+                          'min-w-0 flex-1 truncate text-xs font-medium',
+                          task.isPriority ? 'text-danger' : 'text-foreground'
+                        )}
+                      >
+                        {task.title}
+                      </span>
+                      {task.projectName ? (
+                        <span className="shrink-0 text-[10px] text-muted-foreground">{task.projectName}</span>
+                      ) : null}
+                      <span className="shrink-0 text-[10px] text-muted-foreground">{relativeDay(task.dueAt)}</span>
+                    </button>
+                  ))}
+                </div>
               ) : null}
             </div>
 
@@ -248,6 +310,15 @@ export function TasksPage(): JSX.Element {
               onClick={() => void setFilter({ onlyOverdue: !filter.onlyOverdue })}
             >
               仅看逾期
+            </Button>
+
+            <Button
+              variant="primary"
+              size="md"
+              icon={<Plus className="h-3.5 w-3.5" />}
+              onClick={() => openCreate(view === 'day' ? selectedDay : undefined)}
+            >
+              新建任务
             </Button>
           </div>
         </div>
@@ -312,7 +383,26 @@ export function TasksPage(): JSX.Element {
                     ? '本周日程'
                     : '本月日程'
               }
-              description="拖拽卡片可在任意日期之间移动，同一日期内拖动可自由排序；优先事项以红色标识"
+              description="拖拽卡片可在任意日期之间移动，同一日期内拖动可自由排序；优先事项始终置顶并以红色标识"
+              action={
+                <div className="flex items-center gap-2">
+                  <IconButton label="上一页" onClick={() => shift(-1)}>
+                    <ChevronLeft className="h-4 w-4" />
+                  </IconButton>
+                  <Button size="sm" variant="secondary" onClick={gotoToday}>
+                    今天
+                  </Button>
+                  <IconButton label="下一页" onClick={() => shift(1)}>
+                    <ChevronRight className="h-4 w-4" />
+                  </IconButton>
+                  <Input
+                    type="date"
+                    value={selectedDay}
+                    onChange={(event) => event.target.value && pickDay(event.target.value)}
+                    className="w-[150px]"
+                  />
+                </div>
+              }
             />
             <ScheduleBoard
               view={view}
@@ -322,6 +412,7 @@ export function TasksPage(): JSX.Element {
               onMove={handleMove}
               onReorder={handleReorder}
               onOpen={(task) => void openDetail(task.id)}
+              onSelectDay={pickDay}
               onCreateAt={(dayKey) => openCreate(dayKey)}
             />
           </Card>

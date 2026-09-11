@@ -21,6 +21,8 @@ export interface ScheduleBoardProps {
   onMove: (taskId: number, dayKey: string) => Promise<void>
   onReorder: (orderedIds: number[]) => Promise<void>
   onOpen: (task: Task) => void
+  /** 点击日期块切换所选日期 */
+  onSelectDay: (dayKey: string) => void
   onCreateAt?: (dayKey: string) => void
 }
 
@@ -32,7 +34,7 @@ function timeOf(task: Task): string {
   return task.dueAt ? task.dueAt.slice(11, 16) : ''
 }
 
-/** 日期分组的任务（同日内按 sort_order 排序，保证拖拽结果稳定） */
+/** 日期分组的任务：同日内优先事项永远置顶，其余按 sort_order 排序 */
 function groupByDay(tasks: Task[]): Map<string, Task[]> {
   const map = new Map<string, Task[]>()
   for (const task of tasks) {
@@ -43,7 +45,10 @@ function groupByDay(tasks: Task[]): Map<string, Task[]> {
     map.set(key, list)
   }
   for (const list of map.values()) {
-    list.sort((a, b) => (a.sortOrder === b.sortOrder ? a.id - b.id : a.sortOrder - b.sortOrder))
+    list.sort((a, b) => {
+      if (a.isPriority !== b.isPriority) return a.isPriority ? -1 : 1
+      return a.sortOrder === b.sortOrder ? a.id - b.id : a.sortOrder - b.sortOrder
+    })
   }
   return map
 }
@@ -56,6 +61,7 @@ export function ScheduleBoard({
   onMove,
   onReorder,
   onOpen,
+  onSelectDay,
   onCreateAt
 }: ScheduleBoardProps): JSX.Element {
   const draggingRef = useRef<number | null>(null)
@@ -82,7 +88,7 @@ export function ScheduleBoard({
     event.dataTransfer.setData('text/plain', String(task.id))
   }
 
-  /** 提交拖拽：把任务放入 dayKey，并可插入到 beforeTaskId 之前 */
+  /** 提交拖拽：把任务放入 dayKey，并可插入到 beforeTaskId 之前；优先事项始终置顶 */
   const commitDrop = async (dayKey: string, beforeTaskId?: number): Promise<void> => {
     const draggedId = draggingRef.current
     if (draggedId === null) return
@@ -92,13 +98,16 @@ export function ScheduleBoard({
       return
     }
     const sameDay = dayOf(dragged) === dayKey
-    const list = (byDay.get(dayKey) ?? []).filter((task) => task.id !== draggedId).map((task) => task.id)
-    let insertAt = list.length
+    const ordered = (byDay.get(dayKey) ?? []).filter((task) => task.id !== draggedId)
+    let insertAt = ordered.length
     if (beforeTaskId !== undefined) {
-      const index = list.indexOf(beforeTaskId)
+      const index = ordered.findIndex((task) => task.id === beforeTaskId)
       if (index >= 0) insertAt = index
     }
-    list.splice(insertAt, 0, draggedId)
+    ordered.splice(insertAt, 0, dragged)
+    // 稳定分区：优先事项排前面，普通事项按拖拽后的相对顺序排在后面
+    const finalOrder = [...ordered.filter((task) => task.isPriority), ...ordered.filter((task) => !task.isPriority)]
+    const list = finalOrder.map((task) => task.id)
     clearDrag()
     if (!sameDay) await onMove(draggedId, dayKey)
     await onReorder(list)
@@ -162,12 +171,15 @@ export function ScheduleBoard({
               const count = (byDay.get(key) ?? []).length
               const active = key === selectedDay
               return (
-                <div
+                <button
                   key={key}
+                  type="button"
+                  onClick={() => onSelectDay(key)}
+                  title={`切换到 ${key}`}
                   {...dayDropProps(key)}
                   className={cn(
-                    'flex flex-col items-center gap-1 rounded-xl border px-2 py-2 transition-colors',
-                    active ? 'border-primary/50 bg-primary/10' : 'border-border/70 bg-muted/20',
+                    'flex cursor-pointer flex-col items-center gap-1 rounded-xl border px-2 py-2 transition-colors',
+                    active ? 'border-primary/50 bg-primary/10' : 'border-border/70 bg-muted/20 hover:bg-muted/40',
                     overDay === key && 'border-primary bg-primary/20'
                   )}
                 >
@@ -181,7 +193,7 @@ export function ScheduleBoard({
                     {date.getDate()}
                   </span>
                   <span className="text-[10px] text-muted-foreground">{count} 项</span>
-                </div>
+                </button>
               )
             })}
           </div>
@@ -245,7 +257,12 @@ export function ScheduleBoard({
                 overDay === key && 'border-primary/70 bg-primary/10'
               )}
             >
-              <div className="flex items-center justify-between px-1">
+              <button
+                type="button"
+                onClick={() => onSelectDay(key)}
+                title={`切换到 ${key}`}
+                className="flex cursor-pointer items-center justify-between rounded-lg px-1 py-0.5 transition-colors hover:bg-muted/50"
+              >
                 <span className="text-[11px] text-muted-foreground">周{WEEKDAY_CN[(date.getDay() + 6) % 7]}</span>
                 <span
                   className={cn(
@@ -255,7 +272,7 @@ export function ScheduleBoard({
                 >
                   {date.getDate()}
                 </span>
-              </div>
+              </button>
               <div className="flex flex-1 flex-col gap-1.5">
                 {list.length === 0 ? (
                   <p className="rounded-lg border border-dashed border-border px-2 py-4 text-center text-[10px] text-muted-foreground">
@@ -292,8 +309,9 @@ export function ScheduleBoard({
             <div
               key={key}
               {...dayDropProps(key)}
+              onClick={() => onSelectDay(key)}
               className={cn(
-                'flex min-h-[120px] flex-col gap-1 border-b border-r border-border/50 p-1.5 transition-colors',
+                'flex min-h-[120px] cursor-pointer flex-col gap-1 border-b border-r border-border/50 p-1.5 transition-colors',
                 !inMonth && 'bg-muted/10 opacity-60',
                 key === selectedDay && 'bg-primary/10 ring-1 ring-inset ring-primary/30',
                 overDay === key && 'bg-primary/20'
@@ -355,7 +373,11 @@ function TaskCard({
       onDragEnd={onDragEnd}
       onDragOver={onDragOver}
       onDrop={onDrop}
-      onClick={onOpen}
+      onClick={(event) => {
+        // 避免点击卡片时冒泡触发日期块的选择
+        event.stopPropagation()
+        onOpen()
+      }}
       className={cn(
         'group cursor-grab rounded-xl border px-2 py-1.5 text-left transition-all active:cursor-grabbing',
         task.isPriority ? 'border-danger/60 bg-danger/10' : 'border-border/70 bg-muted/30 hover:border-primary/40',
