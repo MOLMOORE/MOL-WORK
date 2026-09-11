@@ -64,6 +64,8 @@ export interface WorkstationApi {
     hideWindow(): Promise<void>
     /** 真正退出应用 */
     quitApp(): Promise<void>
+    /** 运行诊断信息（含应用版本号，用于版本检查） */
+    diagnostics(): Promise<Record<string, string>>
   }
   project: {
     list(): Promise<Project[]>

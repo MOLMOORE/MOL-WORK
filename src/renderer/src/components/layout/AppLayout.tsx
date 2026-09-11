@@ -1,6 +1,7 @@
 import { Outlet } from 'react-router-dom'
 import { Sidebar } from './Sidebar'
 import { TopBar } from './TopBar'
+import { TopClock } from './TopClock'
 import { Toaster } from '../ui/Toaster'
 import { DueAlertWatcher } from '../task/DueAlertWatcher'
 
@@ -16,6 +17,10 @@ export function AppLayout(): JSX.Element {
         <TopBar />
         <main className="flex-1 overflow-y-auto px-6 py-5">
           <div className="mx-auto w-full max-w-[1500px] animate-fade-in">
+            {/* 全局统一时钟：置于页面内容最上方居中（大号时分秒翻页特效 + 小号日期） */}
+            <div className="mb-5 flex justify-center">
+              <TopClock />
+            </div>
             <Outlet />
           </div>
         </main>

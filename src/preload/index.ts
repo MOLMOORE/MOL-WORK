@@ -65,7 +65,8 @@ const api: WorkstationApi = {
     seedDemo: () => invoke<{ created: boolean }>('app:seed-demo'),
     notify: (title: string, body: string) => invoke<void>('app:notify', title, body),
     hideWindow: () => invoke<void>('app:hide-window'),
-    quitApp: () => invoke<void>('app:quit-app')
+    quitApp: () => invoke<void>('app:quit-app'),
+    diagnostics: () => invoke<Record<string, string>>('app:diagnostics')
   },
   project: {
     list: () => invoke<Project[]>('project:list'),

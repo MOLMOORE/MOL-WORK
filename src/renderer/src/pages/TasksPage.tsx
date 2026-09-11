@@ -24,6 +24,7 @@ import { Badge, EmptyState, Progress, Skeleton } from '../components/ui/Feedback
 import { Button, IconButton } from '../components/ui/Button'
 import { Input, Select } from '../components/ui/Field'
 import { Tabs } from '../components/ui/Tabs'
+import { FlipDigit } from '../components/ui/FlipDigit'
 import { ConfirmDialog } from '../components/ui/Overlay'
 import { TaskForm } from '../components/task/TaskForm'
 import { TaskDetailDrawer } from '../components/task/TaskDetailDrawer'
@@ -292,10 +293,13 @@ export function TasksPage(): JSX.Element {
 
           <div className="text-right">
             <p className="text-[10px] uppercase tracking-widest text-muted-foreground">当前时间</p>
-            <p className="mt-1 text-2xl font-bold leading-tight tabular-nums tracking-tight text-muted-foreground">
-              {clockText(now)}
+            <p className="mt-1 flex items-baseline justify-end text-4xl font-bold leading-tight tabular-nums tracking-tight text-foreground">
+              {clockText(now)
+                .split('')
+                .map((char, index) => (
+                  <FlipDigit key={`${index}-${char}`} char={char} />
+                ))}
             </p>
-            <p className="mt-0.5 text-[10px] text-muted-foreground/70">顶部中央展示全局时钟</p>
           </div>
         </div>
 

@@ -3,7 +3,6 @@ import { useLocation } from 'react-router-dom'
 import { Bell, CalendarPlus, FolderKanban, Plus, Timer } from 'lucide-react'
 import { Button, IconButton } from '../ui/Button'
 import { GlobalSearch } from './GlobalSearch'
-import { TopClock } from './TopClock'
 import { TaskForm } from '../task/TaskForm'
 import { ProjectManager } from '../task/ProjectManager'
 import { useAppStore } from '../../stores/appStore'
@@ -51,21 +50,17 @@ export function TopBar(): JSX.Element {
 
   return (
     <>
-    <header className="relative z-40 flex h-16 shrink-0 items-center gap-4 border-b border-border/70 bg-surface/60 px-5 backdrop-blur-2xl">
+    <header className="relative z-40 flex h-14 shrink-0 items-center gap-4 border-b border-border/70 bg-surface/60 px-5 backdrop-blur-2xl">
       <div className="min-w-[170px] max-w-[240px] shrink-0">
         <h1 className="truncate text-sm font-semibold tracking-tight text-foreground">{meta.title}</h1>
         <p className="truncate text-[11px] text-muted-foreground">{meta.subtitle}</p>
       </div>
 
-      {/* 全局统一时钟：置于页面顶部中间，大号时分秒 + 小号日期（翻页特效） */}
       <div className="flex flex-1 justify-center">
-        <TopClock />
+        <GlobalSearch />
       </div>
 
       <div className="flex shrink-0 items-center gap-2">
-        <div className="hidden w-[300px] xl:block">
-          <GlobalSearch />
-        </div>
         <button
           type="button"
           onClick={() => {

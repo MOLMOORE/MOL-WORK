@@ -19,14 +19,14 @@ export function TopClock(): JSX.Element {
 
   return (
     <div className="flex flex-col items-center leading-none">
-      <p className="flex items-baseline text-3xl font-bold tabular-nums tracking-tight text-foreground">
+      <p className="flex items-baseline text-5xl font-bold tabular-nums tracking-tight text-foreground">
         {time
           .split('')
           .map((char, index) => (
             <FlipDigit key={`${index}-${char}`} char={char} />
           ))}
       </p>
-      <p className="mt-0.5 text-[10px] text-muted-foreground">
+      <p className="mt-1 text-xs text-muted-foreground">
         {now.getFullYear()}年{now.getMonth() + 1}月{now.getDate()}日 · {weekdayCN(dateKey(now))}
       </p>
     </div>
