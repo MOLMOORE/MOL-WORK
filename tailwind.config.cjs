@@ -54,12 +54,18 @@ module.exports = {
         shimmer: {
           '0%': { backgroundPosition: '-500px 0' },
           '100%': { backgroundPosition: '500px 0' }
+        },
+        'flip-in': {
+          '0%': { opacity: '0', transform: 'rotateX(-92deg) translateY(-18%)' },
+          '60%': { opacity: '1' },
+          '100%': { opacity: '1', transform: 'rotateX(0deg) translateY(0)' }
         }
       },
       animation: {
         'fade-in': 'fade-in 220ms ease-out',
         'scale-in': 'scale-in 160ms ease-out',
-        shimmer: 'shimmer 1.4s linear infinite'
+        shimmer: 'shimmer 1.4s linear infinite',
+        'flip-in': 'flip-in 320ms cubic-bezier(0.2, 0.7, 0.3, 1)'
       }
     }
   },

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Bell, CalendarPlus, Clock, FileText, Play, Plus, Square, Trash2 } from 'lucide-react'
+import { Bell, CalendarPlus, Check, Clock, FileText, Pencil, Play, Plus, Square, Trash2, X } from 'lucide-react'
 import type { TaskDetail } from '@shared/types/domain'
 import { Badge, EmptyState } from '../ui/Feedback'
 import { Button, IconButton } from '../ui/Button'
@@ -10,7 +10,7 @@ import { api } from '../../lib/ipc'
 import { useAppStore } from '../../stores/appStore'
 import { useTaskStore } from '../../stores/taskStore'
 import { useNoteStore } from '../../stores/noteStore'
-import { formatDateTime, formatMinutes, addDays, formatDay, todayKey } from '../../lib/utils'
+import { formatDateTime, formatMinutes, addDays, formatDay, fromDatetimeLocal, todayKey } from '../../lib/utils'
 
 export interface PanelProps {
   detail: TaskDetail
@@ -68,26 +68,164 @@ export function SchedulePanel({ detail, onRefresh }: PanelProps): JSX.Element {
   )
 }
 
-export function ReminderPanel({ detail }: PanelProps): JSX.Element {
+/** 提醒面板：支持在此实时新建、修改、删除提醒（修改后自动重置为待提醒） */
+export function ReminderPanel({ detail, onRefresh }: PanelProps): JSX.Element {
+  const pushToast = useAppStore((state) => state.pushToast)
+  const [addOpen, setAddOpen] = useState(false)
+  const [addAt, setAddAt] = useState('')
+  const [editingId, setEditingId] = useState<number | null>(null)
+  const [editAt, setEditAt] = useState('')
+
+  const task = detail.task
   const withReminder = detail.schedules.filter((event) => event.reminderAt)
+
+  const create = async (): Promise<void> => {
+    const iso = fromDatetimeLocal(addAt)
+    if (!iso) {
+      pushToast({ title: '请选择提醒时间', tone: 'warning' })
+      return
+    }
+    await api.schedule.create({
+      taskId: task.id,
+      title: `提醒：${task.title}`,
+      type: 'reminder',
+      startAt: iso,
+      endAt: iso,
+      reminderAt: iso
+    })
+    setAddOpen(false)
+    setAddAt('')
+    await onRefresh()
+    pushToast({ title: '提醒已创建', description: formatDateTime(iso), tone: 'success' })
+  }
+
+  const saveEdit = async (id: number): Promise<void> => {
+    const iso = fromDatetimeLocal(editAt)
+    if (!iso) {
+      pushToast({ title: '请选择有效的提醒时间', tone: 'warning' })
+      return
+    }
+    await api.schedule.update(id, { startAt: iso, endAt: iso, reminderAt: iso })
+    setEditingId(null)
+    await onRefresh()
+    pushToast({ title: '提醒时间已更新', description: `${formatDateTime(iso)} · 将重新提醒`, tone: 'success' })
+  }
+
+  const remove = async (id: number): Promise<void> => {
+    await api.schedule.remove(id)
+    await onRefresh()
+    pushToast({ title: '提醒已删除', tone: 'success' })
+  }
+
   return (
-    <div className="grid gap-2">
+    <div className="grid gap-3">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-[11px] text-muted-foreground">到点会弹出系统通知，可在此实时新建或调整提醒时间</p>
+        {addOpen ? (
+          <Button size="sm" variant="ghost" icon={<X className="h-3.5 w-3.5" />} onClick={() => setAddOpen(false)}>
+            取消
+          </Button>
+        ) : (
+          <Button size="sm" variant="primary" icon={<Plus className="h-3.5 w-3.5" />} onClick={() => setAddOpen(true)}>
+            新建提醒
+          </Button>
+        )}
+      </div>
+
+      {addOpen ? (
+        <div className="grid gap-3 rounded-xl border border-primary/40 bg-primary/5 p-3">
+          <Field label="提醒时间" required>
+            <Input type="datetime-local" value={addAt} onChange={(event) => setAddAt(event.target.value)} />
+          </Field>
+          <div className="flex justify-end gap-2">
+            <Button size="sm" variant="ghost" onClick={() => setAddOpen(false)}>
+              取消
+            </Button>
+            <Button size="sm" variant="primary" icon={<Check className="h-3.5 w-3.5" />} onClick={() => void create()}>
+              创建提醒
+            </Button>
+          </div>
+        </div>
+      ) : null}
+
       {withReminder.length === 0 ? (
-        <EmptyState icon={<Bell className="h-5 w-5" />} title="没有设置提醒" description="排入日程时会按设置中的提前量自动创建提醒" />
+        <EmptyState
+          icon={<Bell className="h-5 w-5" />}
+          title="没有设置提醒"
+          description="点击「新建提醒」实时添加，排入日程时也会按提前量自动创建"
+        />
       ) : (
         withReminder.map((event) => (
-          <div key={event.id} className="flex items-center gap-3 rounded-xl border border-border/70 bg-muted/25 p-3">
-            <Bell className={event.reminded ? 'h-3.5 w-3.5 text-muted-foreground' : 'h-3.5 w-3.5 text-warning'} />
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-xs text-foreground">{event.title}</p>
-              <p className="mt-0.5 text-[11px] text-muted-foreground">提醒时间：{formatDateTime(event.reminderAt)}</p>
+          <div key={event.id} className="rounded-xl border border-border/70 bg-muted/25 p-3">
+            <div className="flex items-center gap-3">
+              <Bell className={event.reminded ? 'h-3.5 w-3.5 shrink-0 text-muted-foreground' : 'h-3.5 w-3.5 shrink-0 text-warning'} />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-xs text-foreground">{event.title}</p>
+                {editingId === event.id ? (
+                  <p className="mt-0.5 text-[11px] text-muted-foreground">修改提醒时间</p>
+                ) : (
+                  <p className="mt-0.5 text-[11px] text-muted-foreground">提醒时间：{formatDateTime(event.reminderAt)}</p>
+                )}
+              </div>
+              {editingId === event.id ? null : (
+                <Badge tone={event.reminded ? 'default' : 'warning'}>{event.reminded ? '已提醒' : '待提醒'}</Badge>
+              )}
+              <div className="flex shrink-0 items-center gap-1">
+                {editingId === event.id ? (
+                  <>
+                    <IconButton label="保存" onClick={() => void saveEdit(event.id)}>
+                      <Check className="h-3.5 w-3.5 text-success" />
+                    </IconButton>
+                    <IconButton label="取消" onClick={() => setEditingId(null)}>
+                      <X className="h-3.5 w-3.5" />
+                    </IconButton>
+                  </>
+                ) : (
+                  <>
+                    <IconButton
+                      label="修改提醒时间"
+                      onClick={() => {
+                        setEditingId(event.id)
+                        setEditAt(toDatetimeLocalValue(event.reminderAt))
+                      }}
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </IconButton>
+                    <IconButton label="删除提醒" tone="danger" onClick={() => void remove(event.id)}>
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </IconButton>
+                  </>
+                )}
+              </div>
             </div>
-            <Badge tone={event.reminded ? 'default' : 'warning'}>{event.reminded ? '已提醒' : '待提醒'}</Badge>
+
+            {editingId === event.id ? (
+              <div className="mt-2.5 flex items-center gap-2">
+                <input
+                  autoFocus
+                  type="datetime-local"
+                  value={editAt}
+                  onChange={(e) => setEditAt(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') void saveEdit(event.id)
+                    if (e.key === 'Escape') setEditingId(null)
+                  }}
+                  className="h-8 flex-1 rounded-lg border border-border bg-input/60 px-2 text-xs text-foreground focus:outline-none"
+                />
+                <Button size="sm" variant="primary" icon={<Check className="h-3.5 w-3.5" />} onClick={() => void saveEdit(event.id)}>
+                  保存
+                </Button>
+              </div>
+            ) : null}
           </div>
         ))
       )}
     </div>
   )
+}
+
+function toDatetimeLocalValue(value: string | null): string {
+  return (value ?? '').slice(0, 16)
 }
 
 export function NotesPanel({ detail, onRefresh }: PanelProps): JSX.Element {

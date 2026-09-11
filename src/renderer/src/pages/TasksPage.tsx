@@ -65,6 +65,20 @@ function clockText(date: Date): string {
   return `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
 }
 
+/** 翻页时钟数字：字符变化时以翻页动画重新挂载 */
+function FlipDigit({ char }: { char: string }): JSX.Element {
+  if (!/\d/.test(char)) {
+    return <span className="px-0.5 text-muted-foreground">{char}</span>
+  }
+  return (
+    <span className="inline-block [perspective:320px]">
+      <span key={char} className="inline-block origin-center animate-flip-in">
+        {char}
+      </span>
+    </span>
+  )
+}
+
 export function TasksPage(): JSX.Element {
   const location = useLocation()
   const navigate = useNavigate()
@@ -253,18 +267,16 @@ export function TasksPage(): JSX.Element {
   const statusCount = (key: TaskStatus | 'all'): number =>
     key === 'all' ? tasks.length : tasks.filter((task) => task.status === key).length
 
-  /** 搜索输入即时候选：按标题 / 说明 / 标签模糊匹配 */
+  /** 搜索输入即时候选：按标题 / 说明 / 标签模糊匹配，列出全部匹配项 */
   const suggestions = useMemo(() => {
     const keyword = keywordDraft.trim().toLowerCase()
     if (keyword === '') return []
-    return tasks
-      .filter(
-        (task) =>
-          task.title.toLowerCase().includes(keyword) ||
-          task.detail.toLowerCase().includes(keyword) ||
-          task.tags.some((tag) => tag.toLowerCase().includes(keyword))
-      )
-      .slice(0, 6)
+    return tasks.filter(
+      (task) =>
+        task.title.toLowerCase().includes(keyword) ||
+        task.detail.toLowerCase().includes(keyword) ||
+        task.tags.some((tag) => tag.toLowerCase().includes(keyword))
+    )
   }, [tasks, keywordDraft])
 
   const viewTabs: { key: PageView; label: string; icon: JSX.Element }[] = [
@@ -293,12 +305,12 @@ export function TasksPage(): JSX.Element {
 
           <div className="text-right">
             <p className="text-[10px] uppercase tracking-widest text-muted-foreground">当前时间</p>
-            <p className="mt-1 text-4xl font-bold leading-tight tabular-nums tracking-tight text-foreground">
-              {clockText(now)}
-            </p>
-            <p className="mt-1 text-[11px] text-muted-foreground">
-              {now.getFullYear()}/{String(now.getMonth() + 1).padStart(2, '0')}/
-              {String(now.getDate()).padStart(2, '0')} · {weekdayCN(dateKey(now))}
+            <p className="mt-1 flex items-baseline justify-end text-5xl font-bold leading-tight tabular-nums tracking-tight text-foreground">
+              {clockText(now)
+                .split('')
+                .map((char, index) => (
+                  <FlipDigit key={`${index}-${char}`} char={char} />
+                ))}
             </p>
           </div>
         </div>
@@ -342,8 +354,8 @@ export function TasksPage(): JSX.Element {
               ) : null}
 
               {suggestOpen && keywordDraft.trim() !== '' && suggestions.length > 0 ? (
-                <div className="absolute left-0 right-0 top-10 z-40 overflow-hidden rounded-xl border border-border/80 bg-surface/95 shadow-2xl backdrop-blur-xl animate-scale-in">
-                  <p className="border-b border-border/60 px-3 py-1.5 text-[10px] uppercase tracking-widest text-muted-foreground">
+                <div className="absolute left-0 right-0 top-10 z-40 max-h-[360px] overflow-y-auto rounded-xl border border-border/80 bg-surface/95 shadow-2xl backdrop-blur-xl animate-scale-in">
+                  <p className="sticky top-0 border-b border-border/60 bg-surface/95 px-3 py-1.5 text-[10px] uppercase tracking-widest text-muted-foreground">
                     候选任务 · {suggestions.length}
                   </p>
                   {suggestions.map((task) => (

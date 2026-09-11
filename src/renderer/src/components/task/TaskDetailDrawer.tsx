@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Bell, CalendarDays, Clock, FileText, Layers, Trash2 } from 'lucide-react'
-import type { TaskStatus } from '@shared/types/domain'
+import { Bell, CalendarDays, Check, Clock, FileText, Layers, Pencil, Plus, Trash2, X } from 'lucide-react'
+import type { Task, TaskInput, TaskStatus } from '@shared/types/domain'
 import { Drawer, ConfirmDialog } from '../ui/Overlay'
 import { Tabs } from '../ui/Tabs'
 import { Badge, Progress, Spinner } from '../ui/Feedback'
@@ -11,11 +11,233 @@ import { TaskForm } from './TaskForm'
 import { useTaskStore } from '../../stores/taskStore'
 import { useAppStore } from '../../stores/appStore'
 import { TASK_STATUS_META } from '@shared/constants'
-import { fromDatetimeLocal, formatMinutes, toDatetimeLocal } from '../../lib/utils'
+import { cn, fromDatetimeLocal, formatMinutes, toDatetimeLocal } from '../../lib/utils'
 
 type TabKey = 'schedule' | 'reminder' | 'notes' | 'focus' | 'review'
 
 const STATUS_OPTIONS: TaskStatus[] = ['todo', 'doing', 'blocked', 'done']
+
+interface EditableTagRowProps {
+  task: Task
+  dueReviewCount: number
+  onPatch: (payload: Partial<TaskInput>) => Promise<void>
+  onJump: (tab: TabKey) => void
+}
+
+/** 详情抽屉的 tag 行：状态/类型/预计耗时/标签可直接点击修改，统计 tag 点击跳转对应页签 */
+function EditableTagRow({ task, dueReviewCount, onPatch, onJump }: EditableTagRowProps): JSX.Element {
+  const pushToast = useAppStore((state) => state.pushToast)
+  const [statusMenu, setStatusMenu] = useState(false)
+  const [editingEstimate, setEditingEstimate] = useState(false)
+  const [estimateDraft, setEstimateDraft] = useState('')
+  const [editingTag, setEditingTag] = useState<string | null>(null)
+  const [tagDraft, setTagDraft] = useState('')
+  const [addingTag, setAddingTag] = useState(false)
+
+  const saveTags = async (tags: string[]): Promise<void> => {
+    const unique = Array.from(new Set(tags.map((tag) => tag.trim()).filter(Boolean)))
+    await onPatch({ tags: unique })
+    pushToast({ title: '标签已更新', tone: 'success' })
+  }
+
+  const commitEstimate = async (): Promise<void> => {
+    const minutes = Math.max(0, Math.round(Number(estimateDraft)))
+    setEditingEstimate(false)
+    if (!Number.isFinite(minutes) || minutes === task.estimateMinutes) return
+    await onPatch({ estimateMinutes: minutes })
+    pushToast({ title: `预计耗时已更新为 ${formatMinutes(minutes)}`, tone: 'success' })
+  }
+
+  const commitTag = async (original: string): Promise<void> => {
+    const next = tagDraft.trim()
+    setEditingTag(null)
+    if (next === original) return
+    if (next === '') {
+      await saveTags(task.tags.filter((tag) => tag !== original))
+      return
+    }
+    await saveTags(task.tags.map((tag) => (tag === original ? next : tag)))
+  }
+
+  const addTag = async (): Promise<void> => {
+    const next = tagDraft.trim()
+    setAddingTag(false)
+    setTagDraft('')
+    if (next === '' || task.tags.includes(next)) return
+    await saveTags([...task.tags, next])
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      {/* 状态：点击弹出菜单直接修改 */}
+      <span className="relative inline-flex">
+        <button
+          type="button"
+          title="点击修改状态"
+          onClick={() => setStatusMenu((value) => !value)}
+          className="inline-flex items-center gap-1 rounded-full border border-primary/40 bg-primary/15 px-2 py-0.5 text-[11px] font-medium leading-none text-[#A5B4FC] transition-colors hover:bg-primary/25"
+        >
+          {TASK_STATUS_META[task.status].label}
+          <Pencil className="h-2.5 w-2.5 opacity-70" />
+        </button>
+        {statusMenu ? (
+          <>
+            <button type="button" aria-label="关闭" className="fixed inset-0 z-40 cursor-default" onClick={() => setStatusMenu(false)} />
+            <span className="absolute left-0 top-7 z-50 flex w-32 flex-col overflow-hidden rounded-xl border border-border/80 bg-surface/95 shadow-2xl backdrop-blur-xl animate-scale-in">
+              {STATUS_OPTIONS.map((status) => (
+                <button
+                  key={status}
+                  type="button"
+                  onClick={() => {
+                    setStatusMenu(false)
+                    if (status !== task.status) void onPatch({ status })
+                  }}
+                  className={cn(
+                    'flex items-center justify-between px-3 py-1.5 text-left text-[11px] transition-colors hover:bg-muted/60',
+                    status === task.status ? 'text-[#A5B4FC]' : 'text-foreground'
+                  )}
+                >
+                  {TASK_STATUS_META[status].label}
+                  {status === task.status ? <Check className="h-3 w-3" /> : null}
+                </button>
+              ))}
+            </span>
+          </>
+        ) : null}
+      </span>
+
+      {/* 事项类型：点击直接切换 优先/普通 */}
+      <button
+        type="button"
+        title="点击切换优先事项"
+        onClick={() => void onPatch({ isPriority: !task.isPriority })}
+        className={cn(
+          'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium leading-none transition-colors',
+          task.isPriority
+            ? 'border-danger/40 bg-danger/15 text-[#FCA5A5] hover:bg-danger/25'
+            : 'border-border bg-muted text-muted-foreground hover:text-foreground'
+        )}
+      >
+        {task.isPriority ? '优先事项' : '普通事项'}
+        <Pencil className="h-2.5 w-2.5 opacity-70" />
+      </button>
+
+      {/* 预计耗时：点击内联编辑 */}
+      {editingEstimate ? (
+        <input
+          autoFocus
+          type="number"
+          min={0}
+          step={5}
+          value={estimateDraft}
+          onChange={(event) => setEstimateDraft(event.target.value)}
+          onBlur={() => void commitEstimate()}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') void commitEstimate()
+            if (event.key === 'Escape') setEditingEstimate(false)
+          }}
+          className="h-6 w-24 rounded-full border border-info/60 bg-background/70 px-2 text-[11px] text-foreground focus:outline-none"
+        />
+      ) : (
+        <button
+          type="button"
+          title="点击修改预计耗时"
+          onClick={() => {
+            setEstimateDraft(String(task.estimateMinutes))
+            setEditingEstimate(true)
+          }}
+          className="inline-flex items-center gap-1 rounded-full border border-info/40 bg-info/15 px-2 py-0.5 text-[11px] font-medium leading-none text-[#67E8F9] transition-colors hover:bg-info/25"
+        >
+          预计 {formatMinutes(task.estimateMinutes)}
+          <Pencil className="h-2.5 w-2.5 opacity-70" />
+        </button>
+      )}
+
+      {/* 统计 tag：点击跳转对应页签 */}
+      <button type="button" onClick={() => onJump('focus')} title="查看专注记录" className="transition-opacity hover:opacity-80">
+        <Badge tone="success">已投入 {formatMinutes(task.focusMinutes ?? 0)}</Badge>
+      </button>
+      <button type="button" onClick={() => onJump('notes')} title="查看笔记资料" className="transition-opacity hover:opacity-80">
+        <Badge tone="default">笔记 {task.noteCount ?? 0}</Badge>
+      </button>
+      <button type="button" onClick={() => onJump('schedule')} title="查看日程" className="transition-opacity hover:opacity-80">
+        <Badge tone="default">日程 {task.scheduleCount ?? 0}</Badge>
+      </button>
+      <button type="button" onClick={() => onJump('review')} title="查看复习" className="transition-opacity hover:opacity-80">
+        <Badge tone={dueReviewCount > 0 ? 'danger' : 'default'}>待复习 {dueReviewCount}</Badge>
+      </button>
+
+      {/* 标签：点击编辑文本，悬停可删除 */}
+      {task.tags.map((tag) =>
+        editingTag === tag ? (
+          <input
+            key={tag}
+            autoFocus
+            value={tagDraft}
+            onChange={(event) => setTagDraft(event.target.value)}
+            onBlur={() => void commitTag(tag)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') void commitTag(tag)
+              if (event.key === 'Escape') setEditingTag(null)
+            }}
+            className="h-6 w-24 rounded-full border border-warning/60 bg-background/70 px-2 text-[11px] text-foreground focus:outline-none"
+          />
+        ) : (
+          <span key={tag} className="group/tag relative inline-flex items-center">
+            <button
+              type="button"
+              title="点击编辑标签"
+              onClick={() => {
+                setEditingTag(tag)
+                setTagDraft(tag)
+              }}
+              className="inline-flex items-center rounded-full border border-warning/40 bg-warning/15 px-2 py-0.5 text-[11px] font-medium leading-none text-[#FCD34D] transition-colors hover:bg-warning/25"
+            >
+              #{tag}
+            </button>
+            <button
+              type="button"
+              title="删除标签"
+              aria-label={`删除标签 ${tag}`}
+              onClick={() => void saveTags(task.tags.filter((item) => item !== tag))}
+              className="absolute -right-1.5 -top-1.5 hidden h-3.5 w-3.5 items-center justify-center rounded-full border border-danger/50 bg-surface text-danger group-hover/tag:flex"
+            >
+              <X className="h-2 w-2" />
+            </button>
+          </span>
+        )
+      )}
+
+      {addingTag ? (
+        <input
+          autoFocus
+          value={tagDraft}
+          placeholder="新标签"
+          onChange={(event) => setTagDraft(event.target.value)}
+          onBlur={() => void addTag()}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') void addTag()
+            if (event.key === 'Escape') setAddingTag(false)
+          }}
+          className="h-6 w-24 rounded-full border border-warning/60 bg-background/70 px-2 text-[11px] text-foreground focus:outline-none"
+        />
+      ) : (
+        <button
+          type="button"
+          title="添加标签"
+          onClick={() => {
+            setTagDraft('')
+            setAddingTag(true)
+          }}
+          className="inline-flex items-center gap-0.5 rounded-full border border-dashed border-border px-2 py-0.5 text-[11px] text-muted-foreground transition-colors hover:border-warning/60 hover:text-foreground"
+        >
+          <Plus className="h-2.5 w-2.5" />
+          标签
+        </button>
+      )}
+    </div>
+  )
+}
 
 export function TaskDetailDrawer(): JSX.Element | null {
   const detail = useTaskStore((state) => state.detail)
@@ -134,20 +356,12 @@ export function TaskDetailDrawer(): JSX.Element | null {
 
               <Progress value={task.progress} tone={task.status === 'done' ? 'success' : 'primary'} />
 
-              <div className="flex flex-wrap items-center gap-1.5">
-                <Badge tone="primary">{TASK_STATUS_META[task.status].label}</Badge>
-                {task.isPriority ? <Badge tone="danger">优先事项</Badge> : null}
-                <Badge tone="info">预计 {formatMinutes(task.estimateMinutes)}</Badge>
-                <Badge tone="success">已投入 {formatMinutes(task.focusMinutes ?? 0)}</Badge>
-                <Badge tone="default">笔记 {task.noteCount ?? 0}</Badge>
-                <Badge tone="default">日程 {task.scheduleCount ?? 0}</Badge>
-                <Badge tone={dueReviewCount > 0 ? 'danger' : 'default'}>待复习 {dueReviewCount}</Badge>
-                {task.tags.map((tag) => (
-                  <Badge key={tag} tone="warning">
-                    #{tag}
-                  </Badge>
-                ))}
-              </div>
+              <EditableTagRow
+                task={task}
+                dueReviewCount={dueReviewCount}
+                onPatch={patch}
+                onJump={(next) => setTab(next)}
+              />
 
               {task.detail ? <p className="text-xs leading-relaxed text-muted-foreground">{task.detail}</p> : null}
             </div>

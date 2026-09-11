@@ -30,12 +30,20 @@ export function RecycleBinModal({ open, onClose }: { open: boolean; onClose: () 
   const purgeTask = useTaskStore((state) => state.purgeTask)
   const pushToast = useAppStore((state) => state.pushToast)
   const settings = useAppStore((state) => state.settings)
+  const updateSettings = useAppStore((state) => state.updateSettings)
 
   const [loading, setLoading] = useState(false)
   const [purgeTarget, setPurgeTarget] = useState<number | null>(null)
   const [clearAsk, setClearAsk] = useState(false)
 
   const retentionDays = settings?.recycleBinDays ?? 7
+
+  /** 回收站内直接切换保留时长（一天 / 一周 / 一个月） */
+  const changeRetention = async (days: number): Promise<void> => {
+    if (days === retentionDays) return
+    await updateSettings({ recycleBinDays: days })
+    pushToast({ title: '保留时长已更新', description: `删除的任务将保留 ${RETENTION_LABEL[days] ?? `${days} 天`}`, tone: 'success' })
+  }
 
   useEffect(() => {
     if (!open) return
@@ -82,6 +90,28 @@ export function RecycleBinModal({ open, onClose }: { open: boolean; onClose: () 
           </>
         }
       >
+        <div className="mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-border/70 bg-muted/25 p-3">
+          <span className="text-[11px] font-medium text-muted-foreground">保留时长</span>
+          <div className="flex items-center gap-1">
+            {[1, 7, 30].map((days) => (
+              <button
+                key={days}
+                type="button"
+                onClick={() => void changeRetention(days)}
+                className={cn(
+                  'rounded-lg border px-2.5 py-1 text-[11px] font-medium transition-all',
+                  retentionDays === days
+                    ? 'border-primary/60 bg-primary/15 text-[#A5B4FC]'
+                    : 'border-border bg-muted/40 text-muted-foreground hover:text-foreground'
+                )}
+              >
+                {RETENTION_LABEL[days]}
+              </button>
+            ))}
+          </div>
+          <span className="text-[10px] text-muted-foreground/80">到期后自动彻底删除，也可在此手动清理</span>
+        </div>
+
         {loading ? (
           <div className="flex h-32 items-center justify-center gap-2 text-muted-foreground">
             <Spinner />
