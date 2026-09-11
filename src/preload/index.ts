@@ -1,0 +1,137 @@
+import { contextBridge, ipcRenderer } from 'electron'
+import { IPC_EVENTS } from '@shared/types/ipc'
+import type { ReminderPayload, WorkstationApi } from '@shared/types/ipc'
+import type {
+  AppSettings,
+  DailyReport,
+  DailyStats,
+  DependencyStatus,
+  FocusSession,
+  Note,
+  NoteInput,
+  OverviewData,
+  ProcrastinationItem,
+  Project,
+  ProjectInput,
+  ProjectTime,
+  ReviewItem,
+  ReviewRating,
+  ScheduleEvent,
+  ScheduleInput,
+  SearchHit,
+  Task,
+  TaskDetail,
+  TaskFilter,
+  TaskInput,
+  ToolManifest,
+  ToolRunRecord,
+  ToolRunResult,
+  TrendPoint
+} from '@shared/types/domain'
+
+interface IpcEnvelope<T> {
+  ok: boolean
+  data?: T
+  error?: string
+}
+
+async function invoke<T>(channel: string, ...args: unknown[]): Promise<T> {
+  const envelope = (await ipcRenderer.invoke(channel, ...args)) as IpcEnvelope<T>
+  if (!envelope || envelope.ok !== true) {
+    throw new Error(envelope?.error ?? `调用 ${channel} 失败`)
+  }
+  return envelope.data as T
+}
+
+function subscribe<T>(channel: string, callback: (payload: T) => void): () => void {
+  const listener = (_event: Electron.IpcRendererEvent, payload: T): void => callback(payload)
+  ipcRenderer.on(channel, listener)
+  return () => {
+    ipcRenderer.removeListener(channel, listener)
+  }
+}
+
+const api: WorkstationApi = {
+  app: {
+    getSettings: () => invoke<AppSettings>('app:get-settings'),
+    updateSettings: (patch) => invoke<AppSettings>('app:update-settings', patch),
+    getOverview: () => invoke<OverviewData>('app:overview'),
+    getDataDir: () => invoke<string>('app:data-dir'),
+    openPath: (target) => invoke<boolean>('app:open-path', target),
+    showItemInFolder: (target) => invoke<boolean>('app:show-item', target),
+    pickPath: (mode) => invoke<string | null>('app:pick-path', mode),
+    checkDependencies: (force?: boolean) => invoke<DependencyStatus[]>('app:check-deps', force),
+    exportReport: (date) => invoke<{ path: string; content: string }>('app:export-report', date),
+    seedDemo: () => invoke<{ created: boolean }>('app:seed-demo')
+  },
+  project: {
+    list: () => invoke<Project[]>('project:list'),
+    save: (input: ProjectInput) => invoke<Project>('project:save', input),
+    remove: (id: number) => invoke<void>('project:remove', id)
+  },
+  task: {
+    list: (filter?: TaskFilter) => invoke<Task[]>('task:list', filter),
+    get: (id: number) => invoke<TaskDetail>('task:get', id),
+    create: (input: TaskInput) => invoke<Task>('task:create', input),
+    update: (id: number, patch: Partial<TaskInput>) => invoke<Task>('task:update', id, patch),
+    remove: (id: number) => invoke<void>('task:remove', id),
+    toggle: (id: number) => invoke<Task>('task:toggle', id)
+  },
+  note: {
+    list: (taskId?: number | null) => invoke<Note[]>('note:list', taskId ?? null),
+    get: (id: number) => invoke<Note>('note:get', id),
+    save: (input: NoteInput) => invoke<Note>('note:save', input),
+    remove: (id: number) => invoke<void>('note:remove', id)
+  },
+  schedule: {
+    range: (from: string, to: string) => invoke<ScheduleEvent[]>('schedule:range', from, to),
+    create: (input: ScheduleInput) => invoke<ScheduleEvent>('schedule:create', input),
+    update: (id: number, patch: Partial<ScheduleInput>) => invoke<ScheduleEvent>('schedule:update', id, patch),
+    remove: (id: number) => invoke<void>('schedule:remove', id),
+    planTask: (taskId: number, startAt: string, minutes: number) =>
+      invoke<ScheduleEvent>('schedule:plan-task', taskId, startAt, minutes),
+    enqueueReviews: (date: string) => invoke<number>('schedule:enqueue-reviews', date),
+    deferReviews: () => invoke<number>('schedule:defer-reviews'),
+    pendingTasks: () => invoke<Task[]>('schedule:pending-tasks')
+  },
+  review: {
+    due: (date?: string) => invoke<ReviewItem[]>('review:due', date),
+    list: () => invoke<ReviewItem[]>('review:list'),
+    grade: (id: number, rating: ReviewRating) => invoke<ReviewItem>('review:grade', id, rating),
+    plan: (id: number, date: string) => invoke<ScheduleEvent>('review:plan', id, date)
+  },
+  focus: {
+    start: (taskId: number | null, note?: string) => invoke<FocusSession>('focus:start', taskId, note),
+    stop: (id: number) => invoke<FocusSession>('focus:stop', id),
+    active: () => invoke<FocusSession | null>('focus:active'),
+    listByTask: (taskId: number) => invoke<FocusSession[]>('focus:list-by-task', taskId),
+    listRange: (from: string, to: string) => invoke<FocusSession[]>('focus:list-range', from, to)
+  },
+  tool: {
+    list: () => invoke<ToolManifest[]>('tool:list'),
+    toggle: (id: string, enabled: boolean) => invoke<void>('tool:toggle', id, enabled),
+    run: (id: string, payload: Record<string, unknown>) => invoke<ToolRunResult>('tool:run', id, payload),
+    history: (limit?: number) => invoke<ToolRunRecord[]>('tool:history', limit),
+    remove: (id: string) => invoke<void>('tool:remove', id),
+    restoreBuiltins: () => invoke<ToolManifest[]>('tool:restore')
+  },
+  stats: {
+    daily: (date: string) => invoke<DailyStats>('stats:daily', date),
+    trend: (from: string, to: string) => invoke<TrendPoint[]>('stats:trend', from, to),
+    byProject: (from: string, to: string) => invoke<ProjectTime[]>('stats:by-project', from, to),
+    procrastination: () => invoke<ProcrastinationItem[]>('stats:procrastination'),
+    report: (date: string) => invoke<DailyReport>('stats:report', date),
+    reportMarkdown: (date: string) => invoke<string>('stats:report-markdown', date)
+  },
+  search: {
+    query: (keyword: string, limit?: number) => invoke<SearchHit[]>('search:query', keyword, limit)
+  },
+  onReminder: (callback: (payload: ReminderPayload) => void) => subscribe<ReminderPayload>(IPC_EVENTS.reminder, callback),
+  onDataChanged: (callback: (scope: string) => void) => subscribe<string>(IPC_EVENTS.dataChanged, callback)
+}
+
+contextBridge.exposeInMainWorld('api', api)
+contextBridge.exposeInMainWorld('__workstationEvents', {
+  reviewAutoScheduled: (callback: (payload: { date: string; count: number }) => void) =>
+    subscribe<{ date: string; count: number }>(IPC_EVENTS.reviewAutoScheduled, callback)
+})

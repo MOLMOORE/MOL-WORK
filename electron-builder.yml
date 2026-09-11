@@ -1,0 +1,37 @@
+appId: com.workstation.personal
+productName: 个人工作站
+copyright: Copyright © 2026 Personal Workstation
+
+directories:
+  buildResources: build
+  output: release
+
+# 本应用无原生模块（数据库使用 Electron 内置 node:sqlite），跳过依赖重建可显著加快打包
+npmRebuild: false
+
+files:
+  - out/**/*
+  - package.json
+  - '!**/*.map'
+
+# Playwright 需要以真实文件形式存在于磁盘上（asar 内无法定位驱动与浏览器）
+asarUnpack:
+  - '**/node_modules/playwright/**'
+  - '**/node_modules/playwright-core/**'
+
+win:
+  # 应用图标：将 1024x1024 的 build/icon.png 放入后即可自动转换为 .ico（当前使用 Electron 默认图标）
+  artifactName: PersonalWorkstation-Setup-${version}.${ext}
+  target:
+    - target: nsis
+      arch:
+        - x64
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: 个人工作站
+  deleteAppDataOnUninstall: false

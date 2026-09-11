@@ -1,0 +1,133 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 222 47% 7%;
+    --surface: 222 33% 11%;
+    --card: 222 28% 15%;
+    --border: 222 20% 24%;
+    --input: 222 24% 20%;
+    --ring: 239 84% 67%;
+    --foreground: 210 40% 98%;
+    --muted: 222 24% 18%;
+    --muted-foreground: 215 20% 68%;
+    --primary: 239 84% 67%;
+    --primary-foreground: 0 0% 100%;
+    --accent: 262 83% 58%;
+    --accent-foreground: 0 0% 100%;
+    --success: 142 71% 45%;
+    --warning: 38 92% 50%;
+    --danger: 0 84% 60%;
+    --info: 187 92% 69%;
+  }
+
+  [data-theme='light'] {
+    --background: 220 33% 97%;
+    --surface: 0 0% 100%;
+    --card: 0 0% 100%;
+    --border: 220 16% 86%;
+    --input: 220 20% 94%;
+    --ring: 239 84% 60%;
+    --foreground: 222 47% 11%;
+    --muted: 220 20% 94%;
+    --muted-foreground: 220 12% 42%;
+    --primary: 239 84% 60%;
+    --primary-foreground: 0 0% 100%;
+    --accent: 262 76% 55%;
+    --accent-foreground: 0 0% 100%;
+    --success: 142 66% 38%;
+    --warning: 32 92% 44%;
+    --danger: 0 76% 52%;
+    --info: 194 78% 40%;
+  }
+
+  * {
+    border-color: hsl(var(--border));
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: Inter, 'PingFang SC', 'Microsoft YaHei', system-ui, -apple-system, sans-serif;
+    overflow: hidden;
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: hsl(var(--border));
+    border-radius: 999px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--muted-foreground) / 0.6);
+    background-clip: content-box;
+  }
+
+  input,
+  textarea,
+  select,
+  button {
+    font: inherit;
+  }
+
+  input:focus,
+  textarea:focus,
+  select:focus {
+    outline: none;
+  }
+
+  ::selection {
+    background: hsl(var(--primary) / 0.35);
+  }
+}
+
+@layer components {
+  .glass-card {
+    @apply rounded-2xl border border-border/70 bg-card/70 shadow-card backdrop-blur-xl transition-all duration-200;
+  }
+
+  .glass-card-hover {
+    @apply glass-card hover:-translate-y-0.5 hover:border-primary/50 hover:shadow-glow;
+  }
+
+  .gradient-text {
+    @apply bg-gradient-to-r from-[#6366F1] via-[#7C3AED] to-[#22D3EE] bg-clip-text text-transparent;
+  }
+
+  .field-base {
+    @apply w-full rounded-xl border border-border bg-input/60 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/70 transition-all duration-150 focus:border-primary/70 focus:bg-input focus:ring-2 focus:ring-primary/25 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .page-enter {
+    animation: fade-in 240ms ease-out;
+  }
+
+  .aurora {
+    background:
+      radial-gradient(900px 420px at 12% -10%, hsl(var(--primary) / 0.22), transparent 60%),
+      radial-gradient(700px 380px at 88% 0%, hsl(var(--accent) / 0.18), transparent 62%),
+      radial-gradient(600px 320px at 60% 110%, hsl(var(--info) / 0.12), transparent 65%);
+  }
+
+  .grid-overlay {
+    background-image:
+      linear-gradient(hsl(var(--border) / 0.35) 1px, transparent 1px),
+      linear-gradient(90deg, hsl(var(--border) / 0.35) 1px, transparent 1px);
+    background-size: 44px 44px;
+    mask-image: radial-gradient(circle at 30% 20%, black, transparent 75%);
+  }
+}
