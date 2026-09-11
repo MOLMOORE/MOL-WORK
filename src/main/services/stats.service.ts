@@ -231,7 +231,7 @@ export function trend(fromKey: string, toKey: string): TrendPoint[] {
 export function procrastination(): ProcrastinationItem[] {
   const today = todayKey()
   const rows = all<TaskRow>(
-    `${TASK_SELECT_FOR_STATS} WHERE t.status <> 'done' ORDER BY t.priority ASC, t.due_at ASC`
+    `${TASK_SELECT_FOR_STATS} WHERE t.status <> 'done' ORDER BY t.is_priority DESC, t.sort_order ASC, t.due_at ASC`
   ).map(mapTask)
 
   const items: ProcrastinationItem[] = []

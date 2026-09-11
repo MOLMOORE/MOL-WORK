@@ -66,6 +66,12 @@ export interface WorkstationApi {
     update(id: number, patch: Partial<TaskInput>): Promise<Task>
     remove(id: number): Promise<void>
     toggle(id: number): Promise<Task>
+    /** 拖拽到指定日期 */
+    move(id: number, dayKey: string): Promise<Task>
+    /** 重排同一日期内的任务顺序 */
+    reorder(orderedIds: number[]): Promise<void>
+    /** 截止时间已到的待办（用于弹窗警示） */
+    due(referenceIso?: string): Promise<Task[]>
   }
   note: {
     list(taskId?: number | null): Promise<Note[]>
@@ -95,6 +101,8 @@ export interface WorkstationApi {
     active(): Promise<FocusSession | null>
     listByTask(taskId: number): Promise<FocusSession[]>
     listRange(from: string, to: string): Promise<FocusSession[]>
+    /** 记录一段已完成的专注（番茄钟） */
+    log(taskId: number | null, minutes: number, note?: string): Promise<FocusSession>
   }
   tool: {
     list(): Promise<ToolManifest[]>

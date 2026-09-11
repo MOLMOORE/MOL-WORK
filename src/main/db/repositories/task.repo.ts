@@ -21,7 +21,8 @@ LEFT JOIN projects p ON p.id = t.project_id
 const ORDER_CLAUSE = `
 ORDER BY
   CASE t.status WHEN 'done' THEN 3 WHEN 'blocked' THEN 2 WHEN 'doing' THEN 1 ELSE 0 END,
-  t.priority ASC,
+  t.is_priority DESC,
+  t.sort_order ASC,
   COALESCE(t.due_at, '9999-12-31T00:00:00') ASC,
   t.id DESC
 `
@@ -48,6 +49,9 @@ export function listTasks(filter: TaskFilter = {}): Task[] {
     conditions.push("t.due_at IS NOT NULL AND t.due_at < ? AND t.status <> 'done'")
     params.push(now)
   }
+  if (filter.onlyPriority) {
+    conditions.push('t.is_priority = 1')
+  }
   if (filter.dueWithinDays !== undefined) {
     conditions.push('t.due_at IS NOT NULL AND t.due_at <= ?')
     params.push(endOfDay(addDays(new Date(), filter.dueWithinDays)))
@@ -64,6 +68,51 @@ export function listTasks(filter: TaskFilter = {}): Task[] {
   return rows.map(mapTask)
 }
 
+/** 全局递增排序权重，保证新建任务默认追加在列表末尾 */
+export function nextSortOrder(): number {
+  const row = all<{ v: number | null }>('SELECT MAX(sort_order) AS v FROM tasks')[0]
+  return (row && row.v !== null ? Number(row.v) : 0) + 1
+}
+
+/** 截止时间已到且未完成的待办，用于到点弹窗警示 */
+export function listDueTasks(referenceIso: string, limit = 50): Task[] {
+  return all<TaskRow>(
+    `${TASK_SELECT} WHERE t.due_at IS NOT NULL AND t.due_at <= ? AND t.status <> 'done'
+     ORDER BY t.due_at ASC LIMIT ?`,
+    nowIso(),
+    referenceIso,
+    limit
+  ).map(mapTask)
+}
+
+/**
+ * 把任务移动到指定日期：保留原有时间点，仅替换日期部分；
+ * 无截止时间时默认 09:00。移动后置于目标日期末尾。
+ */
+export function moveTaskToDay(id: number, dayKey: string): Task {
+  const current = getTask(id)
+  if (!current) throw new Error(`任务不存在：${id}`)
+  const timePart = current.dueAt && current.dueAt.length >= 16 ? current.dueAt.slice(11, 19) : '09:00:00'
+  const dueAt = `${dayKey}T${timePart}`
+  run(
+    'UPDATE tasks SET due_at = ?, sort_order = ?, updated_at = ? WHERE id = ?',
+    dueAt,
+    nextSortOrder(),
+    nowIso(),
+    id
+  )
+  syncSearch(id)
+  return getTask(id) as Task
+}
+
+/** 按给定顺序重写某一日期内任务的排列权重 */
+export function reorderTasks(orderedIds: number[]): void {
+  const timestamp = nowIso()
+  orderedIds.forEach((taskId, index) => {
+    run('UPDATE tasks SET sort_order = ?, updated_at = ? WHERE id = ?', index, timestamp, taskId)
+  })
+}
+
 export function getTask(id: number): Task | undefined {
   const row = all<TaskRow>(`${TASK_SELECT} WHERE t.id = ?`, nowIso(), id)[0]
   return row ? mapTask(row) : undefined
@@ -72,13 +121,14 @@ export function getTask(id: number): Task | undefined {
 export function createTask(input: TaskInput): Task {
   const timestamp = nowIso()
   const id = insert(
-    `INSERT INTO tasks (project_id, title, detail, status, priority, progress, due_at, estimate_minutes, tags, created_at, updated_at, completed_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO tasks (project_id, title, detail, status, is_priority, sort_order, progress, due_at, estimate_minutes, tags, created_at, updated_at, completed_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     input.projectId ?? null,
     input.title.trim(),
     input.detail ?? '',
     input.status ?? 'todo',
-    input.priority ?? 2,
+    input.isPriority ? 1 : 0,
+    input.sortOrder ?? nextSortOrder(),
     input.progress ?? 0,
     input.dueAt ?? null,
     input.estimateMinutes ?? 0,
@@ -117,9 +167,13 @@ export function updateTask(id: number, patch: Partial<TaskInput>): Task {
       params.push(100)
     }
   }
-  if (patch.priority !== undefined) {
-    fields.push('priority = ?')
-    params.push(patch.priority)
+  if (patch.isPriority !== undefined) {
+    fields.push('is_priority = ?')
+    params.push(patch.isPriority ? 1 : 0)
+  }
+  if (patch.sortOrder !== undefined) {
+    fields.push('sort_order = ?')
+    params.push(patch.sortOrder)
   }
   if (patch.progress !== undefined) {
     fields.push('progress = ?')
@@ -182,7 +236,7 @@ export function syncSearch(id: number): void {
     refId: id,
     title: task.title,
     body: `${task.detail} ${task.tags.join(' ')}`,
-    meta: `${task.projectName ?? '未归属'} · ${task.status} · 优先级${task.priority}`
+    meta: `${task.projectName ?? '未归属'} · ${task.status} · ${task.isPriority ? '优先事项' : '普通事项'}`
   })
 }
 

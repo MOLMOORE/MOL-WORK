@@ -1,5 +1,8 @@
 import type { ToolDefinition } from './types'
-import { convertTool } from './runners/convert.runner'
+import { imageConvertTool } from './runners/image-convert.runner'
+import { audioConvertTool } from './runners/audio-convert.runner'
+import { videoConvertTool } from './runners/video-convert.runner'
+import { docConvertTool } from './runners/doc-convert.runner'
 import { downloadTool } from './runners/download.runner'
 import { extractTool } from './runners/extract.runner'
 import { unitConvertTool } from './runners/unit-convert.runner'
@@ -11,7 +14,10 @@ import { flashcardTool } from './runners/flashcard.runner'
  * 无需改动任何核心代码。
  */
 const DEFINITIONS: ToolDefinition[] = [
-  convertTool,
+  imageConvertTool,
+  audioConvertTool,
+  videoConvertTool,
+  docConvertTool,
   downloadTool,
   extractTool,
   unitConvertTool,

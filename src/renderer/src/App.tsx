@@ -3,7 +3,7 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import { AppLayout } from './components/layout/AppLayout'
 import { DashboardPage } from './pages/DashboardPage'
 import { TasksPage } from './pages/TasksPage'
-import { CalendarPage } from './pages/CalendarPage'
+import { PomodoroPage } from './pages/PomodoroPage'
 import { NotesPage } from './pages/NotesPage'
 import { ToolsPage } from './pages/ToolsPage'
 import { StatsPage } from './pages/StatsPage'
@@ -36,7 +36,8 @@ export default function App(): JSX.Element {
       <Route element={<AppLayout />}>
         <Route path="/" element={<DashboardPage />} />
         <Route path="/tasks" element={<TasksPage />} />
-        <Route path="/calendar" element={<CalendarPage />} />
+        <Route path="/calendar" element={<Navigate to="/tasks" replace />} />
+        <Route path="/pomodoro" element={<PomodoroPage />} />
         <Route path="/notes" element={<NotesPage />} />
         <Route path="/tools" element={<ToolsPage />} />
         <Route path="/stats" element={<StatsPage />} />

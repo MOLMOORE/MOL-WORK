@@ -1,10 +1,13 @@
 import {
+  AudioLines,
   CircuitBoard,
   Download,
+  FileText,
+  Image,
   Layers,
-  Repeat2,
   Ruler,
   ScanText,
+  Video,
   Wrench,
   type LucideIcon
 } from 'lucide-react'
@@ -12,7 +15,10 @@ import { cn } from '../../lib/utils'
 
 /** manifest.icon 字符串 → 图标组件；新增工具只需在此登记图标名 */
 const REGISTRY: Record<string, LucideIcon> = {
-  Repeat2,
+  Image,
+  AudioLines,
+  Video,
+  FileText,
   Download,
   ScanText,
   Ruler,

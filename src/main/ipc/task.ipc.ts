@@ -9,7 +9,10 @@ import {
 import {
   createTaskService,
   deleteTask,
+  dueTasksService,
   listTaskService,
+  moveTaskService,
+  reorderTaskService,
   taskDetail,
   toggleTask,
   updateTaskService
@@ -56,4 +59,17 @@ export function registerTaskIpc(): void {
     notifyDataChanged('tasks')
     return task
   })
+
+  handle<Task>('task:move', (id: number, dayKey: string) => {
+    const task = moveTaskService(id, dayKey)
+    notifyDataChanged('tasks')
+    return task
+  })
+
+  handle<void>('task:reorder', (orderedIds: number[]) => {
+    reorderTaskService(orderedIds)
+    notifyDataChanged('tasks')
+  })
+
+  handle<Task[]>('task:due', (referenceIso?: string) => dueTasksService(referenceIso))
 }

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Bell, CalendarDays, Clock, FileText, Layers, Trash2 } from 'lucide-react'
-import type { Priority, TaskStatus } from '@shared/types/domain'
+import type { TaskStatus } from '@shared/types/domain'
 import { Drawer, ConfirmDialog } from '../ui/Overlay'
 import { Tabs } from '../ui/Tabs'
 import { Badge, Progress, Spinner } from '../ui/Feedback'
@@ -101,11 +101,13 @@ export function TaskDetailDrawer(): JSX.Element | null {
                     ))}
                   </Select>
                 </Field>
-                <Field label="优先级">
-                  <Select value={String(task.priority)} onChange={(event) => void patch({ priority: Number(event.target.value) as Priority })}>
-                    <option value="1">高</option>
-                    <option value="2">中</option>
-                    <option value="3">低</option>
+                <Field label="事项类型">
+                  <Select
+                    value={task.isPriority ? 'priority' : 'normal'}
+                    onChange={(event) => void patch({ isPriority: event.target.value === 'priority' })}
+                  >
+                    <option value="normal">普通事项</option>
+                    <option value="priority">优先事项</option>
                   </Select>
                 </Field>
                 <Field label="截止时间">
@@ -133,6 +135,7 @@ export function TaskDetailDrawer(): JSX.Element | null {
 
               <div className="flex flex-wrap items-center gap-1.5">
                 <Badge tone="primary">{TASK_STATUS_META[task.status].label}</Badge>
+                {task.isPriority ? <Badge tone="danger">优先事项</Badge> : null}
                 <Badge tone="info">预计 {formatMinutes(task.estimateMinutes)}</Badge>
                 <Badge tone="success">已投入 {formatMinutes(task.focusMinutes ?? 0)}</Badge>
                 <Badge tone="default">笔记 {task.noteCount ?? 0}</Badge>

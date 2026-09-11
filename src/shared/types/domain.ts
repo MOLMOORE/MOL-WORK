@@ -1,16 +1,17 @@
 // 领域模型：三层（任务中枢 / 工具集 / 统计复盘）共用的类型定义
 
 export type TaskStatus = 'todo' | 'doing' | 'blocked' | 'done'
-export type Priority = 1 | 2 | 3
 export type ProjectKind = 'course' | 'project'
 export type NoteKind = 'note' | 'material' | 'flashcard'
 export type EventType = 'task' | 'review' | 'reminder' | 'focus'
 export type ReviewStatus = 'active' | 'suspended' | 'mastered'
 /** 0=重来 1=困难 2=一般 3=简单 */
 export type ReviewRating = 0 | 1 | 2 | 3
-export type ToolCategory = 'convert' | 'download' | 'extract' | 'calc' | 'flashcard'
+export type ToolCategory = 'image' | 'audio' | 'video' | 'doc' | 'download' | 'extract' | 'calc' | 'flashcard'
 export type DependencyId = 'pandoc' | 'ffmpeg' | 'yt-dlp' | 'playwright'
-export type ThemeMode = 'dark' | 'light'
+export type ThemeMode = 'dark' | 'light' | 'system'
+export type FontSize = 'sm' | 'md' | 'lg' | 'xl'
+export type PomodoroPhase = 'focus' | 'shortBreak' | 'longBreak'
 
 export interface Project {
   id: number
@@ -42,7 +43,10 @@ export interface Task {
   title: string
   detail: string
   status: TaskStatus
-  priority: Priority
+  /** 优先事项：日程中红标显示 */
+  isPriority: boolean
+  /** 同一日期内的排序权重，越小越靠前 */
+  sortOrder: number
   progress: number
   dueAt: string | null
   estimateMinutes: number
@@ -62,7 +66,8 @@ export interface TaskInput {
   title: string
   detail?: string
   status?: TaskStatus
-  priority?: Priority
+  isPriority?: boolean
+  sortOrder?: number
   progress?: number
   dueAt?: string | null
   estimateMinutes?: number
@@ -75,6 +80,7 @@ export interface TaskFilter {
   keyword?: string
   dueWithinDays?: number
   onlyOverdue?: boolean
+  onlyPriority?: boolean
   limit?: number
 }
 
@@ -332,6 +338,7 @@ export interface OverviewData {
 
 export interface AppSettings {
   theme: ThemeMode
+  fontSize: FontSize
   userName: string
   reviewAlgorithm: 'sm2' | 'ebbinghaus'
   dailyReviewLimit: number
@@ -341,5 +348,15 @@ export interface AppSettings {
   workStartHour: number
   workEndHour: number
   defaultFocusMinutes: number
+  /** 番茄钟：短休息时长（分钟） */
+  pomodoroShortMinutes: number
+  /** 番茄钟：长休息时长（分钟） */
+  pomodoroLongMinutes: number
+  /** 番茄钟：每完成多少个专注进入一次长休息 */
+  pomodoroRoundsPerLong: number
+  /** 番茄钟：专注结束后自动进入休息 */
+  pomodoroAutoStartNext: boolean
+  /** 番茄钟：结束时声音提醒 */
+  pomodoroSound: boolean
   dataDir: string
 }

@@ -30,6 +30,28 @@ export function stopFocus(id: number): FocusSession {
   return getFocus(id) as FocusSession
 }
 
+/** 直接记录一段已完成的专注（番茄钟结束调用），无需先开再关 */
+export function logFocus(taskId: number | null, minutes: number, note = '', endedAt = nowIso()): FocusSession {
+  const safeMinutes = Math.max(1, Math.round(minutes))
+  const startedAt = new Date(new Date(endedAt.replace(' ', 'T')).getTime() - safeMinutes * 60000)
+  const started = Number.isNaN(startedAt.getTime())
+    ? endedAt
+    : `${startedAt.getFullYear()}-${String(startedAt.getMonth() + 1).padStart(2, '0')}-${String(startedAt.getDate()).padStart(2, '0')}T${String(
+        startedAt.getHours()
+      ).padStart(2, '0')}:${String(startedAt.getMinutes()).padStart(2, '0')}:${String(startedAt.getSeconds()).padStart(2, '0')}`
+  const id = insert(
+    `INSERT INTO focus_sessions (task_id, started_at, ended_at, duration_minutes, note, created_at)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    taskId,
+    started,
+    endedAt,
+    safeMinutes,
+    note,
+    nowIso()
+  )
+  return getFocus(id) as FocusSession
+}
+
 export function getFocus(id: number): FocusSession | undefined {
   const row = all<FocusRow>(`${FOCUS_SELECT} WHERE f.id = ?`, id)[0]
   return row ? mapFocus(row) : undefined

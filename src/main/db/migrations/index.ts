@@ -1,6 +1,7 @@
 import type { DatabaseSync } from 'node:sqlite'
 import { logger } from '../../utils/logger'
 import { INIT_SQL } from './001_init'
+import { TASK_PRIORITY_ORDER_SQL } from './002_task_priority_order'
 
 export interface Migration {
   version: number
@@ -8,7 +9,10 @@ export interface Migration {
   sql: string
 }
 
-export const migrations: Migration[] = [{ version: 1, name: 'init', sql: INIT_SQL }]
+export const migrations: Migration[] = [
+  { version: 1, name: 'init', sql: INIT_SQL },
+  { version: 2, name: 'task-priority-order', sql: TASK_PRIORITY_ORDER_SQL }
+]
 
 /**
  * 基于 PRAGMA user_version 的顺序迁移执行器。

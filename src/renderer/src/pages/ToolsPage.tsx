@@ -28,7 +28,7 @@ import { useAppStore } from '../stores/appStore'
 import { formatDateTime, formatDurationMs, formatMinutes, todayKey } from '../lib/utils'
 import { api } from '../lib/ipc'
 
-const CATEGORY_ORDER: ToolCategory[] = ['convert', 'download', 'extract', 'calc', 'flashcard']
+const CATEGORY_ORDER: ToolCategory[] = ['image', 'audio', 'video', 'doc', 'download', 'extract', 'calc', 'flashcard']
 
 export function ToolsPage(): JSX.Element {
   const tools = useToolStore((state) => state.tools)
@@ -113,7 +113,8 @@ export function ToolsPage(): JSX.Element {
             <h2 className="mt-3 text-lg font-semibold tracking-tight text-foreground">可插拔工具集</h2>
             <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
               清单一经注册，表单、依赖检测、执行与运行记录全部自动生效。当前共 {tools.length} 个工具，
-              其中 4 个接入真实外部引擎（Pandoc / FFmpeg / yt-dlp / Playwright），每次执行都会记录操作内容、耗时与结果存放位置。
+              其中图片转换、音频转换、视频转换、文档转换已按格式类别独立拆分（FFmpeg / Pandoc），
+              每次执行都会记录操作内容、耗时与结果存放位置。
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">

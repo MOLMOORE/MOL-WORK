@@ -8,6 +8,7 @@ import {
   Flame,
   ListChecks,
   NotebookPen,
+  Star,
   Timer,
   TriangleAlert
 } from 'lucide-react'
@@ -20,7 +21,7 @@ import { useAppStore } from '../stores/appStore'
 import { useTaskStore } from '../stores/taskStore'
 import { useScheduleStore } from '../stores/scheduleStore'
 import { api } from '../lib/ipc'
-import { TASK_STATUS_META, PRIORITY_META } from '@shared/constants'
+import { TASK_STATUS_META } from '@shared/constants'
 import { addDays, formatDay, formatDateTime, formatMinutes, relativeDay, todayKey } from '../lib/utils'
 
 export function DashboardPage(): JSX.Element {
@@ -121,7 +122,7 @@ export function DashboardPage(): JSX.Element {
         <Card>
           <SectionHeader
             title="今日任务"
-            description="按优先级与截止时间排序，可直接勾选完成"
+            description="优先事项置顶，按截止时间排序，可直接勾选完成"
             action={
               <Button variant="ghost" size="sm" icon={<ArrowRight className="h-3.5 w-3.5" />} onClick={() => navigate('/tasks')}>
                 全部任务
@@ -160,9 +161,12 @@ export function DashboardPage(): JSX.Element {
                       <p className="truncate text-xs font-medium text-foreground">{task.title}</p>
                       <div className="mt-1 flex flex-wrap items-center gap-1.5">
                         <Badge tone="default">{statusMeta.label}</Badge>
-                        <Badge tone={task.priority === 1 ? 'danger' : task.priority === 2 ? 'warning' : 'info'}>
-                          {PRIORITY_META[task.priority].label}优先级
-                        </Badge>
+                        {task.isPriority ? (
+                          <Badge tone="danger">
+                            <Star className="h-2.5 w-2.5 fill-current" />
+                            优先事项
+                          </Badge>
+                        ) : null}
                         {task.projectName ? <Badge tone="primary">{task.projectName}</Badge> : null}
                         <Badge tone={task.dueAt && task.dueAt < todayKey() ? 'danger' : 'default'}>
                           <CalendarClock className="h-2.5 w-2.5" />

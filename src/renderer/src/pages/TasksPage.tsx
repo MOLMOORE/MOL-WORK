@@ -2,14 +2,18 @@ import { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import {
   CalendarClock,
+  CalendarDays,
+  CalendarRange,
   CheckCircle2,
-  Columns3,
+  ChevronLeft,
+  ChevronRight,
   Filter,
+  List,
   ListChecks,
   Pencil,
   Plus,
-  Rows3,
   Search,
+  Star,
   Timer
 } from 'lucide-react'
 import type { Task, TaskStatus } from '@shared/types/domain'
@@ -20,10 +24,26 @@ import { Input, Select } from '../components/ui/Field'
 import { Tabs } from '../components/ui/Tabs'
 import { TaskForm } from '../components/task/TaskForm'
 import { TaskDetailDrawer } from '../components/task/TaskDetailDrawer'
+import { ScheduleBoard, type BoardView } from '../components/task/ScheduleBoard'
+import { ReviewQueue } from '../components/review/ReviewQueue'
 import { useTaskStore } from '../stores/taskStore'
+import { useScheduleStore } from '../stores/scheduleStore'
 import { useAppStore } from '../stores/appStore'
-import { PRIORITY_META, TASK_STATUS_META } from '@shared/constants'
-import { cn, formatMinutes, isOverdue, relativeDay } from '../lib/utils'
+import { TASK_STATUS_META } from '@shared/constants'
+import {
+  addDays,
+  cn,
+  dateKey,
+  formatMinutes,
+  isOverdue,
+  relativeDay,
+  toDate,
+  todayKey,
+  weekdayCN,
+  formatDateCN
+} from '../lib/utils'
+
+type PageView = BoardView | 'list'
 
 const STATUS_TABS: { key: TaskStatus | 'all'; label: string }[] = [
   { key: 'all', label: '全部' },
@@ -40,18 +60,23 @@ export function TasksPage(): JSX.Element {
     tasks,
     projects,
     filter,
-    view,
     loading,
     load,
     setFilter,
-    setView,
     openDetail,
-    toggleTask
+    toggleTask,
+    moveTask,
+    reorderTasks
   } = useTaskStore()
   const refreshOverview = useAppStore((state) => state.refreshOverview)
+  const pushToast = useAppStore((state) => state.pushToast)
 
+  const [view, setView] = useState<PageView>('day')
+  const [anchor, setAnchor] = useState(() => new Date())
+  const [selectedDay, setSelectedDay] = useState(() => todayKey())
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState<Task | null>(null)
+  const [defaultDue, setDefaultDue] = useState<string | null>(null)
   const [keywordDraft, setKeywordDraft] = useState(filter.keyword)
 
   useEffect(() => {
@@ -73,109 +98,176 @@ export function TasksPage(): JSX.Element {
     return map
   }, [tasks])
 
+  const today = todayKey()
+  const priorityCount = tasks.filter((task) => task.isPriority && task.status !== 'done').length
+  const doneCount = tasks.filter((task) => task.status === 'done').length
+
   const onToggle = async (task: Task): Promise<void> => {
     await toggleTask(task.id)
     await refreshOverview()
   }
 
+  const openCreate = (dayKey?: string): void => {
+    setEditing(null)
+    setDefaultDue(dayKey ? `${dayKey}T09:00:00` : null)
+    setFormOpen(true)
+  }
+
+  const shift = (direction: number): void => {
+    if (view === 'month') {
+      setAnchor((current) => new Date(current.getFullYear(), current.getMonth() + direction, 1))
+      return
+    }
+    const step = view === 'week' ? 7 : view === 'day' ? 1 : 0
+    if (step === 0) return
+    const next = addDays(toDate(selectedDay), direction * step)
+    setSelectedDay(dateKey(next))
+    setAnchor(next)
+  }
+
+  const gotoToday = (): void => {
+    setSelectedDay(today)
+    setAnchor(new Date())
+  }
+
+  const pickDay = (dayKey: string): void => {
+    setSelectedDay(dayKey)
+    setAnchor(toDate(dayKey))
+  }
+
+  const handleMove = async (id: number, dayKey: string): Promise<void> => {
+    await moveTask(id, dayKey)
+    await refreshOverview()
+    pushToast({ title: `已移动到 ${dayKey}`, description: relativeDay(`${dayKey}T09:00:00`), tone: 'success' })
+  }
+
+  const handleReorder = async (orderedIds: number[]): Promise<void> => {
+    await reorderTasks(orderedIds)
+  }
+
   const statusCount = (key: TaskStatus | 'all'): number =>
     key === 'all' ? tasks.length : tasks.filter((task) => task.status === key).length
+
+  const viewTabs: { key: PageView; label: string; icon: JSX.Element }[] = [
+    { key: 'day', label: '当日', icon: <CalendarClock className="h-3 w-3" /> },
+    { key: 'week', label: '本周', icon: <CalendarDays className="h-3 w-3" /> },
+    { key: 'month', label: '本月', icon: <CalendarRange className="h-3 w-3" /> },
+    { key: 'list', label: '清单', icon: <List className="h-3 w-3" /> }
+  ]
 
   return (
     <div className="grid gap-5">
       <Card>
-        <SectionHeader
-          title="筛选与视图"
-          description="按项目、状态、截止情况组合筛选任务"
-          action={
-            <>
-              <Tabs
-                size="sm"
-                value={view}
-                onChange={(key) => setView(key as 'list' | 'board')}
-                items={[
-                  { key: 'list', label: '列表', icon: <Rows3 className="h-3 w-3" /> },
-                  { key: 'board', label: '看板', icon: <Columns3 className="h-3 w-3" /> }
-                ]}
-              />
-              <Button
-                variant="primary"
-                size="sm"
-                icon={<Plus className="h-3.5 w-3.5" />}
-                onClick={() => {
-                  setEditing(null)
-                  setFormOpen(true)
-                }}
-              >
-                新建任务
-              </Button>
-            </>
-          }
-        />
-
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex h-9 min-w-[240px] flex-1 items-center gap-2 rounded-xl border border-border bg-input/60 px-3">
-            <Search className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-            <input
-              value={keywordDraft}
-              onChange={(event) => setKeywordDraft(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter') void setFilter({ keyword: keywordDraft })
-              }}
-              placeholder="搜索任务标题、说明或标签，回车生效"
-              className="h-full flex-1 border-0 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/70 focus:outline-none"
-            />
-            {keywordDraft ? (
-              <button
-                type="button"
-                onClick={() => {
-                  setKeywordDraft('')
-                  void setFilter({ keyword: '' })
-                }}
-                className="text-[11px] text-muted-foreground hover:text-foreground"
-              >
-                清空
-              </button>
-            ) : null}
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <p className="text-[10px] uppercase tracking-widest text-muted-foreground">今日</p>
+            <h2 className="mt-1 text-2xl font-semibold tracking-tight text-foreground">
+              {formatDateCN(today)}
+              <span className="ml-2 text-sm font-normal text-muted-foreground">{weekdayCN(today)}</span>
+            </h2>
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              共 {tasks.length} 项事项 · 优先事项 {priorityCount} 项 · 已完成 {doneCount} 项
+            </p>
           </div>
 
-          <Select
-            value={filter.projectId === null ? '' : String(filter.projectId)}
-            onChange={(event) => void setFilter({ projectId: event.target.value === '' ? null : Number(event.target.value) })}
-            className="w-[190px]"
-          >
-            <option value="">全部项目 / 课程</option>
-            {projects.map((project) => (
-              <option key={project.id} value={project.id}>
-                {project.name}
-              </option>
-            ))}
-          </Select>
-
-          <Button
-            variant={filter.onlyOverdue ? 'primary' : 'secondary'}
-            size="md"
-            icon={<Filter className="h-3.5 w-3.5" />}
-            onClick={() => void setFilter({ onlyOverdue: !filter.onlyOverdue })}
-          >
-            仅看逾期
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <IconButton label="上一页" onClick={() => shift(-1)}>
+              <ChevronLeft className="h-4 w-4" />
+            </IconButton>
+            <Button size="sm" variant="secondary" onClick={gotoToday}>
+              今天
+            </Button>
+            <IconButton label="下一页" onClick={() => shift(1)}>
+              <ChevronRight className="h-4 w-4" />
+            </IconButton>
+            <Input
+              type="date"
+              value={selectedDay}
+              onChange={(event) => event.target.value && pickDay(event.target.value)}
+              className="w-[150px]"
+            />
+            <Button
+              variant="primary"
+              size="sm"
+              icon={<Plus className="h-3.5 w-3.5" />}
+              onClick={() => openCreate(view === 'day' ? selectedDay : undefined)}
+            >
+              新建任务
+            </Button>
+          </div>
         </div>
 
-        <div className="mt-3">
-          <Tabs
-            size="sm"
-            value={filter.status}
-            onChange={(key) => void setFilter({ status: key as TaskStatus | 'all' })}
-            items={STATUS_TABS.map((tab) => ({ key: tab.key, label: tab.label, count: statusCount(tab.key) }))}
-          />
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+          <Tabs size="sm" value={view} onChange={(key) => setView(key as PageView)} items={viewTabs} />
+
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex h-9 min-w-[220px] flex-1 items-center gap-2 rounded-xl border border-border bg-input/60 px-3">
+              <Search className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+              <input
+                value={keywordDraft}
+                onChange={(event) => setKeywordDraft(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') void setFilter({ keyword: keywordDraft })
+                }}
+                placeholder="搜索任务，回车生效"
+                className="h-full flex-1 border-0 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/70 focus:outline-none"
+              />
+              {keywordDraft ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setKeywordDraft('')
+                    void setFilter({ keyword: '' })
+                  }}
+                  className="text-[11px] text-muted-foreground hover:text-foreground"
+                >
+                  清空
+                </button>
+              ) : null}
+            </div>
+
+            <Select
+              value={filter.projectId === null ? '' : String(filter.projectId)}
+              onChange={(event) =>
+                void setFilter({ projectId: event.target.value === '' ? null : Number(event.target.value) })
+              }
+              className="w-[180px]"
+            >
+              <option value="">全部项目 / 课程</option>
+              {projects.map((project) => (
+                <option key={project.id} value={project.id}>
+                  {project.name}
+                </option>
+              ))}
+            </Select>
+
+            <Button
+              variant={filter.onlyOverdue ? 'primary' : 'secondary'}
+              size="md"
+              icon={<Filter className="h-3.5 w-3.5" />}
+              onClick={() => void setFilter({ onlyOverdue: !filter.onlyOverdue })}
+            >
+              仅看逾期
+            </Button>
+          </div>
         </div>
+
+        {view === 'list' ? (
+          <div className="mt-3">
+            <Tabs
+              size="sm"
+              value={filter.status}
+              onChange={(key) => void setFilter({ status: key as TaskStatus | 'all' })}
+              items={STATUS_TABS.map((tab) => ({ key: tab.key, label: tab.label, count: statusCount(tab.key) }))}
+            />
+          </div>
+        ) : null}
       </Card>
 
-      {loading ? (
+      {loading && tasks.length === 0 ? (
         <div className="grid gap-3">
           {[0, 1, 2, 3].map((key) => (
-            <Skeleton key={key} className="h-[86px]" />
+            <Skeleton key={key} className="h-[120px]" />
           ))}
         </div>
       ) : view === 'list' ? (
@@ -186,15 +278,7 @@ export function TasksPage(): JSX.Element {
               title="没有符合条件的任务"
               description="调整筛选条件，或新建一个任务开始规划"
               action={
-                <Button
-                  variant="primary"
-                  size="sm"
-                  icon={<Plus className="h-3.5 w-3.5" />}
-                  onClick={() => {
-                    setEditing(null)
-                    setFormOpen(true)
-                  }}
-                >
+                <Button variant="primary" size="sm" icon={<Plus className="h-3.5 w-3.5" />} onClick={() => openCreate()}>
                   新建任务
                 </Button>
               }
@@ -209,6 +293,7 @@ export function TasksPage(): JSX.Element {
                   onOpen={() => void openDetail(task.id)}
                   onEdit={() => {
                     setEditing(task)
+                    setDefaultDue(null)
                     setFormOpen(true)
                   }}
                 />
@@ -217,51 +302,32 @@ export function TasksPage(): JSX.Element {
           )}
         </Card>
       ) : (
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-4">
-          {(['todo', 'doing', 'blocked', 'done'] as TaskStatus[]).map((status) => {
-            const list = grouped.get(status) ?? []
-            return (
-              <Card key={status} className="min-h-[220px]">
-                <div className="mb-3 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span
-                      className="h-2 w-2 rounded-full"
-                      style={{ background: TASK_STATUS_META[status].color }}
-                    />
-                    <p className="text-xs font-semibold text-foreground">{TASK_STATUS_META[status].label}</p>
-                  </div>
-                  <Badge tone="default">{list.length}</Badge>
-                </div>
-                <div className="flex flex-col gap-2">
-                  {list.length === 0 ? (
-                    <p className="rounded-xl border border-dashed border-border px-3 py-6 text-center text-[11px] text-muted-foreground">
-                      暂无任务
-                    </p>
-                  ) : (
-                    list.map((task) => (
-                      <button
-                        key={task.id}
-                        type="button"
-                        onClick={() => void openDetail(task.id)}
-                        className="glass-card-hover p-3 text-left"
-                      >
-                        <p className="truncate text-xs font-medium text-foreground">{task.title}</p>
-                        <div className="mt-1.5 flex flex-wrap items-center gap-1">
-                          <Badge tone={task.priority === 1 ? 'danger' : task.priority === 2 ? 'warning' : 'info'}>
-                            {PRIORITY_META[task.priority].label}
-                          </Badge>
-                          {task.projectName ? <Badge tone="primary">{task.projectName}</Badge> : null}
-                          <Badge tone={isOverdue(task.dueAt) ? 'danger' : 'default'}>{relativeDay(task.dueAt)}</Badge>
-                        </div>
-                        {task.progress > 0 ? <Progress value={task.progress} className="mt-2" tone="success" /> : null}
-                      </button>
-                    ))
-                  )}
-                </div>
-              </Card>
-            )
-          })}
-        </div>
+        <>
+          <Card>
+            <SectionHeader
+              title={
+                view === 'day'
+                  ? `${formatDateCN(selectedDay)} · ${weekdayCN(selectedDay)}`
+                  : view === 'week'
+                    ? '本周日程'
+                    : '本月日程'
+              }
+              description="拖拽卡片可在任意日期之间移动，同一日期内拖动可自由排序；优先事项以红色标识"
+            />
+            <ScheduleBoard
+              view={view}
+              anchor={anchor}
+              selectedDay={selectedDay}
+              tasks={tasks}
+              onMove={handleMove}
+              onReorder={handleReorder}
+              onOpen={(task) => void openDetail(task.id)}
+              onCreateAt={(dayKey) => openCreate(dayKey)}
+            />
+          </Card>
+
+          {view === 'day' ? <DayReviewCard day={selectedDay} /> : null}
+        </>
       )}
 
       <TaskForm
@@ -269,12 +335,53 @@ export function TasksPage(): JSX.Element {
         onClose={() => {
           setFormOpen(false)
           setEditing(null)
+          setDefaultDue(null)
         }}
         initial={editing}
         defaultProjectId={filter.projectId}
+        defaultDueAt={defaultDue}
       />
       <TaskDetailDrawer />
     </div>
+  )
+}
+
+function DayReviewCard({ day }: { day: string }): JSX.Element {
+  const reviews = useScheduleStore((state) => state.reviews)
+  const loadReviews = useScheduleStore((state) => state.loadReviews)
+  const gradeReview = useScheduleStore((state) => state.gradeReview)
+  const planReview = useScheduleStore((state) => state.planReview)
+  const refreshOverview = useAppStore((state) => state.refreshOverview)
+  const pushToast = useAppStore((state) => state.pushToast)
+
+  useEffect(() => {
+    void loadReviews()
+  }, [loadReviews])
+
+  const due = reviews.filter((item) => item.status === 'active' && item.dueAt <= `${day}T23:59:59`)
+
+  const handleGrade = async (id: number, rating: 0 | 1 | 2 | 3): Promise<void> => {
+    const review = await gradeReview(id, rating)
+    await refreshOverview()
+    pushToast({ title: '复习已评分', description: `下次复习 ${review.dueAt.slice(0, 10)}`, tone: 'success' })
+  }
+
+  const handlePlan = async (id: number): Promise<void> => {
+    await planReview(id, day)
+    pushToast({ title: `已排入 ${day}`, tone: 'info' })
+  }
+
+  return (
+    <Card>
+      <SectionHeader title="当日到期复习" description={`${due.length} 条内容按遗忘曲线到期`} />
+      <ReviewQueue
+        items={due}
+        onGrade={handleGrade}
+        onPlanTomorrow={handlePlan}
+        compact
+        emptyHint="该日期没有到期的复习内容"
+      />
+    </Card>
   )
 }
 
@@ -288,7 +395,12 @@ interface TaskRowProps {
 function TaskRow({ task, onToggle, onOpen, onEdit }: TaskRowProps): JSX.Element {
   const overdue = isOverdue(task.dueAt)
   return (
-    <div className="group flex items-start gap-4 px-5 py-3.5 transition-colors hover:bg-muted/30">
+    <div
+      className={cn(
+        'group flex items-start gap-4 px-5 py-3.5 transition-colors hover:bg-muted/30',
+        task.isPriority && 'border-l-2 border-l-danger bg-danger/5'
+      )}
+    >
       <button
         type="button"
         aria-label="切换完成状态"
@@ -307,15 +419,19 @@ function TaskRow({ task, onToggle, onOpen, onEdit }: TaskRowProps): JSX.Element 
         <div className="flex items-center gap-2">
           <p
             className={cn(
-              'truncate text-sm font-medium text-foreground',
+              'truncate text-sm font-medium',
+              task.isPriority ? 'text-danger' : 'text-foreground',
               task.status === 'done' && 'text-muted-foreground line-through'
             )}
           >
             {task.title}
           </p>
-          <Badge tone={task.priority === 1 ? 'danger' : task.priority === 2 ? 'warning' : 'info'}>
-            {PRIORITY_META[task.priority].label}优先级
-          </Badge>
+          {task.isPriority ? (
+            <Badge tone="danger">
+              <Star className="h-2.5 w-2.5 fill-current" />
+              优先事项
+            </Badge>
+          ) : null}
         </div>
 
         {task.detail ? <p className="mt-1 line-clamp-1 text-[11px] text-muted-foreground">{task.detail}</p> : null}
@@ -341,7 +457,13 @@ function TaskRow({ task, onToggle, onOpen, onEdit }: TaskRowProps): JSX.Element 
           ))}
         </div>
 
-        {task.progress > 0 ? <Progress value={task.progress} className="mt-2.5 max-w-md" tone={task.status === 'done' ? 'success' : 'primary'} /> : null}
+        {task.progress > 0 ? (
+          <Progress
+            value={task.progress}
+            className="mt-2.5 max-w-md"
+            tone={task.status === 'done' ? 'success' : task.isPriority ? 'warning' : 'primary'}
+          />
+        ) : null}
       </button>
 
       <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">

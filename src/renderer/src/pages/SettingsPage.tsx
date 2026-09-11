@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
-import { Cpu, Database, Download, FolderOpen, RefreshCw, Sliders, Sparkles, Terminal } from 'lucide-react'
+import { Cpu, Database, Download, FolderOpen, RefreshCw, Sliders, Sparkles, Terminal, Timer } from 'lucide-react'
 import type { AppSettings } from '@shared/types/domain'
+import { FONT_SIZE_META } from '@shared/constants'
 import { Card, SectionHeader } from '../components/ui/Card'
 import { Badge, Spinner } from '../components/ui/Feedback'
 import { Button } from '../components/ui/Button'
 import { Field, Input, Select, Switch } from '../components/ui/Field'
+import { Tabs } from '../components/ui/Tabs'
 import { useAppStore } from '../stores/appStore'
 import { api } from '../lib/ipc'
 import { todayKey } from '../lib/utils'
@@ -70,12 +72,26 @@ export function SettingsPage(): JSX.Element {
               <Field label="称呼">
                 <Input value={draft.userName} onChange={(event) => void patch({ userName: event.target.value })} />
               </Field>
-              <Field label="主题">
+              <Field label="主题" hint="跟随系统会随操作系统实时切换深浅色">
                 <Select value={draft.theme} onChange={(event) => void patch({ theme: event.target.value as AppSettings['theme'] })}>
                   <option value="dark">深色</option>
                   <option value="light">浅色</option>
+                  <option value="system">跟随系统</option>
                 </Select>
               </Field>
+            </div>
+
+            <div className="grid gap-2 rounded-xl border border-border/70 bg-muted/25 p-3">
+              <p className="text-xs font-medium text-muted-foreground">字体大小</p>
+              <Tabs
+                size="sm"
+                value={draft.fontSize}
+                onChange={(key) => void patch({ fontSize: key as AppSettings['fontSize'] })}
+                items={Object.entries(FONT_SIZE_META).map(([key, meta]) => ({ key, label: meta.label }))}
+              />
+              <p className="text-[11px] text-muted-foreground/80">
+                当前字号 {FONT_SIZE_META[draft.fontSize]?.label ?? '标准'}（根字号 {FONT_SIZE_META[draft.fontSize]?.root ?? '16px'}），界面会立即缩放。
+              </p>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -99,27 +115,15 @@ export function SettingsPage(): JSX.Element {
               </Field>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <Field label="提醒提前量（分钟）">
-                <Input
-                  type="number"
-                  min={0}
-                  max={120}
-                  value={draft.notifyLeadMinutes}
-                  onChange={(event) => void patch({ notifyLeadMinutes: Number(event.target.value) })}
-                />
-              </Field>
-              <Field label="默认专注时长（分钟）">
-                <Input
-                  type="number"
-                  min={5}
-                  max={180}
-                  step={5}
-                  value={draft.defaultFocusMinutes}
-                  onChange={(event) => void patch({ defaultFocusMinutes: Number(event.target.value) })}
-                />
-              </Field>
-            </div>
+            <Field label="提醒提前量（分钟）" hint="日程到点前多久推送系统通知">
+              <Input
+                type="number"
+                min={0}
+                max={120}
+                value={draft.notifyLeadMinutes}
+                onChange={(event) => void patch({ notifyLeadMinutes: Number(event.target.value) })}
+              />
+            </Field>
 
             <div className="grid grid-cols-3 gap-4">
               <Field label="工作时段开始">
@@ -162,6 +166,69 @@ export function SettingsPage(): JSX.Element {
         </Card>
 
         <div className="flex flex-col gap-5">
+          <Card>
+            <SectionHeader
+              title="番茄钟默认参数"
+              description="作为番茄钟页面的初始值，可随时在番茄钟页微调"
+              action={
+                <Badge tone="primary">
+                  <Timer className="mr-1 h-3 w-3" />
+                  专注节奏
+                </Badge>
+              }
+            />
+            <div className="grid grid-cols-2 gap-4">
+              <Field label="专注时长（分钟）">
+                <Input
+                  type="number"
+                  min={1}
+                  max={120}
+                  value={draft.defaultFocusMinutes}
+                  onChange={(event) => void patch({ defaultFocusMinutes: Number(event.target.value) })}
+                />
+              </Field>
+              <Field label="短休息（分钟）">
+                <Input
+                  type="number"
+                  min={1}
+                  max={60}
+                  value={draft.pomodoroShortMinutes}
+                  onChange={(event) => void patch({ pomodoroShortMinutes: Number(event.target.value) })}
+                />
+              </Field>
+              <Field label="长休息（分钟）">
+                <Input
+                  type="number"
+                  min={1}
+                  max={90}
+                  value={draft.pomodoroLongMinutes}
+                  onChange={(event) => void patch({ pomodoroLongMinutes: Number(event.target.value) })}
+                />
+              </Field>
+              <Field label="长休息间隔（个）">
+                <Input
+                  type="number"
+                  min={1}
+                  max={10}
+                  value={draft.pomodoroRoundsPerLong}
+                  onChange={(event) => void patch({ pomodoroRoundsPerLong: Number(event.target.value) })}
+                />
+              </Field>
+            </div>
+            <div className="mt-3 flex flex-col gap-3 rounded-xl border border-border/70 bg-muted/25 p-3">
+              <Switch
+                checked={draft.pomodoroAutoStartNext}
+                onChange={(checked) => void patch({ pomodoroAutoStartNext: checked })}
+                label="阶段结束后自动进入下一阶段"
+              />
+              <Switch
+                checked={draft.pomodoroSound}
+                onChange={(checked) => void patch({ pomodoroSound: checked })}
+                label="阶段结束时播放提示音"
+              />
+            </div>
+          </Card>
+
           <Card>
             <SectionHeader
               title="外部工具依赖"

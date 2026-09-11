@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
-import type { Priority, Task, TaskInput, TaskStatus } from '@shared/types/domain'
+import type { Task, TaskInput, TaskStatus } from '@shared/types/domain'
 import { Button } from '../ui/Button'
-import { Field, Input, Select, Textarea } from '../ui/Field'
+import { Field, Input, Select, Switch, Textarea } from '../ui/Field'
 import { Modal } from '../ui/Overlay'
 import { useTaskStore } from '../../stores/taskStore'
 import { useAppStore } from '../../stores/appStore'
@@ -12,6 +12,7 @@ export interface TaskFormProps {
   onClose: () => void
   initial?: Task | null
   defaultProjectId?: number | null
+  defaultDueAt?: string | null
 }
 
 const STATUS_OPTIONS: { value: TaskStatus; label: string }[] = [
@@ -21,7 +22,7 @@ const STATUS_OPTIONS: { value: TaskStatus; label: string }[] = [
   { value: 'done', label: '已完成' }
 ]
 
-export function TaskForm({ open, onClose, initial, defaultProjectId }: TaskFormProps): JSX.Element | null {
+export function TaskForm({ open, onClose, initial, defaultProjectId, defaultDueAt }: TaskFormProps): JSX.Element | null {
   const projects = useTaskStore((state) => state.projects)
   const createTask = useTaskStore((state) => state.createTask)
   const updateTask = useTaskStore((state) => state.updateTask)
@@ -31,7 +32,7 @@ export function TaskForm({ open, onClose, initial, defaultProjectId }: TaskFormP
   const [detail, setDetail] = useState('')
   const [projectId, setProjectId] = useState<string>('')
   const [status, setStatus] = useState<TaskStatus>('todo')
-  const [priority, setPriority] = useState<Priority>(2)
+  const [isPriority, setIsPriority] = useState(false)
   const [dueAt, setDueAt] = useState('')
   const [estimate, setEstimate] = useState(60)
   const [progress, setProgress] = useState(0)
@@ -45,7 +46,7 @@ export function TaskForm({ open, onClose, initial, defaultProjectId }: TaskFormP
       setDetail(initial.detail)
       setProjectId(initial.projectId === null ? '' : String(initial.projectId))
       setStatus(initial.status)
-      setPriority(initial.priority)
+      setIsPriority(initial.isPriority)
       setDueAt(toDatetimeLocal(initial.dueAt))
       setEstimate(initial.estimateMinutes)
       setProgress(initial.progress)
@@ -55,13 +56,13 @@ export function TaskForm({ open, onClose, initial, defaultProjectId }: TaskFormP
       setDetail('')
       setProjectId(defaultProjectId == null ? '' : String(defaultProjectId))
       setStatus('todo')
-      setPriority(2)
-      setDueAt('')
+      setIsPriority(false)
+      setDueAt(defaultDueAt ? toDatetimeLocal(defaultDueAt) : '')
       setEstimate(60)
       setProgress(0)
       setTags('')
     }
-  }, [open, initial, defaultProjectId])
+  }, [open, initial, defaultProjectId, defaultDueAt])
 
   const submit = async (): Promise<void> => {
     if (title.trim() === '') {
@@ -73,7 +74,7 @@ export function TaskForm({ open, onClose, initial, defaultProjectId }: TaskFormP
       detail,
       projectId: projectId === '' ? null : Number(projectId),
       status,
-      priority,
+      isPriority,
       dueAt: fromDatetimeLocal(dueAt),
       estimateMinutes: estimate,
       progress,
@@ -140,14 +141,16 @@ export function TaskForm({ open, onClose, initial, defaultProjectId }: TaskFormP
         </div>
 
         <div className="grid grid-cols-3 gap-4">
-          <Field label="优先级">
-            <Select value={String(priority)} onChange={(event) => setPriority(Number(event.target.value) as Priority)}>
-              <option value="1">高</option>
-              <option value="2">中</option>
-              <option value="3">低</option>
+          <Field label="事项类型" hint="优先事项在日程中标红">
+            <Select
+              value={isPriority ? 'priority' : 'normal'}
+              onChange={(event) => setIsPriority(event.target.value === 'priority')}
+            >
+              <option value="normal">普通事项</option>
+              <option value="priority">优先事项</option>
             </Select>
           </Field>
-          <Field label="截止时间">
+          <Field label="截止时间" hint="到点会弹窗警示">
             <Input type="datetime-local" value={dueAt} onChange={(event) => setDueAt(event.target.value)} />
           </Field>
           <Field label="预计耗时（分钟）">
@@ -159,6 +162,14 @@ export function TaskForm({ open, onClose, initial, defaultProjectId }: TaskFormP
               onChange={(event) => setEstimate(Number(event.target.value))}
             />
           </Field>
+        </div>
+
+        <div className="rounded-xl border border-border/70 bg-muted/25 p-3">
+          <Switch
+            checked={isPriority}
+            onChange={setIsPriority}
+            label="标记为优先事项（日程与列表中红色高亮）"
+          />
         </div>
 
         <div className="grid grid-cols-2 gap-4">

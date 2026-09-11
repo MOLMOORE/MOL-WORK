@@ -1,8 +1,8 @@
 import type {
   AppSettings,
   DependencyId,
+  FontSize,
   NoteKind,
-  Priority,
   ProjectKind,
   TaskStatus,
   ToolCategory,
@@ -16,10 +16,11 @@ export const TASK_STATUS_META: Record<TaskStatus, { label: string; color: string
   done: { label: '已完成', color: '#22C55E', description: '已经结束的任务' }
 }
 
-export const PRIORITY_META: Record<Priority, { label: string; color: string }> = {
-  1: { label: '高', color: '#EF4444' },
-  2: { label: '中', color: '#F59E0B' },
-  3: { label: '低', color: '#38BDF8' }
+export const FONT_SIZE_META: Record<FontSize, { label: string; root: string }> = {
+  sm: { label: '小', root: '14px' },
+  md: { label: '标准', root: '16px' },
+  lg: { label: '大', root: '18px' },
+  xl: { label: '特大', root: '20px' }
 }
 
 export const PROJECT_KIND_META: Record<ProjectKind, string> = {
@@ -41,11 +42,14 @@ export const EVENT_TYPE_META: Record<EventType, { label: string; color: string }
 }
 
 export const TOOL_CATEGORY_META: Record<ToolCategory, { label: string; color: string; description: string }> = {
-  convert: { label: '格式转换', color: '#6366F1', description: '文档/媒体格式互转' },
+  image: { label: '图片转换', color: '#F472B6', description: '图片格式互转与压缩' },
+  audio: { label: '音频转换', color: '#22D3EE', description: '音频格式互转与转码' },
+  video: { label: '视频转换', color: '#6366F1', description: '视频格式互转与音轨提取' },
+  doc: { label: '文档转换', color: '#A855F7', description: '文档格式互转（Pandoc）' },
   download: { label: '下载整理', color: '#22C55E', description: '资源下载与归档' },
-  extract: { label: '提取', color: '#22D3EE', description: '网页与截图内容抽取' },
+  extract: { label: '提取', color: '#38BDF8', description: '网页与截图内容抽取' },
   calc: { label: '计算', color: '#F59E0B', description: '单位换算与电路计算' },
-  flashcard: { label: '卡片', color: '#A855F7', description: '学习卡片制作' }
+  flashcard: { label: '卡片', color: '#C084FC', description: '学习卡片制作' }
 }
 
 export const DEPENDENCY_META: Record<DependencyId, { label: string; installHint: string }> = {
@@ -78,6 +82,7 @@ export const SM2_MAX_INTERVAL_DAYS = 365
 
 export const DEFAULT_SETTINGS: AppSettings = {
   theme: 'dark',
+  fontSize: 'md',
   userName: '学习者',
   reviewAlgorithm: 'sm2',
   dailyReviewLimit: 20,
@@ -87,6 +92,11 @@ export const DEFAULT_SETTINGS: AppSettings = {
   workStartHour: 8,
   workEndHour: 22,
   defaultFocusMinutes: 25,
+  pomodoroShortMinutes: 5,
+  pomodoroLongMinutes: 15,
+  pomodoroRoundsPerLong: 4,
+  pomodoroAutoStartNext: true,
+  pomodoroSound: true,
   dataDir: ''
 }
 

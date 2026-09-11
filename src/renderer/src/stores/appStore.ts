@@ -1,6 +1,7 @@
 import { create } from 'zustand'
-import type { AppSettings, DependencyStatus, OverviewData } from '@shared/types/domain'
+import type { AppSettings, DependencyStatus, FontSize, OverviewData, ThemeMode } from '@shared/types/domain'
 import type { ReminderPayload } from '@shared/types/ipc'
+import { FONT_SIZE_META } from '@shared/constants'
 import { api } from '../lib/ipc'
 
 export interface ToastItem {
@@ -30,8 +31,19 @@ interface AppState {
 
 let toastSeed = 0
 
-function applyTheme(theme: AppSettings['theme']): void {
-  document.documentElement.dataset.theme = theme
+/** 跟随系统时解析为实际生效的深浅色 */
+export function resolveTheme(theme: ThemeMode): 'dark' | 'light' {
+  if (theme !== 'system') return theme
+  if (typeof window === 'undefined' || !window.matchMedia) return 'dark'
+  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+}
+
+export function applyTheme(theme: ThemeMode): void {
+  document.documentElement.dataset.theme = resolveTheme(theme)
+}
+
+export function applyFontSize(size: FontSize): void {
+  document.documentElement.style.fontSize = FONT_SIZE_META[size]?.root ?? '16px'
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -45,7 +57,14 @@ export const useAppStore = create<AppState>((set, get) => ({
   init: async () => {
     const settings = await api.app.getSettings()
     applyTheme(settings.theme)
+    applyFontSize(settings.fontSize)
     set({ settings })
+    // 主题设为「跟随系统」时，实时响应系统深浅色变化
+    if (window.matchMedia) {
+      window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+        if (get().settings?.theme === 'system') applyTheme('system')
+      })
+    }
     await Promise.all([get().refreshOverview(), get().refreshDependencies()])
     api.onReminder((payload) => get().pushReminder(payload))
     api.onDataChanged((scope) => {
@@ -71,7 +90,8 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   updateSettings: async (patch) => {
     const settings = await api.app.updateSettings(patch)
-    if (patch.theme) applyTheme(settings.theme)
+    if (patch.theme !== undefined) applyTheme(settings.theme)
+    if (patch.fontSize !== undefined) applyFontSize(settings.fontSize)
     set({ settings })
   },
 

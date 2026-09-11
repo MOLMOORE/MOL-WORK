@@ -75,7 +75,10 @@ const api: WorkstationApi = {
     create: (input: TaskInput) => invoke<Task>('task:create', input),
     update: (id: number, patch: Partial<TaskInput>) => invoke<Task>('task:update', id, patch),
     remove: (id: number) => invoke<void>('task:remove', id),
-    toggle: (id: number) => invoke<Task>('task:toggle', id)
+    toggle: (id: number) => invoke<Task>('task:toggle', id),
+    move: (id: number, dayKey: string) => invoke<Task>('task:move', id, dayKey),
+    reorder: (orderedIds: number[]) => invoke<void>('task:reorder', orderedIds),
+    due: (referenceIso?: string) => invoke<Task[]>('task:due', referenceIso)
   },
   note: {
     list: (taskId?: number | null) => invoke<Note[]>('note:list', taskId ?? null),
@@ -105,7 +108,9 @@ const api: WorkstationApi = {
     stop: (id: number) => invoke<FocusSession>('focus:stop', id),
     active: () => invoke<FocusSession | null>('focus:active'),
     listByTask: (taskId: number) => invoke<FocusSession[]>('focus:list-by-task', taskId),
-    listRange: (from: string, to: string) => invoke<FocusSession[]>('focus:list-range', from, to)
+    listRange: (from: string, to: string) => invoke<FocusSession[]>('focus:list-range', from, to),
+    log: (taskId: number | null, minutes: number, note?: string) =>
+      invoke<FocusSession>('focus:log', taskId, minutes, note)
   },
   tool: {
     list: () => invoke<ToolManifest[]>('tool:list'),

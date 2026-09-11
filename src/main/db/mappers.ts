@@ -4,7 +4,6 @@ import type {
   FocusSession,
   Note,
   NoteKind,
-  Priority,
   Project,
   ProjectKind,
   ReviewItem,
@@ -78,7 +77,8 @@ export interface TaskRow {
   title: string
   detail: string
   status: string
-  priority: number | bigint
+  is_priority: number | bigint
+  sort_order: number | bigint
   progress: number | bigint
   due_at: string | null
   estimate_minutes: number | bigint
@@ -101,7 +101,8 @@ export function mapTask(row: TaskRow): Task {
     title: str(row.title),
     detail: str(row.detail),
     status: str(row.status, 'todo') as TaskStatus,
-    priority: (toNumber(row.priority, 2) as Priority) ?? 2,
+    isPriority: toBool(row.is_priority),
+    sortOrder: toNumber(row.sort_order),
     progress: toNumber(row.progress),
     dueAt: nullableStr(row.due_at),
     estimateMinutes: toNumber(row.estimate_minutes),

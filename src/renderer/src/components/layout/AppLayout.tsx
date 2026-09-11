@@ -2,6 +2,7 @@ import { Outlet } from 'react-router-dom'
 import { Sidebar } from './Sidebar'
 import { TopBar } from './TopBar'
 import { Toaster } from '../ui/Toaster'
+import { DueAlertWatcher } from '../task/DueAlertWatcher'
 
 export function AppLayout(): JSX.Element {
   return (
@@ -21,6 +22,7 @@ export function AppLayout(): JSX.Element {
       </div>
 
       <Toaster />
+      <DueAlertWatcher />
     </div>
   )
 }

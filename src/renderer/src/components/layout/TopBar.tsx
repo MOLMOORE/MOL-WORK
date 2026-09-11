@@ -1,21 +1,27 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
-import { Bell, CalendarPlus, Plus, Sparkles } from 'lucide-react'
+import { Bell, CalendarPlus, Plus, Sparkles, Timer } from 'lucide-react'
 import { Button, IconButton } from '../ui/Button'
 import { GlobalSearch } from './GlobalSearch'
 import { TaskForm } from '../task/TaskForm'
 import { useAppStore } from '../../stores/appStore'
 import { useTaskStore } from '../../stores/taskStore'
+import { usePomodoroStore, PHASE_META } from '../../stores/pomodoroStore'
 import { cn } from '../../lib/utils'
+
+function clock(seconds: number): string {
+  const safe = Math.max(0, seconds)
+  return `${String(Math.floor(safe / 60)).padStart(2, '0')}:${String(safe % 60).padStart(2, '0')}`
+}
 
 const TITLES: Record<string, { title: string; subtitle: string }> = {
   '/': { title: '仪表盘', subtitle: '今日任务、待复习内容与使用概览' },
-  '/tasks': { title: '任务管理中枢', subtitle: '任务关联日程、提醒、进度与专注记录' },
-  '/calendar': { title: '日程系统', subtitle: '任务排期、到点提醒与复习自动排程' },
+  '/tasks': { title: '任务日程', subtitle: '任务与日程合一，可跨日期拖拽排期与日内排序' },
+  '/pomodoro': { title: '番茄钟', subtitle: '专注计时、休息循环与专注记录' },
   '/notes': { title: '笔记与资料', subtitle: '按遗忘曲线自动安排复习计划' },
   '/tools': { title: '可插拔工具集', subtitle: '工具使用自动回流到统计层' },
   '/stats': { title: '统计与复盘', subtitle: '投入时间、项目分布与拖延识别' },
-  '/settings': { title: '设置', subtitle: '偏好、外部依赖与数据维护' }
+  '/settings': { title: '设置', subtitle: '主题、字号、外部依赖与数据维护' }
 }
 
 export function TopBar(): JSX.Element {
@@ -25,6 +31,9 @@ export function TopBar(): JSX.Element {
   const reminders = useAppStore((state) => state.reminders)
   const clearReminders = useAppStore((state) => state.clearReminders)
   const projectCount = useTaskStore((state) => state.projects.length)
+  const pomodoroSeconds = usePomodoroStore((state) => state.secondsLeft)
+  const pomodoroRunning = usePomodoroStore((state) => state.running)
+  const pomodoroPhase = usePomodoroStore((state) => state.phase)
   const bellRef = useRef<HTMLDivElement>(null)
 
   const meta = TITLES[location.pathname] ?? TITLES['/']
@@ -49,6 +58,24 @@ export function TopBar(): JSX.Element {
       </div>
 
       <div className="flex shrink-0 items-center gap-2">
+        <button
+          type="button"
+          onClick={() => {
+            window.location.hash = '#/pomodoro'
+          }}
+          title="番茄钟"
+          className={cn(
+            'hidden items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] transition-colors xl:flex',
+            pomodoroRunning
+              ? 'border-primary/50 bg-primary/15 text-foreground'
+              : 'border-border bg-muted/50 text-muted-foreground hover:text-foreground'
+          )}
+        >
+          <Timer className="h-3 w-3 text-[#A5B4FC]" />
+          <span className="tabular-nums">{clock(pomodoroSeconds)}</span>
+          <span className="text-muted-foreground">{PHASE_META[pomodoroPhase].label}</span>
+        </button>
+
         <span className="hidden items-center gap-1 rounded-full border border-border bg-muted/50 px-2.5 py-1 text-[11px] text-muted-foreground xl:flex">
           <Sparkles className="h-3 w-3 text-[#A5B4FC]" />
           {projectCount} 个项目
@@ -98,7 +125,9 @@ export function TopBar(): JSX.Element {
           variant="ghost"
           size="sm"
           icon={<CalendarPlus className="h-3.5 w-3.5" />}
-          onClick={() => window.location.assign('#/calendar')}
+          onClick={() => {
+            window.location.hash = '#/tasks'
+          }}
           className={cn('hidden lg:inline-flex')}
         >
           排日程

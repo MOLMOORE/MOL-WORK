@@ -9,7 +9,7 @@ import {
   removeSchedule,
   updateSchedule
 } from '../services/schedule.service'
-import { getActiveFocus, listFocusByTask, listFocusRange, startFocus, stopFocus } from '../db/repositories/focus.repo'
+import { getActiveFocus, listFocusByTask, listFocusRange, logFocus, startFocus, stopFocus } from '../db/repositories/focus.repo'
 import { deferTodayReviewsToTomorrow, enqueueDueReviews, gradeReview, planReview } from '../services/review.service'
 import { listDueReviews, listReviews } from '../db/repositories/review.repo'
 import { notifyDataChanged } from '../services/bus'
@@ -90,4 +90,10 @@ export function registerScheduleIpc(): void {
   handle<FocusSession[]>('focus:list-by-task', (taskId: number) => listFocusByTask(taskId))
 
   handle<FocusSession[]>('focus:list-range', (from: string, to: string) => listFocusRange(from, to))
+
+  handle<FocusSession>('focus:log', (taskId: number | null, minutes: number, note?: string) => {
+    const session = logFocus(taskId ?? null, minutes, note ?? '')
+    notifyDataChanged('focus')
+    return session
+  })
 }

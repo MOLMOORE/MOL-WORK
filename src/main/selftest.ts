@@ -11,7 +11,7 @@ import { createTaskService } from './services/task.service'
 import { ensureDir, fileExists, tempDir } from './utils/paths'
 import { runToolBinary } from './utils/binaries'
 
-interface Record {
+interface SelfTestRecord {
   tool: string
   ok: boolean
   summary: string
@@ -24,7 +24,7 @@ export async function runSelfTest(): Promise<void> {
   initDatabase()
   bootstrap()
 
-  const results: Record[] = []
+  const results: SelfTestRecord[] = []
   const log = (line: string): void => console.log(`[selftest] ${line}`)
 
   const deps = await checkDependencies(true)
@@ -78,11 +78,23 @@ export async function runSelfTest(): Promise<void> {
   }
 
   // 文档链路：Markdown → DOCX → Markdown（Pandoc）
-  const docxPath = await run('format-convert', { sourcePath: mdPath, targetFormat: 'docx' })
-  if (docxPath) await run('format-convert', { sourcePath: docxPath, targetFormat: 'md' })
+  const docxPath = await run('doc-convert', { sourcePath: mdPath, targetFormat: 'docx' })
+  if (docxPath) await run('doc-convert', { sourcePath: docxPath, targetFormat: 'md' })
 
-  // 媒体链路：WAV → MP3（FFmpeg）
-  await run('format-convert', { sourcePath: wavPath, targetFormat: 'mp3' })
+  // 音频链路：WAV → MP3（FFmpeg）
+  await run('audio-convert', { sourcePath: wavPath, targetFormat: 'mp3' })
+
+  // 图片链路：合成 PNG → WebP（FFmpeg）
+  const pngPath = join(workDir, 'sample.png')
+  const image = await runToolBinary('ffmpeg', ['-y', '-f', 'lavfi', '-i', 'color=c=red:s=320x240:d=1', '-frames:v', '1', pngPath])
+  log(`合成测试图片：${image.ok && fileExists(pngPath) ? '成功' : `失败 ${image.stderr.slice(-200)}`}`)
+  if (fileExists(pngPath)) await run('image-convert', { sourcePath: pngPath, targetFormat: 'webp' })
+
+  // 视频链路：合成测试视频 → MKV（FFmpeg）
+  const mp4Path = join(workDir, 'sample.mp4')
+  const video = await runToolBinary('ffmpeg', ['-y', '-f', 'lavfi', '-i', 'testsrc=duration=2:size=320x240:rate=15', '-pix_fmt', 'yuv420p', mp4Path])
+  log(`合成测试视频：${video.ok && fileExists(mp4Path) ? '成功' : `失败 ${video.stderr.slice(-200)}`}`)
+  if (fileExists(mp4Path)) await run('video-convert', { sourcePath: mp4Path, targetFormat: 'mkv' })
 
   await run('unit-convert', { value: 1, fromUnit: 'km', toUnit: 'm' })
   await run('circuit-calc', { mode: 'ohm', voltage: 12, current: 0.5 })

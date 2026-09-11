@@ -29,6 +29,8 @@ interface TaskState {
   updateTask: (id: number, patch: Partial<TaskInput>) => Promise<void>
   removeTask: (id: number) => Promise<void>
   toggleTask: (id: number) => Promise<void>
+  moveTask: (id: number, dayKey: string) => Promise<void>
+  reorderTasks: (orderedIds: number[]) => Promise<void>
   saveProject: (input: ProjectInput) => Promise<void>
   removeProject: (id: number) => Promise<void>
 }
@@ -103,6 +105,17 @@ export const useTaskStore = create<TaskState>((set, get) => ({
     await api.task.toggle(id)
     await Promise.all([get().load(), get().loadProjects()])
     if (get().detail?.task.id === id) await get().openDetail(id)
+  },
+
+  moveTask: async (id, dayKey) => {
+    await api.task.move(id, dayKey)
+    await get().load()
+    if (get().detail?.task.id === id) await get().openDetail(id)
+  },
+
+  reorderTasks: async (orderedIds) => {
+    await api.task.reorder(orderedIds)
+    await get().load()
   },
 
   saveProject: async (input) => {

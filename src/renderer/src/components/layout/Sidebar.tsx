@@ -2,7 +2,6 @@ import { useState } from 'react'
 import { NavLink } from 'react-router-dom'
 import {
   BarChart3,
-  CalendarDays,
   ChevronLeft,
   Layers3,
   LayoutDashboard,
@@ -11,6 +10,7 @@ import {
   NotebookPen,
   Settings,
   Sun,
+  Timer,
   Wrench
 } from 'lucide-react'
 import { useAppStore } from '../../stores/appStore'
@@ -18,8 +18,8 @@ import { cn } from '../../lib/utils'
 
 const NAV_ITEMS = [
   { to: '/', label: '仪表盘', icon: LayoutDashboard, end: true },
-  { to: '/tasks', label: '任务', icon: ListChecks },
-  { to: '/calendar', label: '日程', icon: CalendarDays },
+  { to: '/tasks', label: '任务日程', icon: ListChecks },
+  { to: '/pomodoro', label: '番茄钟', icon: Timer },
   { to: '/notes', label: '笔记', icon: NotebookPen },
   { to: '/tools', label: '工具', icon: Wrench },
   { to: '/stats', label: '统计', icon: BarChart3 }

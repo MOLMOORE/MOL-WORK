@@ -30,6 +30,65 @@ export function addDays(date: Date, days: number): Date {
   return next
 }
 
+/** 以日期字符串（yyyy-MM-dd）为基准增减天数 */
+export function shiftDayKey(key: string, days: number): string {
+  const [year, month, day] = key.slice(0, 10).split('-').map(Number)
+  const date = new Date(year, (month ?? 1) - 1, day ?? 1)
+  date.setDate(date.getDate() + days)
+  return dateKey(date)
+}
+
+/** 周一为一周起点 */
+export function startOfWeekKey(key: string): string {
+  const [year, month, day] = key.slice(0, 10).split('-').map(Number)
+  const date = new Date(year, (month ?? 1) - 1, day ?? 1)
+  date.setDate(date.getDate() - ((date.getDay() + 6) % 7))
+  return dateKey(date)
+}
+
+export const WEEKDAY_CN = ['一', '二', '三', '四', '五', '六', '日']
+
+export function weekdayCN(key: string): string {
+  const [year, month, day] = key.slice(0, 10).split('-').map(Number)
+  const date = new Date(year, (month ?? 1) - 1, day ?? 1)
+  return `星期${WEEKDAY_CN[(date.getDay() + 6) % 7]}`
+}
+
+export function formatDateCN(key: string): string {
+  const [year, month, day] = key.slice(0, 10).split('-').map(Number)
+  return `${year}年${month}月${day}日`
+}
+
+export function toDate(key: string): Date {
+  const [year, month, day] = key.slice(0, 10).split('-').map(Number)
+  return new Date(year, (month ?? 1) - 1, day ?? 1)
+}
+
+/** 生成 6×7 的月历矩阵（周一起始） */
+export function buildMonthMatrix(anchor: Date): Date[] {
+  const first = new Date(anchor.getFullYear(), anchor.getMonth(), 1)
+  const offset = (first.getDay() + 6) % 7
+  const start = new Date(first)
+  start.setDate(first.getDate() - offset)
+  return Array.from({ length: 42 }, (_, index) => {
+    const day = new Date(start)
+    day.setDate(start.getDate() + index)
+    return day
+  })
+}
+
+/** 生成一周 7 天（周一起始） */
+export function buildWeekDays(anchor: Date): Date[] {
+  const offset = (anchor.getDay() + 6) % 7
+  const start = new Date(anchor)
+  start.setDate(anchor.getDate() - offset)
+  return Array.from({ length: 7 }, (_, index) => {
+    const day = new Date(start)
+    day.setDate(start.getDate() + index)
+    return day
+  })
+}
+
 export function formatMinutes(minutes: number): string {
   if (!Number.isFinite(minutes) || minutes <= 0) return '0 分钟'
   if (minutes < 60) return `${Math.round(minutes)} 分钟`
