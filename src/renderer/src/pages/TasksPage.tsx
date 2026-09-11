@@ -65,20 +65,6 @@ function clockText(date: Date): string {
   return `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
 }
 
-/** 翻页时钟数字：字符变化时以翻页动画重新挂载 */
-function FlipDigit({ char }: { char: string }): JSX.Element {
-  if (!/\d/.test(char)) {
-    return <span className="px-0.5 text-muted-foreground">{char}</span>
-  }
-  return (
-    <span className="inline-block [perspective:320px]">
-      <span key={char} className="inline-block origin-center animate-flip-in">
-        {char}
-      </span>
-    </span>
-  )
-}
-
 export function TasksPage(): JSX.Element {
   const location = useLocation()
   const navigate = useNavigate()
@@ -288,8 +274,8 @@ export function TasksPage(): JSX.Element {
 
   return (
     <div className="grid gap-5">
-      {/* 头部卡片抬高层级：搜索候选浮层需要覆盖下方卡片（毛玻璃卡片各自形成层叠上下文） */}
-      <Card className="relative z-30">
+      {/* 头部卡片小幅抬升（低于顶栏 z-40）：候选浮层覆盖下方卡片，同时不遮挡顶栏的到点提醒面板 */}
+      <Card className="relative z-20">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <p className="text-[10px] uppercase tracking-widest text-muted-foreground">今日</p>
@@ -306,13 +292,10 @@ export function TasksPage(): JSX.Element {
 
           <div className="text-right">
             <p className="text-[10px] uppercase tracking-widest text-muted-foreground">当前时间</p>
-            <p className="mt-1 flex items-baseline justify-end text-5xl font-bold leading-tight tabular-nums tracking-tight text-foreground">
-              {clockText(now)
-                .split('')
-                .map((char, index) => (
-                  <FlipDigit key={`${index}-${char}`} char={char} />
-                ))}
+            <p className="mt-1 text-2xl font-bold leading-tight tabular-nums tracking-tight text-muted-foreground">
+              {clockText(now)}
             </p>
+            <p className="mt-0.5 text-[10px] text-muted-foreground/70">顶部中央展示全局时钟</p>
           </div>
         </div>
 
@@ -341,7 +324,7 @@ export function TasksPage(): JSX.Element {
                     void setFilter({ keyword: '' })
                   }
                 }}
-                placeholder="搜索任务，输入即时候选，回车筛选"
+                placeholder="搜索任务"
                 className="h-full flex-1 border-0 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/70 focus:outline-none"
               />
               <kbd className="shrink-0 rounded-md border border-border bg-muted/60 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">

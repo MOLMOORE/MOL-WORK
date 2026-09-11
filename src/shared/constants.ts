@@ -83,7 +83,7 @@ export const SM2_MAX_INTERVAL_DAYS = 365
 export const DEFAULT_SETTINGS: AppSettings = {
   theme: 'dark',
   fontSize: 'md',
-  userName: '学习者',
+  userName: 'MOL',
   reviewAlgorithm: 'sm2',
   dailyReviewLimit: 20,
   notifyLeadMinutes: 10,

@@ -69,8 +69,8 @@ export function SettingsPage(): JSX.Element {
           <SectionHeader title="偏好设置" description="影响提醒、复习算法与专注计时行为" />
           <div className="grid gap-4">
             <div className="grid grid-cols-2 gap-4">
-              <Field label="称呼">
-                <Input value={draft.userName} onChange={(event) => void patch({ userName: event.target.value })} />
+              <Field label="称呼" hint="作为软件名前缀，窗口与侧边栏将显示为「XX的工作站」">
+                <Input value={draft.userName} onChange={(event) => void patch({ userName: event.target.value })} placeholder="例如：MOL" />
               </Field>
               <Field label="主题" hint="跟随系统会随操作系统实时切换深浅色">
                 <Select value={draft.theme} onChange={(event) => void patch({ theme: event.target.value as AppSettings['theme'] })}>
@@ -152,10 +152,10 @@ export function SettingsPage(): JSX.Element {
                 <Switch
                   checked={draft.dialogSound}
                   onChange={(checked) => void patch({ dialogSound: checked })}
-                  label="弹窗出现时播放提示音"
+                  label="截止提醒弹窗提示音"
                 />
                 <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground/80">
-                  关闭后所有弹窗（提醒、确认、回收站等）将静默出现。
+                  仅截止时间与超时事项的提醒弹窗在首次弹出时播放「叮咚」声，其他弹窗静默。
                 </p>
               </div>
             </div>

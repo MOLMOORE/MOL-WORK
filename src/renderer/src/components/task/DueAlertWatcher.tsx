@@ -7,6 +7,7 @@ import { ConfirmDialog, Modal } from '../ui/Overlay'
 import { DeferDial, formatDeferSeconds } from './DeferDial'
 import { api } from '../../lib/ipc'
 import { cn, formatDateTime } from '../../lib/utils'
+import { playDoorbell } from '../../lib/sound'
 import { useAppStore } from '../../stores/appStore'
 import { useTaskStore } from '../../stores/taskStore'
 
@@ -134,8 +135,9 @@ export function DueAlertWatcher(): JSX.Element | null {
         const total = currentIds.size
         if (total > 0 && (hasNew || !notifiedRef.current) && inBackground) {
           const first = [...dueList, ...needRemind][0]
+          const appName = `${(useAppStore.getState().settings?.userName ?? 'MOL').trim() || 'MOL'}的工作站`
           void api.app.notify(
-            '截止时间提醒 · 个人工作站',
+            `截止时间提醒 · ${appName}`,
             `${total} 项事项到期待处理${first ? `：${first.title}` : ''}，点击回到应用处理`
           )
           notifiedRef.current = true
@@ -157,6 +159,17 @@ export function DueAlertWatcher(): JSX.Element | null {
   }, [])
 
   const open = dueTasks.length > 0 || overdueTasks.length > 0
+
+  /** 只有截止/逾期提醒弹窗在「弹出第一次」时播门铃声，其余弹窗与重复弹出均不响 */
+  const wasOpenRef = useRef(false)
+  useEffect(() => {
+    if (open && !wasOpenRef.current) {
+      wasOpenRef.current = true
+      const dialogSound = useAppStore.getState().settings?.dialogSound ?? true
+      if (dialogSound) playDoorbell()
+    }
+    if (!open) wasOpenRef.current = false
+  }, [open])
 
   /** 延期：把截止时间从当前时刻延后 seconds 秒 */
   const handleDefer = async (task: Task, seconds: number): Promise<void> => {

@@ -16,6 +16,7 @@ import { Spinner } from './components/ui/Feedback'
 export default function App(): JSX.Element {
   const ready = useAppStore((state) => state.ready)
   const init = useAppStore((state) => state.init)
+  const userName = useAppStore((state) => state.settings?.userName)
   const loadProjects = useTaskStore((state) => state.loadProjects)
 
   useEffect(() => {
@@ -23,11 +24,17 @@ export default function App(): JSX.Element {
     void loadProjects()
   }, [init, loadProjects])
 
+  // 软件名 = 「XX的工作站」：窗口标题与文档标题随称呼实时变化
+  const appName = `${(userName ?? 'MOL').trim() || 'MOL'}的工作站`
+  useEffect(() => {
+    document.title = appName
+  }, [appName])
+
   if (!ready) {
     return (
       <div className="flex h-full items-center justify-center gap-3 bg-background text-muted-foreground">
         <Spinner className="h-5 w-5" />
-        <span className="text-sm">正在加载个人工作站…</span>
+        <span className="text-sm">正在加载{appName}…</span>
       </div>
     )
   }

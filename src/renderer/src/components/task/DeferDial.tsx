@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import { cn } from '../../lib/utils'
+import { playTick } from '../../lib/sound'
 
 export interface ClockDialProps {
   /** 当前值 */
@@ -14,8 +15,8 @@ export interface ClockDialProps {
   size?: number
 }
 
-/** 钟表样式转盘：拖动指针选择数值，外圈刻度 + 进度弧 + 指针 */
-export function ClockDial({ value, max, label, majorLabels = [], onChange, size = 108 }: ClockDialProps): JSX.Element {
+/** 钟表样式转盘：拖动指针选择数值，外圈刻度 + 进度弧 + 指针（拨动时带咔哒声） */
+export function ClockDial({ value, max, label, majorLabels = [], onChange, size = 132 }: ClockDialProps): JSX.Element {
   const svgRef = useRef<SVGSVGElement>(null)
   const [dragging, setDragging] = useState(false)
 
@@ -38,7 +39,10 @@ export function ClockDial({ value, max, label, majorLabels = [], onChange, size 
     let deg = (Math.atan2(dx, -dy) * 180) / Math.PI
     if (deg < 0) deg += 360
     const next = Math.max(0, Math.min(max, Math.round((deg / 360) * max)))
-    if (next !== value) onChange(next)
+    if (next !== value) {
+      playTick()
+      onChange(next)
+    }
   }
 
   const needle = radius - 16
@@ -114,13 +118,13 @@ export function ClockDial({ value, max, label, majorLabels = [], onChange, size 
             />
           )
         })}
-        {/* 主刻度数字标注 */}
+        {/* 主刻度数字标注（内移，避免被表壳边缘遮挡） */}
         {majorLabels.map((major) => {
           const rad = ((major.at / max) * 360 * Math.PI) / 180
-          const lx = center + (radius - 16) * Math.sin(rad)
-          const ly = center - (radius - 16) * Math.cos(rad)
+          const lx = center + (radius - 22) * Math.sin(rad)
+          const ly = center - (radius - 22) * Math.cos(rad)
           return (
-            <text key={major.at} x={lx} y={ly} textAnchor="middle" dominantBaseline="middle" className="fill-foreground" fontSize={8.5} fontWeight={600}>
+            <text key={major.at} x={lx} y={ly} textAnchor="middle" dominantBaseline="middle" className="fill-foreground" fontSize={9.5} fontWeight={600}>
               {major.text}
             </text>
           )
@@ -135,16 +139,14 @@ export function ClockDial({ value, max, label, majorLabels = [], onChange, size 
           />
         </g>
         {/* 中心金属帽 */}
-        <circle cx={center} cy={center} r={5.5} fill="hsl(var(--surface))" stroke="hsl(var(--muted-foreground))" strokeWidth={1.2} />
-        <circle cx={center} cy={center} r={2} fill="#6366F1" />
+        <circle cx={center} cy={center} r={6.5} fill="hsl(var(--surface))" stroke="hsl(var(--muted-foreground))" strokeWidth={1.4} />
+        <circle cx={center} cy={center} r={2.4} fill="#6366F1" />
         {/* 顶部把手（拖动点视觉强化） */}
-        <circle cx={knob.x} cy={knob.y} r={4} fill="#6366F1" opacity={0.9} stroke="white" strokeWidth={1.5} />
-        {/* 中心数值 */}
-        <text x={center} y={center + 22} textAnchor="middle" className="fill-foreground" fontSize={16} fontWeight={700}>
-          {value}
-        </text>
+        <circle cx={knob.x} cy={knob.y} r={4.5} fill="#6366F1" opacity={0.9} stroke="white" strokeWidth={1.5} />
       </svg>
-      <span className="text-[10px] font-medium text-muted-foreground">{label}</span>
+      <span className="text-[11px] font-medium text-foreground">
+        {label} <span className="tabular-nums text-[#A5B4FC]">{value}</span>
+      </span>
     </div>
   )
 }

@@ -12,6 +12,8 @@ export function CloseBehaviorDialog(): JSX.Element | null {
   const [remember, setRemember] = useState(false)
   const [busy, setBusy] = useState(false)
   const pushToast = useAppStore((state) => state.pushToast)
+  const userName = useAppStore((state) => state.settings?.userName)
+  const appName = `${(userName ?? 'MOL').trim() || 'MOL'}的工作站`
 
   useEffect(() => {
     const off = api.onCloseRequest(() => setOpen(true))
@@ -44,7 +46,7 @@ export function CloseBehaviorDialog(): JSX.Element | null {
     <Modal
       open={open}
       onClose={() => setOpen(false)}
-      title="关闭个人工作站"
+      title={`关闭${appName}`}
       description="选择窗口关闭后的行为：后台运行会保留在系统托盘，提醒依然有效"
       width="max-w-lg"
       footer={
