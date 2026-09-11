@@ -192,8 +192,9 @@ export function ScheduleBoard({
     const dayKey = selectedDay
     const list = byDay.get(dayKey) ?? []
     const week = buildWeekDays(anchor)
+    const showUnscheduled = unscheduled.length > 0
     return (
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1fr_280px]">
+      <div className={cn('grid grid-cols-1 gap-4', showUnscheduled && 'xl:grid-cols-[1fr_280px]')}>
         <div className="flex flex-col gap-3">
           <div className="grid grid-cols-7 gap-2">
             {week.map((date) => {
@@ -259,13 +260,15 @@ export function ScheduleBoard({
           </div>
         </div>
 
-        <UnscheduledPanel
-          tasks={unscheduled}
-          draggingId={draggingId}
-          onOpen={onOpen}
-          onDragStart={startDrag}
-          onDragEnd={clearDrag}
-        />
+        {showUnscheduled ? (
+          <UnscheduledPanel
+            tasks={unscheduled}
+            draggingId={draggingId}
+            onOpen={onOpen}
+            onDragStart={startDrag}
+            onDragEnd={clearDrag}
+          />
+        ) : null}
       </div>
     )
   }
@@ -405,7 +408,7 @@ function MiniTag({
   return (
     <span
       className={cn(
-        'inline-flex shrink-0 items-center gap-0.5 rounded-full border px-1.5 py-px text-[9px] font-medium leading-none',
+        'inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium leading-none',
         tones[tone]
       )}
     >
@@ -442,7 +445,7 @@ function TaskCard({
         onOpen()
       }}
       className={cn(
-        'group cursor-grab rounded-xl border px-2 py-1.5 text-left transition-all active:cursor-grabbing',
+        'group cursor-grab rounded-xl border px-3 py-2.5 text-left transition-all active:cursor-grabbing',
         task.isPriority
           ? 'border-danger/60 bg-danger/10'
           : overdue
@@ -453,7 +456,7 @@ function TaskCard({
         done && 'opacity-60'
       )}
     >
-      <div className="flex items-center gap-1.5">
+      <div className="flex items-center gap-2">
         {onToggle ? (
           <button
             type="button"
@@ -464,7 +467,7 @@ function TaskCard({
               onToggle()
             }}
             className={cn(
-              'flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full border-2 transition-all',
+              'flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-all',
               done
                 ? 'border-success bg-success/30 text-success'
                 : 'border-success/50 text-transparent hover:border-success hover:bg-success/20 hover:text-success'
@@ -473,13 +476,13 @@ function TaskCard({
             <Check className="h-3 w-3" strokeWidth={3} />
           </button>
         ) : (
-          <GripVertical className="h-3 w-3 shrink-0 text-muted-foreground/60" />
+          <GripVertical className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" />
         )}
-        {task.isPriority ? <Star className="h-3 w-3 shrink-0 fill-danger text-danger" /> : null}
-        <span className="shrink-0 text-[10px] font-medium text-muted-foreground">{timeOf(task) || '全天'}</span>
+        {task.isPriority ? <Star className="h-3.5 w-3.5 shrink-0 fill-danger text-danger" /> : null}
+        <span className="shrink-0 text-xs font-semibold text-muted-foreground">{timeOf(task) || '全天'}</span>
         <span
           className={cn(
-            'min-w-0 flex-1 truncate text-[11px] font-medium',
+            'min-w-0 flex-1 truncate text-sm font-semibold',
             task.isPriority ? 'text-danger' : 'text-foreground',
             done && 'line-through'
           )}
@@ -495,19 +498,19 @@ function TaskCard({
               event.stopPropagation()
               onRemove()
             }}
-            className="flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-md border border-danger/40 text-danger/70 transition-all hover:border-danger hover:bg-danger/20 hover:text-danger"
+            className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md border border-danger/40 text-danger/70 transition-all hover:border-danger hover:bg-danger/20 hover:text-danger"
           >
-            <Trash2 className="h-3 w-3" />
+            <Trash2 className="h-3.5 w-3.5" />
           </button>
         ) : null}
       </div>
 
       {!compact ? (
-        <div className="mt-1 flex flex-wrap items-center gap-1 pl-6">
+        <div className="mt-1.5 flex flex-wrap items-center gap-1.5 pl-7">
           <MiniTag>{TASK_STATUS_META[task.status].label}</MiniTag>
           {task.projectName ? <MiniTag tone="primary">{task.projectName}</MiniTag> : null}
           <MiniTag tone={overdue ? 'danger' : 'default'}>
-            <CalendarClock className="h-2 w-2" />
+            <CalendarClock className="h-2.5 w-2.5" />
             {relativeDay(task.dueAt)}
           </MiniTag>
           <MiniTag tone="info">{formatMinutes(task.estimateMinutes)}</MiniTag>

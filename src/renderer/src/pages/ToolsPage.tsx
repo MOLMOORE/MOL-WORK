@@ -107,10 +107,7 @@ export function ToolsPage(): JSX.Element {
         <div className="pointer-events-none absolute -right-10 -top-16 h-52 w-52 rounded-full bg-primary/25 blur-3xl" />
         <div className="relative flex flex-wrap items-start justify-between gap-4">
           <div className="max-w-2xl">
-            <Badge tone="success" dot>
-              阶段二已交付
-            </Badge>
-            <h2 className="mt-3 text-lg font-semibold tracking-tight text-foreground">可插拔工具集</h2>
+            <h2 className="text-lg font-semibold tracking-tight text-foreground">可插拔工具集</h2>
             <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
               清单一经注册，表单、依赖检测、执行与运行记录全部自动生效。当前共 {tools.length} 个工具，
               其中图片转换、音频转换、视频转换、文档转换已按格式类别独立拆分（FFmpeg / Pandoc），

@@ -6,7 +6,7 @@ export function FlipDigit({ char, className }: { char: string; className?: strin
     return <span className={cn('px-0.5 text-muted-foreground', className)}>{char}</span>
   }
   return (
-    <span className="inline-block [perspective:320px]">
+    <span className="inline-block [perspective:420px] [transform-style:preserve-3d]">
       <span key={char} className="inline-block origin-center animate-flip-in">
         {char}
       </span>

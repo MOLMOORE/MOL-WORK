@@ -74,10 +74,7 @@ export function StatsPage(): JSX.Element {
         <div className="pointer-events-none absolute -left-12 -top-16 h-52 w-52 rounded-full bg-info/20 blur-3xl" />
         <div className="relative flex flex-wrap items-start justify-between gap-4">
           <div className="max-w-2xl">
-            <Badge tone="success" dot>
-              阶段三已交付
-            </Badge>
-            <h2 className="mt-3 text-lg font-semibold tracking-tight text-foreground">统计与复盘</h2>
+            <h2 className="text-lg font-semibold tracking-tight text-foreground">统计与复盘</h2>
             <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
               以「任务 → 日程 / 专注 / 工具」全链路数据为底，趋势图、投入环形图与日报导出全部基于真实记录聚合，
               数据存储在本机 SQLite，无任何云端上传。

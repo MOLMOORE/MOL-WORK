@@ -56,7 +56,6 @@ export function Sidebar(): JSX.Element {
             <p className="truncate text-sm font-semibold tracking-tight text-foreground">
               {(settings?.userName ?? 'MOL').trim() || 'MOL'}的工作站
             </p>
-            <p className="truncate text-[10px] uppercase tracking-widest text-muted-foreground">Personal Workstation</p>
           </div>
         ) : null}
       </div>

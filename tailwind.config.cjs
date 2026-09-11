@@ -56,16 +56,17 @@ module.exports = {
           '100%': { backgroundPosition: '500px 0' }
         },
         'flip-in': {
-          '0%': { opacity: '0', transform: 'rotateX(-92deg) translateY(-18%)' },
-          '60%': { opacity: '1' },
-          '100%': { opacity: '1', transform: 'rotateX(0deg) translateY(0)' }
+          '0%': { opacity: '0', transform: 'rotateX(88deg) translateY(-22%) scale(0.96)', filter: 'brightness(0.45) blur(1px)' },
+          '45%': { opacity: '1', transform: 'rotateX(-16deg) translateY(3%) scale(1.02)', filter: 'brightness(1.3) blur(0px)' },
+          '75%': { transform: 'rotateX(6deg) translateY(-1%) scale(0.995)', filter: 'brightness(0.95)' },
+          '100%': { opacity: '1', transform: 'rotateX(0deg) translateY(0) scale(1)', filter: 'brightness(1) blur(0px)' }
         }
       },
       animation: {
         'fade-in': 'fade-in 220ms ease-out',
         'scale-in': 'scale-in 160ms ease-out',
         shimmer: 'shimmer 1.4s linear infinite',
-        'flip-in': 'flip-in 320ms cubic-bezier(0.2, 0.7, 0.3, 1)'
+        'flip-in': 'flip-in 460ms cubic-bezier(0.22, 0.9, 0.32, 1.04)'
       }
     }
   },
