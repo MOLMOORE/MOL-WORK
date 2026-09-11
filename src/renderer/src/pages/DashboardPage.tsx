@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   ArrowRight,
@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   Clock,
   Flame,
+  GripVertical,
   ListChecks,
   NotebookPen,
   Star,
@@ -22,7 +23,7 @@ import { useTaskStore } from '../stores/taskStore'
 import { useScheduleStore } from '../stores/scheduleStore'
 import { api } from '../lib/ipc'
 import { TASK_STATUS_META } from '@shared/constants'
-import { addDays, formatDay, formatDateTime, formatMinutes, relativeDay, todayKey } from '../lib/utils'
+import { addDays, cn, formatDay, formatDateTime, formatMinutes, relativeDay, todayKey } from '../lib/utils'
 
 export function DashboardPage(): JSX.Element {
   const navigate = useNavigate()
@@ -30,7 +31,11 @@ export function DashboardPage(): JSX.Element {
   const refreshOverview = useAppStore((state) => state.refreshOverview)
   const pushToast = useAppStore((state) => state.pushToast)
   const toggleTask = useTaskStore((state) => state.toggleTask)
+  const reorderTasks = useTaskStore((state) => state.reorderTasks)
   const [report, setReport] = useState<DailyReport | null>(null)
+  const [todayOrder, setTodayOrder] = useState<number[] | null>(null)
+  const [todayDragId, setTodayDragId] = useState<number | null>(null)
+  const [todayOverId, setTodayOverId] = useState<number | null>(null)
 
   const gradeReview = useScheduleStore((state) => state.gradeReview)
   const planReview = useScheduleStore((state) => state.planReview)
@@ -39,6 +44,33 @@ export function DashboardPage(): JSX.Element {
   useEffect(() => {
     void api.stats.report(todayKey()).then(setReport)
   }, [overview])
+
+  /** 拖拽过程中的本地顺序覆盖，提交后交还给后端排序 */
+  const displayTasks = useMemo(() => {
+    const list = overview?.todayTasks ?? []
+    if (!todayOrder) return list
+    const indexOf = new Map(todayOrder.map((id, index) => [id, index] as const))
+    return [...list].sort((a, b) => (indexOf.get(a.id) ?? 0) - (indexOf.get(b.id) ?? 0))
+  }, [overview, todayOrder])
+
+  /** 今日任务拖拽排序：插到目标位置之前并持久化 */
+  const handleTodayDrop = async (targetId: number): Promise<void> => {
+    const dragId = todayDragId
+    setTodayDragId(null)
+    setTodayOverId(null)
+    if (dragId === null || dragId === targetId || !overview) return
+    const ids = overview.todayTasks.map((task) => task.id)
+    const from = ids.indexOf(dragId)
+    if (from < 0) return
+    ids.splice(from, 1)
+    const to = ids.indexOf(targetId)
+    if (to < 0) return
+    ids.splice(to, 0, dragId)
+    setTodayOrder(ids)
+    await reorderTasks(ids)
+    await refreshOverview()
+    setTodayOrder(null)
+  }
 
   if (!overview || !report) {
     return (
@@ -122,14 +154,14 @@ export function DashboardPage(): JSX.Element {
         <Card>
           <SectionHeader
             title="今日任务"
-            description="优先事项置顶，按截止时间排序，可直接勾选完成"
+            description="时间靠上的排前面，可拖拽调整顺序、勾选完成"
             action={
               <Button variant="ghost" size="sm" icon={<ArrowRight className="h-3.5 w-3.5" />} onClick={() => navigate('/tasks')}>
                 全部任务
               </Button>
             }
           />
-          {overview.todayTasks.length === 0 ? (
+          {displayTasks.length === 0 ? (
             <EmptyState
               icon={<CheckCircle2 className="h-5 w-5" />}
               title="今天没有待办任务"
@@ -137,13 +169,33 @@ export function DashboardPage(): JSX.Element {
             />
           ) : (
             <div className="flex flex-col gap-2">
-              {overview.todayTasks.map((task) => {
+              {displayTasks.map((task) => {
                 const statusMeta = TASK_STATUS_META[task.status]
                 return (
                   <div
                     key={task.id}
-                    className="group flex items-start gap-3 rounded-xl border border-border/70 bg-muted/25 p-3 transition-all duration-150 hover:border-primary/40 hover:bg-muted/40"
+                    draggable
+                    onDragStart={() => setTodayDragId(task.id)}
+                    onDragOver={(event) => {
+                      if (todayDragId === null || todayDragId === task.id) return
+                      event.preventDefault()
+                      setTodayOverId(task.id)
+                    }}
+                    onDrop={(event) => {
+                      event.preventDefault()
+                      void handleTodayDrop(task.id)
+                    }}
+                    onDragEnd={() => {
+                      setTodayDragId(null)
+                      setTodayOverId(null)
+                    }}
+                    className={cn(
+                      'group flex cursor-grab items-start gap-3 rounded-xl border border-border/70 bg-muted/25 p-3 transition-all duration-150 hover:border-primary/40 hover:bg-muted/40 active:cursor-grabbing',
+                      todayDragId === task.id && 'opacity-40',
+                      todayOverId === task.id && todayDragId !== task.id && 'ring-1 ring-primary/60'
+                    )}
                   >
+                    <GripVertical className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground/40 transition-colors group-hover:text-muted-foreground" />
                     <button
                       type="button"
                       aria-label="标记完成"

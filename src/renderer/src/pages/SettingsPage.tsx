@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Cpu, Database, Download, FolderOpen, RefreshCw, Sliders, Sparkles, Terminal, Timer } from 'lucide-react'
+import { Database, Download, FolderOpen, RefreshCw, Sparkles, Terminal, Timer } from 'lucide-react'
 import type { AppSettings } from '@shared/types/domain'
 import { FONT_SIZE_META } from '@shared/constants'
 import { Card, SectionHeader } from '../components/ui/Card'
@@ -308,54 +308,6 @@ export function SettingsPage(): JSX.Element {
           </Card>
         </div>
       </div>
-
-      <Card>
-        <SectionHeader title="当前实现状态" description="按分阶段计划推进，每阶段完成后交付可运行版本" />
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-          {[
-            {
-              icon: Cpu,
-              phase: '阶段一 · 已完成',
-              tone: 'success' as const,
-              items: ['工程骨架与深色外壳', 'SQLite 数据层 + FTS5 全文索引', '任务中枢与详情抽屉', '笔记资料 + 遗忘曲线复习', '日程排程与系统通知提醒', '全局搜索（任务／笔记／工具）']
-            },
-            {
-              icon: Sliders,
-              phase: '阶段二 · 已完成',
-              tone: 'success' as const,
-              items: ['工具集市界面与动态表单', '格式转换（Pandoc／FFmpeg）', '下载整理（yt-dlp）', '网页与截图提取（Playwright）', '运行历史与结果目录直达', '外部依赖安装调试']
-            },
-            {
-              icon: Download,
-              phase: '阶段三 · 待开始',
-              tone: 'info' as const,
-              items: ['每日趋势图与环形图', '项目投入排行榜', '拖延事项深度分析', '日报渲染与导出界面', 'Windows 打包分发配置']
-            }
-          ].map((group) => {
-            const Icon = group.icon
-            return (
-              <div key={group.phase} className="rounded-xl border border-border/70 bg-muted/25 p-4">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="flex items-center gap-2 text-xs font-semibold text-foreground">
-                    <Icon className="h-3.5 w-3.5 text-muted-foreground" />
-                    {group.phase}
-                  </span>
-                  <Badge tone={group.tone} dot>
-                    {group.phase.includes('已完成') ? '可验收' : group.phase.includes('进行中') ? '进行中' : '规划中'}
-                  </Badge>
-                </div>
-                <ul className="mt-2.5 flex flex-col gap-1">
-                  {group.items.map((item) => (
-                    <li key={item} className="text-[11px] leading-relaxed text-muted-foreground">
-                      · {item}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )
-          })}
-        </div>
-      </Card>
     </div>
   )
 }

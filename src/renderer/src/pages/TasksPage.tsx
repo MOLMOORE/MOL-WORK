@@ -8,6 +8,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Filter,
+  GripVertical,
   List,
   ListChecks,
   Pencil,
@@ -70,6 +71,7 @@ export function TasksPage(): JSX.Element {
     setFilter,
     openDetail,
     toggleTask,
+    removeTask,
     moveTask,
     reorderTasks
   } = useTaskStore()
@@ -85,6 +87,9 @@ export function TasksPage(): JSX.Element {
   const [keywordDraft, setKeywordDraft] = useState(filter.keyword)
   const [suggestOpen, setSuggestOpen] = useState(false)
   const [now, setNow] = useState(() => new Date())
+  const [listOrder, setListOrder] = useState<number[] | null>(null)
+  const [listDragId, setListDragId] = useState<number | null>(null)
+  const [listOverId, setListOverId] = useState<number | null>(null)
 
   useEffect(() => {
     void load()
@@ -110,6 +115,13 @@ export function TasksPage(): JSX.Element {
     for (const task of tasks) map.get(task.status)?.push(task)
     return map
   }, [tasks])
+
+  /** 拖拽过程中的本地顺序覆盖，提交成功后交还给 store 排序 */
+  const visibleTasks = useMemo(() => {
+    if (!listOrder) return tasks
+    const indexOf = new Map(listOrder.map((id, index) => [id, index] as const))
+    return [...tasks].sort((a, b) => (indexOf.get(a.id) ?? 0) - (indexOf.get(b.id) ?? 0))
+  }, [tasks, listOrder])
 
   const today = todayKey()
   const priorityCount = tasks.filter((task) => task.isPriority && task.status !== 'done').length
@@ -156,6 +168,37 @@ export function TasksPage(): JSX.Element {
 
   const handleReorder = async (orderedIds: number[]): Promise<void> => {
     await reorderTasks(orderedIds)
+  }
+
+  /** 清单视图：拖拽提交后按新顺序即时反馈，再等待 store 刷新 */
+  const handleListDrop = async (targetId: number): Promise<void> => {
+    const dragId = listDragId
+    setListDragId(null)
+    setListOverId(null)
+    if (dragId === null || dragId === targetId) return
+    const ids = visibleTasks.map((task) => task.id)
+    const from = ids.indexOf(dragId)
+    if (from < 0) return
+    ids.splice(from, 1)
+    const to = ids.indexOf(targetId)
+    if (to < 0) return
+    ids.splice(to, 0, dragId)
+    setListOrder(ids)
+    await reorderTasks(ids)
+    setListOrder(null)
+  }
+
+  /** 日程板卡片快捷：切换完成状态 */
+  const handleQuickToggle = async (task: Task): Promise<void> => {
+    await toggleTask(task.id)
+    await refreshOverview()
+  }
+
+  /** 日程板卡片快捷：删除任务 */
+  const handleQuickRemove = async (task: Task): Promise<void> => {
+    await removeTask(task.id)
+    await refreshOverview()
+    pushToast({ title: '任务已删除', description: task.title, tone: 'success' })
   }
 
   const statusCount = (key: TaskStatus | 'all'): number =>
@@ -356,16 +399,28 @@ export function TasksPage(): JSX.Element {
             />
           ) : (
             <div className="divide-y divide-border/60">
-              {tasks.map((task) => (
+              {visibleTasks.map((task) => (
                 <TaskRow
                   key={task.id}
                   task={task}
+                  dragging={listDragId === task.id}
+                  dropTarget={listOverId === task.id && listDragId !== task.id}
                   onToggle={() => void onToggle(task)}
                   onOpen={() => void openDetail(task.id)}
                   onEdit={() => {
                     setEditing(task)
                     setDefaultDue(null)
                     setFormOpen(true)
+                  }}
+                  onDragStart={() => setListDragId(task.id)}
+                  onDragOver={() => {
+                    if (listDragId === null || listDragId === task.id) return
+                    setListOverId(task.id)
+                  }}
+                  onDrop={() => void handleListDrop(task.id)}
+                  onDragEnd={() => {
+                    setListDragId(null)
+                    setListOverId(null)
                   }}
                 />
               ))}
@@ -383,7 +438,7 @@ export function TasksPage(): JSX.Element {
                     ? '本周日程'
                     : '本月日程'
               }
-              description="拖拽卡片可在任意日期之间移动，同一日期内拖动可自由排序；优先事项始终置顶并以红色标识"
+              description="拖拽卡片可在任意日期之间移动，同一日期内拖动可自由排序；时间靠上的事项优先显示，其次优先事项置顶并以红色标识"
               action={
                 <div className="flex items-center gap-2">
                   <IconButton label="上一页" onClick={() => shift(-1)}>
@@ -412,6 +467,8 @@ export function TasksPage(): JSX.Element {
               onMove={handleMove}
               onReorder={handleReorder}
               onOpen={(task) => void openDetail(task.id)}
+              onToggleTask={(task) => void handleQuickToggle(task)}
+              onRemoveTask={(task) => void handleQuickRemove(task)}
               onSelectDay={pickDay}
               onCreateAt={(dayKey) => openCreate(dayKey)}
             />
@@ -478,20 +535,55 @@ function DayReviewCard({ day }: { day: string }): JSX.Element {
 
 interface TaskRowProps {
   task: Task
+  dragging: boolean
+  dropTarget: boolean
   onToggle: () => void
   onOpen: () => void
   onEdit: () => void
+  onDragStart: () => void
+  onDragOver: () => void
+  onDrop: () => void
+  onDragEnd: () => void
 }
 
-function TaskRow({ task, onToggle, onOpen, onEdit }: TaskRowProps): JSX.Element {
+function TaskRow({
+  task,
+  dragging,
+  dropTarget,
+  onToggle,
+  onOpen,
+  onEdit,
+  onDragStart,
+  onDragOver,
+  onDrop,
+  onDragEnd
+}: TaskRowProps): JSX.Element {
   const overdue = isOverdue(task.dueAt)
   return (
     <div
+      draggable
+      onDragStart={onDragStart}
+      onDragOver={(event) => {
+        event.preventDefault()
+        onDragOver()
+      }}
+      onDrop={(event) => {
+        event.preventDefault()
+        onDrop()
+      }}
+      onDragEnd={onDragEnd}
       className={cn(
-        'group flex items-start gap-4 px-5 py-3.5 transition-colors hover:bg-muted/30',
-        task.isPriority && 'border-l-2 border-l-danger bg-danger/5'
+        'group flex cursor-grab items-start gap-4 px-5 py-3.5 transition-all active:cursor-grabbing hover:bg-muted/30',
+        task.isPriority && 'border-l-2 border-l-danger bg-danger/5',
+        dragging && 'opacity-40',
+        dropTarget && 'ring-1 ring-inset ring-primary/60'
       )}
     >
+      <GripVertical
+        className={cn(
+          'mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground/40 transition-colors group-hover:text-muted-foreground'
+        )}
+      />
       <button
         type="button"
         aria-label="切换完成状态"

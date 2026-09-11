@@ -21,9 +21,9 @@ LEFT JOIN projects p ON p.id = t.project_id
 const ORDER_CLAUSE = `
 ORDER BY
   CASE t.status WHEN 'done' THEN 3 WHEN 'blocked' THEN 2 WHEN 'doing' THEN 1 ELSE 0 END,
+  COALESCE(t.due_at, '9999-12-31T00:00:00') ASC,
   t.is_priority DESC,
   t.sort_order ASC,
-  COALESCE(t.due_at, '9999-12-31T00:00:00') ASC,
   t.id DESC
 `
 

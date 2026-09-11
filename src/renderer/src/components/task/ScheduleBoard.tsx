@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react'
-import { CalendarClock, GripVertical, Inbox, Star } from 'lucide-react'
+import { CalendarClock, Check, GripVertical, Inbox, Star, X } from 'lucide-react'
 import type { Task } from '@shared/types/domain'
 import { TASK_STATUS_META } from '@shared/constants'
 import {
@@ -21,6 +21,10 @@ export interface ScheduleBoardProps {
   onMove: (taskId: number, dayKey: string) => Promise<void>
   onReorder: (orderedIds: number[]) => Promise<void>
   onOpen: (task: Task) => void
+  /** 快捷切换完成状态 */
+  onToggleTask?: (task: Task) => void
+  /** 快捷删除任务 */
+  onRemoveTask?: (task: Task) => void
   /** 点击日期块切换所选日期 */
   onSelectDay: (dayKey: string) => void
   onCreateAt?: (dayKey: string) => void
@@ -34,7 +38,7 @@ function timeOf(task: Task): string {
   return task.dueAt ? task.dueAt.slice(11, 16) : ''
 }
 
-/** 日期分组的任务：同日内优先事项永远置顶，其余按 sort_order 排序 */
+/** 日期分组的任务：同日内时间靠上优先，时间相同再优先事项置顶，其余按 sort_order 排序 */
 function groupByDay(tasks: Task[]): Map<string, Task[]> {
   const map = new Map<string, Task[]>()
   for (const task of tasks) {
@@ -46,6 +50,9 @@ function groupByDay(tasks: Task[]): Map<string, Task[]> {
   }
   for (const list of map.values()) {
     list.sort((a, b) => {
+      const timeA = a.dueAt ?? ''
+      const timeB = b.dueAt ?? ''
+      if (timeA !== timeB) return timeA < timeB ? -1 : 1
       if (a.isPriority !== b.isPriority) return a.isPriority ? -1 : 1
       return a.sortOrder === b.sortOrder ? a.id - b.id : a.sortOrder - b.sortOrder
     })
@@ -61,6 +68,8 @@ export function ScheduleBoard({
   onMove,
   onReorder,
   onOpen,
+  onToggleTask,
+  onRemoveTask,
   onSelectDay,
   onCreateAt
 }: ScheduleBoardProps): JSX.Element {
@@ -105,9 +114,8 @@ export function ScheduleBoard({
       if (index >= 0) insertAt = index
     }
     ordered.splice(insertAt, 0, dragged)
-    // 稳定分区：优先事项排前面，普通事项按拖拽后的相对顺序排在后面
-    const finalOrder = [...ordered.filter((task) => task.isPriority), ...ordered.filter((task) => !task.isPriority)]
-    const list = finalOrder.map((task) => task.id)
+    // 直接按拖拽后的相对顺序持久化；展示时再按"时间靠上 → 优先靠上"规则排序
+    const list = ordered.map((task) => task.id)
     clearDrag()
     if (!sameDay) await onMove(draggedId, dayKey)
     await onReorder(list)
@@ -140,6 +148,8 @@ export function ScheduleBoard({
       dragging={draggingId === task.id}
       highlight={overTaskId === task.id}
       onOpen={() => onOpen(task)}
+      onToggle={onToggleTask ? () => onToggleTask(task) : undefined}
+      onRemove={onRemoveTask ? () => onRemoveTask(task) : undefined}
       onDragStart={startDrag(task)}
       onDragEnd={clearDrag}
       onDragOver={(event) => {
@@ -348,6 +358,8 @@ interface TaskCardProps {
   dragging: boolean
   highlight: boolean
   onOpen: () => void
+  onToggle?: () => void
+  onRemove?: () => void
   onDragStart: (event: React.DragEvent) => void
   onDragEnd: () => void
   onDragOver: (event: React.DragEvent) => void
@@ -360,6 +372,8 @@ function TaskCard({
   dragging,
   highlight,
   onOpen,
+  onToggle,
+  onRemove,
   onDragStart,
   onDragEnd,
   onDragOver,
@@ -399,6 +413,39 @@ function TaskCard({
         >
           {task.title}
         </span>
+        {onToggle ? (
+          <button
+            type="button"
+            title={done ? '标记为未完成' : '标记完成'}
+            aria-label={done ? '标记为未完成' : '标记完成'}
+            onClick={(event) => {
+              event.stopPropagation()
+              onToggle()
+            }}
+            className={cn(
+              'flex h-4 w-4 shrink-0 items-center justify-center rounded-full border transition-all',
+              done
+                ? 'border-success bg-success/25 text-success'
+                : 'border-border text-transparent hover:border-success hover:bg-success/15 hover:text-success'
+            )}
+          >
+            <Check className="h-2.5 w-2.5" />
+          </button>
+        ) : null}
+        {onRemove ? (
+          <button
+            type="button"
+            title="删除任务"
+            aria-label="删除任务"
+            onClick={(event) => {
+              event.stopPropagation()
+              onRemove()
+            }}
+            className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-border text-muted-foreground/60 transition-all hover:border-danger hover:bg-danger/15 hover:text-danger"
+          >
+            <X className="h-2.5 w-2.5" />
+          </button>
+        ) : null}
       </div>
       {!compact && (task.projectName || task.status !== 'todo') ? (
         <div className="mt-1 flex items-center gap-1.5 pl-4">
