@@ -2,7 +2,7 @@ import type { Task, TaskFilter, TaskInput, TaskStatus } from '@shared/types/doma
 import { all, count, insert, run } from '../query'
 import type { SqlParam } from '../query'
 import { joinTags, mapTask, type TaskRow } from '../mappers'
-import { addDays, endOfDay, nowIso } from '../../utils/time'
+import { addDays, addMinutes, endOfDay, nowIso } from '../../utils/time'
 import { indexEntity, removeEntity } from './search.repo'
 
 const TASK_SELECT = `
@@ -21,15 +21,16 @@ LEFT JOIN projects p ON p.id = t.project_id
 const ORDER_CLAUSE = `
 ORDER BY
   CASE t.status WHEN 'done' THEN 3 WHEN 'blocked' THEN 2 WHEN 'doing' THEN 1 ELSE 0 END,
-  COALESCE(t.due_at, '9999-12-31T00:00:00') ASC,
   t.is_priority DESC,
+  t.is_overdue DESC,
+  COALESCE(t.due_at, '9999-12-31T00:00:00') ASC,
   t.sort_order ASC,
   t.id DESC
 `
 
 export function listTasks(filter: TaskFilter = {}): Task[] {
   const now = nowIso()
-  const conditions: string[] = []
+  const conditions: string[] = ['t.deleted_at IS NULL']
   const params: SqlParam[] = [now]
 
   if (filter.projectId !== undefined && filter.projectId !== null) {
@@ -77,10 +78,20 @@ export function nextSortOrder(): number {
 /** 截止时间已到且未完成的待办，用于到点弹窗警示 */
 export function listDueTasks(referenceIso: string, limit = 50): Task[] {
   return all<TaskRow>(
-    `${TASK_SELECT} WHERE t.due_at IS NOT NULL AND t.due_at <= ? AND t.status <> 'done'
+    `${TASK_SELECT} WHERE t.deleted_at IS NULL AND t.due_at IS NOT NULL AND t.due_at <= ? AND t.status <> 'done'
      ORDER BY t.due_at ASC LIMIT ?`,
     nowIso(),
     referenceIso,
+    limit
+  ).map(mapTask)
+}
+
+/** 已升级为逾期事项（is_overdue=1）且未完成的任务 */
+export function listOverdueTasks(limit = 50): Task[] {
+  return all<TaskRow>(
+    `${TASK_SELECT} WHERE t.deleted_at IS NULL AND t.is_overdue = 1 AND t.status <> 'done'
+     ORDER BY t.due_at ASC LIMIT ?`,
+    nowIso(),
     limit
   ).map(mapTask)
 }
@@ -114,7 +125,7 @@ export function reorderTasks(orderedIds: number[]): void {
 }
 
 export function getTask(id: number): Task | undefined {
-  const row = all<TaskRow>(`${TASK_SELECT} WHERE t.id = ?`, nowIso(), id)[0]
+  const row = all<TaskRow>(`${TASK_SELECT} WHERE t.id = ? AND t.deleted_at IS NULL`, nowIso(), id)[0]
   return row ? mapTask(row) : undefined
 }
 
@@ -182,6 +193,8 @@ export function updateTask(id: number, patch: Partial<TaskInput>): Task {
   if (patch.dueAt !== undefined) {
     fields.push('due_at = ?')
     params.push(patch.dueAt ?? null)
+    // 截止时间被调整后视为已处理，解除逾期升级状态
+    fields.push('is_overdue = 0')
   }
   if (patch.estimateMinutes !== undefined) {
     fields.push('estimate_minutes = ?')
@@ -201,9 +214,60 @@ export function updateTask(id: number, patch: Partial<TaskInput>): Task {
   return getTask(id) as Task
 }
 
+/** 软删除：任务进入回收站，保留一周（可配置）后由清理任务真正删除 */
 export function removeTask(id: number): void {
+  const timestamp = nowIso()
+  run('UPDATE tasks SET deleted_at = ?, is_overdue = 0, updated_at = ? WHERE id = ?', timestamp, timestamp, id)
+  removeEntity('task', id)
+}
+
+/** 从回收站恢复任务 */
+export function restoreTask(id: number): Task | undefined {
+  run('UPDATE tasks SET deleted_at = NULL, updated_at = ? WHERE id = ?', nowIso(), id)
+  syncSearch(id)
+  return getDeletedTask(id)
+}
+
+/** 查询回收站中的任务（含被删字段） */
+export function getDeletedTask(id: number): Task | undefined {
+  const rows = all<TaskRow>(`${TASK_SELECT} WHERE t.id = ? AND t.deleted_at IS NOT NULL`, nowIso(), id)
+  return rows[0] ? mapTask(rows[0]) : undefined
+}
+
+/** 彻底删除：移除任务及其关联数据（不可恢复） */
+export function purgeTask(id: number): void {
+  run('DELETE FROM review_items WHERE task_id = ?', id)
+  run('DELETE FROM notes WHERE task_id = ?', id)
+  run('DELETE FROM schedule_events WHERE task_id = ?', id)
+  run('DELETE FROM memory_logs WHERE task_id = ?', id)
   run('DELETE FROM tasks WHERE id = ?', id)
   removeEntity('task', id)
+}
+
+/** 回收站列表（按删除时间倒序） */
+export function listDeletedTasks(limit = 200): Task[] {
+  return all<TaskRow>(
+    `${TASK_SELECT} WHERE t.deleted_at IS NOT NULL ORDER BY t.deleted_at DESC LIMIT ?`,
+    nowIso(),
+    limit
+  ).map(mapTask)
+}
+
+/** 清理超过保留期的回收站任务，返回彻底删除的数量 */
+export function purgeExpiredDeleted(retentionDays: number): number {
+  const cutoff = addMinutes(nowIso(), -Math.max(1, retentionDays) * 24 * 60)
+  const rows = all<{ id: number | bigint }>(
+    'SELECT id FROM tasks WHERE deleted_at IS NOT NULL AND deleted_at <= ?',
+    cutoff
+  )
+  for (const row of rows) purgeTask(Number(row.id))
+  return rows.length
+}
+
+/** 升级为逾期事项：优先级仅低于优先事项 */
+export function markTaskOverdue(id: number): Task | undefined {
+  run('UPDATE tasks SET is_overdue = 1, updated_at = ? WHERE id = ?', nowIso(), id)
+  return getTask(id)
 }
 
 export function toggleTaskDone(id: number): Task {
@@ -211,7 +275,7 @@ export function toggleTaskDone(id: number): Task {
   const nextStatus: TaskStatus = task?.status === 'done' ? 'todo' : 'done'
   const timestamp = nowIso()
   run(
-    `UPDATE tasks SET status = ?, completed_at = ?, updated_at = ?,
+    `UPDATE tasks SET status = ?, completed_at = ?, updated_at = ?, is_overdue = 0,
       progress = CASE WHEN ? = 'done' THEN 100 ELSE progress END
      WHERE id = ?`,
     nextStatus,
@@ -225,7 +289,7 @@ export function toggleTaskDone(id: number): Task {
 }
 
 export function taskCount(): number {
-  return count('SELECT COUNT(*) AS c FROM tasks')
+  return count('SELECT COUNT(*) AS c FROM tasks WHERE deleted_at IS NULL')
 }
 
 export function syncSearch(id: number): void {
@@ -241,6 +305,6 @@ export function syncSearch(id: number): void {
 }
 
 export function rebuildSearchIndex(): void {
-  const rows = all<{ id: number }>('SELECT id FROM tasks')
+  const rows = all<{ id: number }>('SELECT id FROM tasks WHERE deleted_at IS NULL')
   for (const row of rows) syncSearch(Number(row.id))
 }

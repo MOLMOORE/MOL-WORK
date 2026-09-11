@@ -13,17 +13,28 @@ import {
   Timer,
   TriangleAlert
 } from 'lucide-react'
-import type { DailyReport } from '@shared/types/domain'
+import type { DailyReport, Task } from '@shared/types/domain'
 import { Card, SectionHeader, StatCard } from '../components/ui/Card'
 import { Badge, EmptyState, Progress, Skeleton } from '../components/ui/Feedback'
 import { Button } from '../components/ui/Button'
+import { ConfirmDialog } from '../components/ui/Overlay'
 import { ReviewQueue } from '../components/review/ReviewQueue'
 import { useAppStore } from '../stores/appStore'
 import { useTaskStore } from '../stores/taskStore'
 import { useScheduleStore } from '../stores/scheduleStore'
 import { api } from '../lib/ipc'
 import { TASK_STATUS_META } from '@shared/constants'
-import { addDays, cn, formatDay, formatDateTime, formatMinutes, relativeDay, todayKey } from '../lib/utils'
+import {
+  addDays,
+  cn,
+  detectOrderConflict,
+  formatDay,
+  formatDateTime,
+  formatMinutes,
+  relativeDay,
+  todayKey,
+  type OrderConflict
+} from '../lib/utils'
 
 export function DashboardPage(): JSX.Element {
   const navigate = useNavigate()
@@ -31,11 +42,16 @@ export function DashboardPage(): JSX.Element {
   const refreshOverview = useAppStore((state) => state.refreshOverview)
   const pushToast = useAppStore((state) => state.pushToast)
   const toggleTask = useTaskStore((state) => state.toggleTask)
+  const updateTask = useTaskStore((state) => state.updateTask)
   const reorderTasks = useTaskStore((state) => state.reorderTasks)
   const [report, setReport] = useState<DailyReport | null>(null)
   const [todayOrder, setTodayOrder] = useState<number[] | null>(null)
   const [todayDragId, setTodayDragId] = useState<number | null>(null)
   const [todayOverId, setTodayOverId] = useState<number | null>(null)
+  /** 勾选完成前的确认 */
+  const [toggleAsk, setToggleAsk] = useState<Task | null>(null)
+  /** 拖拽打乱时间顺序时，询问是否修改截止时间 */
+  const [dueChangeAsk, setDueChangeAsk] = useState<{ task: Task; conflict: OrderConflict; orderedIds: number[] } | null>(null)
 
   const gradeReview = useScheduleStore((state) => state.gradeReview)
   const planReview = useScheduleStore((state) => state.planReview)
@@ -53,23 +69,47 @@ export function DashboardPage(): JSX.Element {
     return [...list].sort((a, b) => (indexOf.get(a.id) ?? 0) - (indexOf.get(b.id) ?? 0))
   }, [overview, todayOrder])
 
-  /** 今日任务拖拽排序：插到目标位置之前并持久化 */
+  /** 今日任务拖拽排序：插到目标位置之前并持久化；打乱时间顺序时先弹窗确认 */
   const handleTodayDrop = async (targetId: number): Promise<void> => {
     const dragId = todayDragId
     setTodayDragId(null)
     setTodayOverId(null)
     if (dragId === null || dragId === targetId || !overview) return
-    const ids = overview.todayTasks.map((task) => task.id)
-    const from = ids.indexOf(dragId)
+    const ordered = [...overview.todayTasks]
+    const from = ordered.findIndex((task) => task.id === dragId)
     if (from < 0) return
-    ids.splice(from, 1)
-    const to = ids.indexOf(targetId)
+    const [dragged] = ordered.splice(from, 1)
+    const to = ordered.findIndex((task) => task.id === targetId)
     if (to < 0) return
-    ids.splice(to, 0, dragId)
+    ordered.splice(to, 0, dragged)
+
+    const conflict = detectOrderConflict(ordered, dragId)
+    if (conflict) {
+      setDueChangeAsk({ task: dragged, conflict, orderedIds: ordered.map((task) => task.id) })
+      return
+    }
+    const ids = ordered.map((task) => task.id)
     setTodayOrder(ids)
     await reorderTasks(ids)
     await refreshOverview()
     setTodayOrder(null)
+  }
+
+  /** 勾选完成：先弹窗确认防误触 */
+  const executeToggle = async (task: Task): Promise<void> => {
+    await toggleTask(task.id)
+    await refreshOverview()
+  }
+
+  /** 拖拽打乱时间顺序：用户确认修改截止时间后提交 */
+  const executeDueChange = async (): Promise<void> => {
+    if (!dueChangeAsk) return
+    const { task, conflict, orderedIds } = dueChangeAsk
+    setDueChangeAsk(null)
+    await updateTask(task.id, { dueAt: conflict.newDueAt })
+    await reorderTasks(orderedIds)
+    await refreshOverview()
+    pushToast({ title: '已调整截止时间', description: `${task.title} → ${formatDateTime(conflict.newDueAt)}`, tone: 'success' })
   }
 
   if (!overview || !report) {
@@ -154,7 +194,7 @@ export function DashboardPage(): JSX.Element {
         <Card>
           <SectionHeader
             title="今日任务"
-            description="时间靠上的排前面，可拖拽调整顺序、勾选完成"
+            description="优先事项置顶，可拖拽调整顺序、勾选完成（均有确认弹窗防误触）"
             action={
               <Button variant="ghost" size="sm" icon={<ArrowRight className="h-3.5 w-3.5" />} onClick={() => navigate('/tasks')}>
                 全部任务
@@ -199,7 +239,7 @@ export function DashboardPage(): JSX.Element {
                     <button
                       type="button"
                       aria-label="标记完成"
-                      onClick={() => void toggleTask(task.id).then(refreshOverview)}
+                      onClick={() => setToggleAsk(task)}
                       className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-border transition-all hover:border-success hover:bg-success/20"
                     >
                       <CheckCircle2 className="h-3 w-3 text-transparent transition-colors group-hover:text-success/70" />
@@ -332,6 +372,30 @@ export function DashboardPage(): JSX.Element {
           </div>
         )}
       </Card>
+
+      <ConfirmDialog
+        open={toggleAsk !== null}
+        title={toggleAsk?.status === 'done' ? '撤销完成状态' : '标记为已完成'}
+        description={`确定要将「${toggleAsk?.title ?? ''}」${toggleAsk?.status === 'done' ? '重新标记为待开始吗？' : '标记为已完成吗？'}`}
+        confirmText={toggleAsk?.status === 'done' ? '确认撤销' : '确认完成'}
+        tone="primary"
+        onCancel={() => setToggleAsk(null)}
+        onConfirm={() => {
+          const task = toggleAsk
+          setToggleAsk(null)
+          if (task) void executeToggle(task)
+        }}
+      />
+
+      <ConfirmDialog
+        open={dueChangeAsk !== null}
+        title="拖拽将打乱时间顺序"
+        description={`「${dueChangeAsk?.task.title ?? ''}」的截止时间（${dueChangeAsk ? formatDateTime(dueChangeAsk.task.dueAt) : ''}）早于「${dueChangeAsk?.conflict.refTitle ?? ''}」（${dueChangeAsk ? formatDateTime(dueChangeAsk.conflict.newDueAt) : ''}）。是否将被拖任务的截止时间修改为后者？不修改则本次拖拽不会生效。`}
+        confirmText="修改截止时间并移动"
+        tone="primary"
+        onCancel={() => setDueChangeAsk(null)}
+        onConfirm={() => void executeDueChange()}
+      />
     </div>
   )
 }

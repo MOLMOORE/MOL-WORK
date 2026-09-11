@@ -115,15 +115,27 @@ export function SettingsPage(): JSX.Element {
               </Field>
             </div>
 
-            <Field label="提醒提前量（分钟）" hint="日程到点前多久推送系统通知">
-              <Input
-                type="number"
-                min={0}
-                max={120}
-                value={draft.notifyLeadMinutes}
-                onChange={(event) => void patch({ notifyLeadMinutes: Number(event.target.value) })}
-              />
-            </Field>
+            <div className="grid grid-cols-2 gap-4">
+              <Field label="提醒提前量（分钟）" hint="日程到点前多久推送系统通知">
+                <Input
+                  type="number"
+                  min={0}
+                  max={120}
+                  value={draft.notifyLeadMinutes}
+                  onChange={(event) => void patch({ notifyLeadMinutes: Number(event.target.value) })}
+                />
+              </Field>
+              <Field label="回收站保留时长" hint="删除的任务在回收站保留的时间，到期自动彻底删除">
+                <Select
+                  value={String(draft.recycleBinDays ?? 7)}
+                  onChange={(event) => void patch({ recycleBinDays: Number(event.target.value) })}
+                >
+                  <option value="1">一天</option>
+                  <option value="7">一周</option>
+                  <option value="30">一个月</option>
+                </Select>
+              </Field>
+            </div>
 
             <div className="grid grid-cols-3 gap-4">
               <Field label="工作时段开始">

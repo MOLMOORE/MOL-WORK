@@ -2,20 +2,27 @@ import type { Task, TaskDetail, TaskFilter, TaskInput } from '@shared/types/doma
 import {
   createTask,
   getTask,
+  listDeletedTasks,
   listDueTasks,
+  listOverdueTasks,
   listTasks,
+  markTaskOverdue,
   moveTaskToDay,
+  purgeExpiredDeleted,
+  purgeTask,
   removeTask,
   reorderTasks,
+  restoreTask,
   toggleTaskDone,
   updateTask
 } from '../db/repositories/task.repo'
-import { listEventsByTask, removeEventsByTask } from '../db/repositories/schedule.repo'
+import { recordMemoryLog } from '../db/repositories/memory.repo'
+import { listEventsByTask } from '../db/repositories/schedule.repo'
 import { listReviewsByTask } from '../db/repositories/review.repo'
 import { listFocusByTask } from '../db/repositories/focus.repo'
 import { listNotes } from './note.service'
 import { ensureReviewForNote } from './review.service'
-import { nowIso } from '../utils/time'
+import { addMinutes, nowIso } from '../utils/time'
 
 export function listTaskService(filter: TaskFilter = {}): Task[] {
   return listTasks(filter)
@@ -29,9 +36,34 @@ export function updateTaskService(id: number, patch: Partial<TaskInput>): Task {
   return updateTask(id, patch)
 }
 
+/** 删除任务：进入回收站（软删除），默认保留一周后自动清理 */
 export function deleteTask(id: number): void {
-  removeEventsByTask(id)
   removeTask(id)
+}
+
+/** 从回收站恢复任务 */
+export function restoreTaskService(id: number): Task | undefined {
+  return restoreTask(id)
+}
+
+/** 彻底删除（不可恢复） */
+export function purgeTaskService(id: number): void {
+  purgeTask(id)
+}
+
+/** 回收站列表 */
+export function listDeletedTasksService(): Task[] {
+  return listDeletedTasks()
+}
+
+/** 清理超过保留期的回收站任务，返回清理数量 */
+export function purgeExpiredService(retentionDays: number): number {
+  return purgeExpiredDeleted(retentionDays)
+}
+
+/** 逾期事项列表（is_overdue=1 且未完成） */
+export function listOverdueService(): Task[] {
+  return listOverdueTasks()
 }
 
 export function toggleTask(id: number): Task {
@@ -67,4 +99,35 @@ export function taskDetail(id: number): TaskDetail {
     reviews: listReviewsByTask(id),
     focusSessions: listFocusByTask(id)
   }
+}
+
+/** 不修改截止时间：升级为逾期事项（优先级仅低于优先事项），并计入记忆 */
+export function markOverdueService(id: number): Task {
+  const task = markTaskOverdue(id)
+  if (!task) throw new Error(`任务不存在：${id}`)
+  recordMemoryLog({
+    taskId: id,
+    taskTitle: task.title,
+    kind: 'due',
+    minutes: 0,
+    note: '截止时间已到且未延期，升级为逾期事项'
+  })
+  return task
+}
+
+/** 延期：把截止时间从当前时刻延后 minutes 分钟（解除逾期升级），并计入记忆 */
+export function deferTaskService(id: number, minutes: number): Task {
+  const current = getTask(id)
+  if (!current) throw new Error(`任务不存在：${id}`)
+  const safeMinutes = Math.max(1, Math.round(minutes))
+  const base = current.dueAt && current.dueAt > nowIso() ? current.dueAt : nowIso()
+  const task = updateTask(id, { dueAt: addMinutes(base, safeMinutes) })
+  recordMemoryLog({
+    taskId: id,
+    taskTitle: task.title,
+    kind: 'defer',
+    minutes: safeMinutes,
+    note: `截止时间延后 ${safeMinutes} 分钟`
+  })
+  return task
 }

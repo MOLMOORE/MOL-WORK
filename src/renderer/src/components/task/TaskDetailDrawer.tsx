@@ -30,6 +30,7 @@ export function TaskDetailDrawer(): JSX.Element | null {
   const [tab, setTab] = useState<TabKey>('schedule')
   const [editOpen, setEditOpen] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
+  const [doneAsk, setDoneAsk] = useState(false)
 
   useEffect(() => {
     if (detail) setTab('schedule')
@@ -73,7 +74,7 @@ export function TaskDetailDrawer(): JSX.Element | null {
                 <Button size="sm" variant="secondary" onClick={() => setEditOpen(true)}>
                   编辑
                 </Button>
-                <Button size="sm" variant="primary" onClick={() => void patch({ status: 'done' })}>
+                <Button size="sm" variant="primary" onClick={() => setDoneAsk(true)}>
                   标记完成
                 </Button>
               </div>
@@ -179,15 +180,29 @@ export function TaskDetailDrawer(): JSX.Element | null {
       <ConfirmDialog
         open={confirmOpen}
         title="删除任务"
-        description="删除后该任务关联的日程、笔记与复习计划会一并移除，且无法恢复。"
-        confirmText="确认删除"
+        description="任务会先移入回收站，保留期内可随时恢复；超过保留期后自动彻底删除。"
+        confirmText="移入回收站"
         onCancel={() => setConfirmOpen(false)}
         onConfirm={async () => {
           if (!task) return
           setConfirmOpen(false)
           await removeTask(task.id)
           await refreshOverview()
-          pushToast({ title: '任务已删除', tone: 'success' })
+          pushToast({ title: '任务已移入回收站', description: task.title, tone: 'success' })
+        }}
+      />
+
+      <ConfirmDialog
+        open={doneAsk}
+        title="标记为已完成"
+        description={`确定要将「${task?.title ?? ''}」标记为已完成吗？`}
+        confirmText="确认完成"
+        tone="primary"
+        onCancel={() => setDoneAsk(false)}
+        onConfirm={async () => {
+          setDoneAsk(false)
+          await patch({ status: 'done' })
+          pushToast({ title: '任务已完成', tone: 'success' })
         }}
       />
     </>

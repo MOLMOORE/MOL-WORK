@@ -2,6 +2,7 @@ import type { DatabaseSync } from 'node:sqlite'
 import { logger } from '../../utils/logger'
 import { INIT_SQL } from './001_init'
 import { TASK_PRIORITY_ORDER_SQL } from './002_task_priority_order'
+import { TASK_RECYCLE_OVERDUE_MEMORY_SQL } from './003_recycle_overdue_memory'
 
 export interface Migration {
   version: number
@@ -11,7 +12,8 @@ export interface Migration {
 
 export const migrations: Migration[] = [
   { version: 1, name: 'init', sql: INIT_SQL },
-  { version: 2, name: 'task-priority-order', sql: TASK_PRIORITY_ORDER_SQL }
+  { version: 2, name: 'task-priority-order', sql: TASK_PRIORITY_ORDER_SQL },
+  { version: 3, name: 'recycle-overdue-memory', sql: TASK_RECYCLE_OVERDUE_MEMORY_SQL }
 ]
 
 /**

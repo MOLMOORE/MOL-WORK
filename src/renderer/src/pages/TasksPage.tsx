@@ -15,7 +15,8 @@ import {
   Plus,
   Search,
   Star,
-  Timer
+  Timer,
+  Trash2
 } from 'lucide-react'
 import type { Task, TaskStatus } from '@shared/types/domain'
 import { Card, SectionHeader } from '../components/ui/Card'
@@ -23,9 +24,11 @@ import { Badge, EmptyState, Progress, Skeleton } from '../components/ui/Feedback
 import { Button, IconButton } from '../components/ui/Button'
 import { Input, Select } from '../components/ui/Field'
 import { Tabs } from '../components/ui/Tabs'
+import { ConfirmDialog } from '../components/ui/Overlay'
 import { TaskForm } from '../components/task/TaskForm'
 import { TaskDetailDrawer } from '../components/task/TaskDetailDrawer'
-import { ScheduleBoard, type BoardView } from '../components/task/ScheduleBoard'
+import { ScheduleBoard, type BoardView, type DueChangeRequest } from '../components/task/ScheduleBoard'
+import { RecycleBinModal } from '../components/task/RecycleBinModal'
 import { ReviewQueue } from '../components/review/ReviewQueue'
 import { useTaskStore } from '../stores/taskStore'
 import { useScheduleStore } from '../stores/scheduleStore'
@@ -35,13 +38,16 @@ import {
   addDays,
   cn,
   dateKey,
+  detectOrderConflict,
+  formatDateTime,
   formatMinutes,
   isOverdue,
   relativeDay,
   toDate,
   todayKey,
   weekdayCN,
-  formatDateCN
+  formatDateCN,
+  type OrderConflict
 } from '../lib/utils'
 
 type PageView = BoardView | 'list'
@@ -72,6 +78,7 @@ export function TasksPage(): JSX.Element {
     openDetail,
     toggleTask,
     removeTask,
+    updateTask,
     moveTask,
     reorderTasks
   } = useTaskStore()
@@ -90,6 +97,13 @@ export function TasksPage(): JSX.Element {
   const [listOrder, setListOrder] = useState<number[] | null>(null)
   const [listDragId, setListDragId] = useState<number | null>(null)
   const [listOverId, setListOverId] = useState<number | null>(null)
+  const [recycleOpen, setRecycleOpen] = useState(false)
+  /** 待确认的完成/删除快捷操作 */
+  const [quickConfirm, setQuickConfirm] = useState<{ type: 'toggle' | 'remove'; task: Task } | null>(null)
+  /** 清单勾选完成前的确认 */
+  const [toggleAsk, setToggleAsk] = useState<Task | null>(null)
+  /** 拖拽打乱时间顺序时，询问是否修改截止时间 */
+  const [dueChangeAsk, setDueChangeAsk] = useState<{ task: Task; conflict: OrderConflict; orderedIds: number[] } | null>(null)
 
   useEffect(() => {
     void load()
@@ -127,14 +141,21 @@ export function TasksPage(): JSX.Element {
   const priorityCount = tasks.filter((task) => task.isPriority && task.status !== 'done').length
   const doneCount = tasks.filter((task) => task.status === 'done').length
 
-  const onToggle = async (task: Task): Promise<void> => {
+  /** 清单勾选：先弹窗确认防误触 */
+  const onToggle = (task: Task): void => {
+    setToggleAsk(task)
+  }
+
+  /** 确认后真正切换完成状态 */
+  const executeToggle = async (task: Task): Promise<void> => {
     await toggleTask(task.id)
     await refreshOverview()
   }
 
-  const openCreate = (dayKey?: string): void => {
+  const openCreate = (_dayKey?: string): void => {
     setEditing(null)
-    setDefaultDue(dayKey ? `${dayKey}T09:00:00` : null)
+    // 不再默认填充截止时间，允许创建不设置截止时间的事项
+    setDefaultDue(null)
     setFormOpen(true)
   }
 
@@ -170,35 +191,63 @@ export function TasksPage(): JSX.Element {
     await reorderTasks(orderedIds)
   }
 
-  /** 清单视图：拖拽提交后按新顺序即时反馈，再等待 store 刷新 */
+  /** 清单视图：拖拽提交后按新顺序即时反馈，再等待 store 刷新；打乱时间顺序时先弹窗确认 */
   const handleListDrop = async (targetId: number): Promise<void> => {
     const dragId = listDragId
     setListDragId(null)
     setListOverId(null)
     if (dragId === null || dragId === targetId) return
-    const ids = visibleTasks.map((task) => task.id)
-    const from = ids.indexOf(dragId)
+    const ordered = [...visibleTasks]
+    const from = ordered.findIndex((task) => task.id === dragId)
     if (from < 0) return
-    ids.splice(from, 1)
-    const to = ids.indexOf(targetId)
+    const [dragged] = ordered.splice(from, 1)
+    const to = ordered.findIndex((task) => task.id === targetId)
     if (to < 0) return
-    ids.splice(to, 0, dragId)
+    ordered.splice(to, 0, dragged)
+
+    const conflict = detectOrderConflict(ordered, dragId)
+    if (conflict) {
+      setDueChangeAsk({ task: dragged, conflict, orderedIds: ordered.map((task) => task.id) })
+      return
+    }
+    const ids = ordered.map((task) => task.id)
     setListOrder(ids)
     await reorderTasks(ids)
     setListOrder(null)
   }
 
-  /** 日程板卡片快捷：切换完成状态 */
-  const handleQuickToggle = async (task: Task): Promise<void> => {
-    await toggleTask(task.id)
-    await refreshOverview()
+  /** 日程板卡片快捷：先弹窗确认再执行 */
+  const handleQuickToggle = (task: Task): void => {
+    setQuickConfirm({ type: 'toggle', task })
   }
 
-  /** 日程板卡片快捷：删除任务 */
-  const handleQuickRemove = async (task: Task): Promise<void> => {
+  /** 日程板卡片快捷：先弹窗确认再执行 */
+  const handleQuickRemove = (task: Task): void => {
+    setQuickConfirm({ type: 'remove', task })
+  }
+
+  /** 确认执行快捷完成 / 删除 */
+  const executeQuick = async (): Promise<void> => {
+    if (!quickConfirm) return
+    const { type, task } = quickConfirm
+    setQuickConfirm(null)
+    if (type === 'toggle') {
+      await executeToggle(task)
+      return
+    }
     await removeTask(task.id)
     await refreshOverview()
-    pushToast({ title: '任务已删除', description: task.title, tone: 'success' })
+    pushToast({ title: '任务已移入回收站', description: task.title, tone: 'success' })
+  }
+
+  /** 拖拽打乱时间顺序：用户确认修改截止时间后提交 */
+  const executeDueChange = async (): Promise<void> => {
+    if (!dueChangeAsk) return
+    const { task, conflict, orderedIds } = dueChangeAsk
+    setDueChangeAsk(null)
+    await updateTask(task.id, { dueAt: conflict.newDueAt })
+    await reorderTasks(orderedIds)
+    pushToast({ title: '已调整截止时间', description: `${task.title} → ${formatDateTime(conflict.newDueAt)}`, tone: 'success' })
   }
 
   const statusCount = (key: TaskStatus | 'all'): number =>
@@ -356,6 +405,15 @@ export function TasksPage(): JSX.Element {
             </Button>
 
             <Button
+              variant="secondary"
+              size="md"
+              icon={<Trash2 className="h-3.5 w-3.5" />}
+              onClick={() => setRecycleOpen(true)}
+            >
+              回收站
+            </Button>
+
+            <Button
               variant="primary"
               size="md"
               icon={<Plus className="h-3.5 w-3.5" />}
@@ -405,7 +463,7 @@ export function TasksPage(): JSX.Element {
                   task={task}
                   dragging={listDragId === task.id}
                   dropTarget={listOverId === task.id && listDragId !== task.id}
-                  onToggle={() => void onToggle(task)}
+                  onToggle={() => onToggle(task)}
                   onOpen={() => void openDetail(task.id)}
                   onEdit={() => {
                     setEditing(task)
@@ -438,7 +496,7 @@ export function TasksPage(): JSX.Element {
                     ? '本周日程'
                     : '本月日程'
               }
-              description="拖拽卡片可在任意日期之间移动，同一日期内拖动可自由排序；时间靠上的事项优先显示，其次优先事项置顶并以红色标识"
+              description="拖拽卡片可在任意日期之间移动，同一日期内可自由排序；优先事项置顶、逾期事项其次，未设置截止时间的事项可随意拖拽；把截止时间早的事项拖到更晚位置时会弹窗确认是否修改截止时间"
               action={
                 <div className="flex items-center gap-2">
                   <IconButton label="上一页" onClick={() => shift(-1)}>
@@ -467,8 +525,9 @@ export function TasksPage(): JSX.Element {
               onMove={handleMove}
               onReorder={handleReorder}
               onOpen={(task) => void openDetail(task.id)}
-              onToggleTask={(task) => void handleQuickToggle(task)}
-              onRemoveTask={(task) => void handleQuickRemove(task)}
+              onToggleTask={(task) => handleQuickToggle(task)}
+              onRemoveTask={(task) => handleQuickRemove(task)}
+              onNeedDueChange={(request) => setDueChangeAsk(request)}
               onSelectDay={pickDay}
               onCreateAt={(dayKey) => openCreate(dayKey)}
             />
@@ -490,6 +549,45 @@ export function TasksPage(): JSX.Element {
         defaultDueAt={defaultDue}
       />
       <TaskDetailDrawer />
+      <RecycleBinModal open={recycleOpen} onClose={() => setRecycleOpen(false)} />
+
+      <ConfirmDialog
+        open={toggleAsk !== null}
+        title={toggleAsk?.status === 'done' ? '撤销完成状态' : '标记为已完成'}
+        description={`确定要将「${toggleAsk?.title ?? ''}」${toggleAsk?.status === 'done' ? '重新标记为待开始吗？' : '标记为已完成吗？'}`}
+        confirmText={toggleAsk?.status === 'done' ? '确认撤销' : '确认完成'}
+        tone="primary"
+        onCancel={() => setToggleAsk(null)}
+        onConfirm={() => {
+          const task = toggleAsk
+          setToggleAsk(null)
+          if (task) void executeToggle(task)
+        }}
+      />
+
+      <ConfirmDialog
+        open={quickConfirm !== null}
+        title={quickConfirm?.type === 'toggle' ? '标记为已完成' : '删除任务'}
+        description={
+          quickConfirm?.type === 'toggle'
+            ? `确定要将「${quickConfirm?.task.title ?? ''}」标记为已完成吗？`
+            : `确定要删除「${quickConfirm?.task.title ?? ''}」吗？任务会先进入回收站，保留期内可恢复。`
+        }
+        confirmText={quickConfirm?.type === 'toggle' ? '确认完成' : '确认删除'}
+        tone={quickConfirm?.type === 'toggle' ? 'primary' : 'danger'}
+        onCancel={() => setQuickConfirm(null)}
+        onConfirm={() => void executeQuick()}
+      />
+
+      <ConfirmDialog
+        open={dueChangeAsk !== null}
+        title="拖拽将打乱时间顺序"
+        description={`「${dueChangeAsk?.task.title ?? ''}」的截止时间（${dueChangeAsk ? formatDateTime(dueChangeAsk.task.dueAt) : ''}）早于「${dueChangeAsk?.conflict.refTitle ?? ''}」（${dueChangeAsk ? formatDateTime(dueChangeAsk.conflict.newDueAt) : ''}）。是否将被拖任务的截止时间修改为后者？不修改则本次拖拽不会生效。`}
+        confirmText="修改截止时间并移动"
+        tone="primary"
+        onCancel={() => setDueChangeAsk(null)}
+        onConfirm={() => void executeDueChange()}
+      />
     </div>
   )
 }
@@ -626,6 +724,7 @@ function TaskRow({
             <CalendarClock className="h-2.5 w-2.5" />
             {relativeDay(task.dueAt)}
           </Badge>
+          {task.isOverdue ? <Badge tone="warning">逾期事项</Badge> : null}
           <Badge tone="info">
             <Timer className="h-2.5 w-2.5" />
             {formatMinutes(task.estimateMinutes)}

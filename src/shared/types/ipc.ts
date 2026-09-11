@@ -64,6 +64,7 @@ export interface WorkstationApi {
     get(id: number): Promise<TaskDetail>
     create(input: TaskInput): Promise<Task>
     update(id: number, patch: Partial<TaskInput>): Promise<Task>
+    /** 删除任务（进入回收站，软删除） */
     remove(id: number): Promise<void>
     toggle(id: number): Promise<Task>
     /** 拖拽到指定日期 */
@@ -72,6 +73,20 @@ export interface WorkstationApi {
     reorder(orderedIds: number[]): Promise<void>
     /** 截止时间已到的待办（用于弹窗警示） */
     due(referenceIso?: string): Promise<Task[]>
+    /** 从回收站恢复 */
+    restore(id: number): Promise<void>
+    /** 彻底删除（不可恢复） */
+    purge(id: number): Promise<void>
+    /** 回收站列表 */
+    listDeleted(): Promise<Task[]>
+    /** 清理超过保留期的回收站任务 */
+    purgeExpired(retentionDays: number): Promise<number>
+    /** 逾期事项列表（升级后每 5 分钟重提醒） */
+    listOverdue(): Promise<Task[]>
+    /** 保持截止时间：升级为逾期事项 */
+    markOverdue(id: number): Promise<Task>
+    /** 延期：从当前时刻延后 N 分钟 */
+    defer(id: number, minutes: number): Promise<Task>
   }
   note: {
     list(taskId?: number | null): Promise<Note[]>

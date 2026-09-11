@@ -6,10 +6,10 @@ import { indexEntity, removeEntity } from './search.repo'
 
 const PROJECT_SELECT = `
 SELECT p.*,
-  (SELECT COUNT(*) FROM tasks t WHERE t.project_id = p.id) AS task_count,
-  (SELECT COUNT(*) FROM tasks t WHERE t.project_id = p.id AND t.status = 'done') AS done_count,
+  (SELECT COUNT(*) FROM tasks t WHERE t.project_id = p.id AND t.deleted_at IS NULL) AS task_count,
+  (SELECT COUNT(*) FROM tasks t WHERE t.project_id = p.id AND t.status = 'done' AND t.deleted_at IS NULL) AS done_count,
   COALESCE((SELECT SUM(f.duration_minutes) FROM focus_sessions f
-            JOIN tasks t2 ON t2.id = f.task_id WHERE t2.project_id = p.id), 0) AS focus_minutes
+            JOIN tasks t2 ON t2.id = f.task_id WHERE t2.project_id = p.id AND t2.deleted_at IS NULL), 0) AS focus_minutes
 FROM projects p
 `
 

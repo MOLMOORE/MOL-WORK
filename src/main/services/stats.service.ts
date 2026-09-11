@@ -24,6 +24,7 @@ import { listFocusRange } from '../db/repositories/focus.repo'
 import { countEventsBetween } from '../db/repositories/schedule.repo'
 import { dueCount } from '../db/repositories/review.repo'
 import { listTasks } from '../db/repositories/task.repo'
+import { listMemoryLogs } from '../db/repositories/memory.repo'
 
 const TASK_SELECT_FOR_STATS = `
 SELECT t.*, p.name AS project_name, p.color AS project_color
@@ -165,7 +166,7 @@ export function dailyStats(dateKeyValue: string): DailyStats {
     ...all<{ id: number; title: string; completed_at: string; project_name: string | null }>(
       `SELECT t.id, t.title, t.completed_at, p.name AS project_name
        FROM tasks t LEFT JOIN projects p ON p.id = t.project_id
-       WHERE t.completed_at >= ? AND t.completed_at <= ?`,
+       WHERE t.deleted_at IS NULL AND t.completed_at >= ? AND t.completed_at <= ?`,
       from,
       to
     ).map<TimelineEntry>((row) => ({
@@ -188,7 +189,8 @@ export function dailyStats(dateKeyValue: string): DailyStats {
       at: String(row.last_reviewed_at),
       durationMinutes: 0,
       detail: `复习完成 · 下次间隔 ${Number(row.interval_days)} 天`
-    }))
+    })),
+    ...listMemoryLogs(from, to)
   ].sort((a, b) => (a.at < b.at ? 1 : -1))
 
   return {
@@ -231,7 +233,7 @@ export function trend(fromKey: string, toKey: string): TrendPoint[] {
 export function procrastination(): ProcrastinationItem[] {
   const today = todayKey()
   const rows = all<TaskRow>(
-    `${TASK_SELECT_FOR_STATS} WHERE t.status <> 'done' ORDER BY t.is_priority DESC, t.sort_order ASC, t.due_at ASC`
+    `${TASK_SELECT_FOR_STATS} WHERE t.status <> 'done' AND t.deleted_at IS NULL ORDER BY t.is_priority DESC, t.is_overdue DESC, t.sort_order ASC, t.due_at ASC`
   ).map(mapTask)
 
   const items: ProcrastinationItem[] = []
@@ -265,8 +267,8 @@ export function procrastination(): ProcrastinationItem[] {
 }
 
 export function workSummary(): { totalTasks: number; doneTasks: number; activeReviews: number; totalFocusMinutes: number } {
-  const totalTasks = count('SELECT COUNT(*) AS c FROM tasks')
-  const doneTasks = count("SELECT COUNT(*) AS c FROM tasks WHERE status = 'done'")
+  const totalTasks = count('SELECT COUNT(*) AS c FROM tasks WHERE deleted_at IS NULL')
+  const doneTasks = count("SELECT COUNT(*) AS c FROM tasks WHERE status = 'done' AND deleted_at IS NULL")
   const activeReviews = count("SELECT COUNT(*) AS c FROM review_items WHERE status = 'active'")
   const row = all<{ s: number | null }>('SELECT SUM(duration_minutes) AS s FROM focus_sessions')[0]
   return { totalTasks, doneTasks, activeReviews, totalFocusMinutes: row && row.s !== null ? Number(row.s) : 0 }

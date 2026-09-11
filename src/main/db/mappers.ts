@@ -78,6 +78,7 @@ export interface TaskRow {
   detail: string
   status: string
   is_priority: number | bigint
+  is_overdue?: number | bigint
   sort_order: number | bigint
   progress: number | bigint
   due_at: string | null
@@ -86,6 +87,7 @@ export interface TaskRow {
   created_at: string
   updated_at: string
   completed_at: string | null
+  deleted_at?: string | null
   focus_minutes?: number | bigint
   note_count?: number | bigint
   pending_reviews?: number | bigint
@@ -102,6 +104,7 @@ export function mapTask(row: TaskRow): Task {
     detail: str(row.detail),
     status: str(row.status, 'todo') as TaskStatus,
     isPriority: toBool(row.is_priority),
+    isOverdue: toBool(row.is_overdue),
     sortOrder: toNumber(row.sort_order),
     progress: toNumber(row.progress),
     dueAt: nullableStr(row.due_at),
@@ -110,6 +113,7 @@ export function mapTask(row: TaskRow): Task {
     createdAt: str(row.created_at),
     updatedAt: str(row.updated_at),
     completedAt: nullableStr(row.completed_at),
+    deletedAt: nullableStr(row.deleted_at),
     focusMinutes: row.focus_minutes === undefined ? undefined : toNumber(row.focus_minutes),
     noteCount: row.note_count === undefined ? undefined : toNumber(row.note_count),
     pendingReviews: row.pending_reviews === undefined ? undefined : toNumber(row.pending_reviews),

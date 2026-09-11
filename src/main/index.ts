@@ -3,10 +3,26 @@ import { join } from 'node:path'
 import { closeDatabase, initDatabase } from './db/connection'
 import { registerIpcHandlers } from './ipc'
 import { bootstrap } from './services/bootstrap.service'
+import { purgeExpiredService } from './services/task.service'
+import { readSettings } from './services/settings.service'
 import { catchUpOnStartup, startScheduler, stopScheduler } from './services/scheduler.service'
 import { logger } from './utils/logger'
 
 let mainWindow: BrowserWindow | null = null
+
+/** 回收站过期清理：启动时执行一次，之后每 30 分钟检查一次 */
+function startRecycleBinCleaner(): void {
+  const clean = (): void => {
+    try {
+      const purged = purgeExpiredService(readSettings().recycleBinDays)
+      if (purged > 0) logger.info(`回收站清理：彻底删除 ${purged} 个过期任务`)
+    } catch (error) {
+      logger.error('回收站清理失败', error)
+    }
+  }
+  clean()
+  setInterval(clean, 30 * 60 * 1000)
+}
 
 // 自检模式使用独立数据目录，避免污染真实用户数据
 if (process.env.WORKSTATION_SELFTEST === '1') {
@@ -92,6 +108,7 @@ if (!gotLock) {
     logger.info(`启动补算完成：${catchUp.missedReminders} 条待提醒`)
     createWindow()
     startScheduler()
+    startRecycleBinCleaner()
 
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) createWindow()

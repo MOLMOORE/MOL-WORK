@@ -8,11 +8,18 @@ import {
 } from '../db/repositories/project.repo'
 import {
   createTaskService,
+  deferTaskService,
   deleteTask,
   dueTasksService,
+  listDeletedTasksService,
+  listOverdueService,
   listTaskService,
+  markOverdueService,
   moveTaskService,
+  purgeExpiredService,
+  purgeTaskService,
   reorderTaskService,
+  restoreTaskService,
   taskDetail,
   toggleTask,
   updateTaskService
@@ -52,6 +59,34 @@ export function registerTaskIpc(): void {
   handle<void>('task:remove', (id: number) => {
     deleteTask(id)
     notifyDataChanged('tasks')
+  })
+
+  handle<void>('task:restore', (id: number) => {
+    restoreTaskService(id)
+    notifyDataChanged('tasks')
+  })
+
+  handle<void>('task:purge', (id: number) => {
+    purgeTaskService(id)
+    notifyDataChanged('tasks')
+  })
+
+  handle<Task[]>('task:list-deleted', () => listDeletedTasksService())
+
+  handle<number>('task:purge-expired', (retentionDays: number) => purgeExpiredService(retentionDays))
+
+  handle<Task[]>('task:list-overdue', () => listOverdueService())
+
+  handle<Task>('task:mark-overdue', (id: number) => {
+    const task = markOverdueService(id)
+    notifyDataChanged('tasks')
+    return task
+  })
+
+  handle<Task>('task:defer', (id: number, minutes: number) => {
+    const task = deferTaskService(id, minutes)
+    notifyDataChanged('tasks')
+    return task
   })
 
   handle<Task>('task:toggle', (id: number) => {

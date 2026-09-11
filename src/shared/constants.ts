@@ -97,6 +97,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   pomodoroRoundsPerLong: 4,
   pomodoroAutoStartNext: true,
   pomodoroSound: true,
+  recycleBinDays: 7,
   dataDir: ''
 }
 

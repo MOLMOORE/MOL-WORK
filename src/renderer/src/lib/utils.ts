@@ -1,8 +1,51 @@
 import { clsx, type ClassValue } from 'clsx'
 import { twMerge } from 'tailwind-merge'
+import type { Task } from '@shared/types/domain'
 
 export function cn(...inputs: ClassValue[]): string {
   return twMerge(clsx(inputs))
+}
+
+/** 排序层级：优先事项(0) > 逾期事项(1) > 普通事项(2)，跨层拖拽显示时会被自动归位 */
+export function taskTier(task: Task): number {
+  if (task.isPriority) return 0
+  if (task.isOverdue) return 1
+  return 2
+}
+
+export interface OrderConflict {
+  /** 建议修改为的截止时间 */
+  newDueAt: string
+  /** 冲突参照任务标题 */
+  refTitle: string
+}
+
+/**
+ * 检测拖拽后的顺序是否破坏"同层级内截止时间升序"。
+ * 把截止时间早的任务拖到截止时间晚的位置（或反之）会返回冲突信息；
+ * 未设置截止时间的任务可自由拖拽，不参与检测。
+ */
+export function detectOrderConflict(ordered: Task[], dragId: number): OrderConflict | null {
+  const index = ordered.findIndex((task) => task.id === dragId)
+  if (index < 0) return null
+  const dragged = ordered[index]
+  if (!dragged.dueAt) return null
+
+  for (let i = index - 1; i >= 0; i--) {
+    const prev = ordered[i]
+    if (taskTier(prev) !== taskTier(dragged)) continue
+    if (!prev.dueAt) continue
+    if (prev.dueAt > dragged.dueAt) return { newDueAt: prev.dueAt, refTitle: prev.title }
+    break
+  }
+  for (let i = index + 1; i < ordered.length; i++) {
+    const next = ordered[i]
+    if (taskTier(next) !== taskTier(dragged)) continue
+    if (!next.dueAt) continue
+    if (next.dueAt < dragged.dueAt) return { newDueAt: next.dueAt, refTitle: next.title }
+    break
+  }
+  return null
 }
 
 function pad(value: number): string {
@@ -150,7 +193,7 @@ export function toDatetimeLocal(value: string | null | undefined): string {
 }
 
 export function fromDatetimeLocal(value: string): string | null {
-  if (!value) return null
+  if (!value || value.trim() === '') return null
   return value.length === 16 ? `${value}:00` : value
 }
 

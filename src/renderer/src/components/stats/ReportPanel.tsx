@@ -146,7 +146,15 @@ export function ReportPanel({ report, anchor, onAnchorChange }: ReportPanelProps
                     <ToolIcon
                       name="Wrench"
                       size="sm"
-                      color={entry.kind === 'focus' ? '#22C55E' : entry.kind === 'tool' ? '#F59E0B' : '#6366F1'}
+                      color={
+                        entry.kind === 'focus'
+                          ? '#22C55E'
+                          : entry.kind === 'tool'
+                            ? '#F59E0B'
+                            : entry.kind === 'memory'
+                              ? '#C084FC'
+                              : '#6366F1'
+                      }
                     />
                     <div className="min-w-0">
                       <p className="truncate text-[11px] text-foreground">{entry.title}</p>

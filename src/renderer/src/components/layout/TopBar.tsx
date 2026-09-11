@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
-import { Bell, CalendarPlus, Plus, Sparkles, Timer } from 'lucide-react'
+import { Bell, CalendarPlus, FolderKanban, Plus, Timer } from 'lucide-react'
 import { Button, IconButton } from '../ui/Button'
 import { GlobalSearch } from './GlobalSearch'
 import { TaskForm } from '../task/TaskForm'
+import { ProjectManager } from '../task/ProjectManager'
 import { useAppStore } from '../../stores/appStore'
 import { useTaskStore } from '../../stores/taskStore'
 import { usePomodoroStore, PHASE_META } from '../../stores/pomodoroStore'
@@ -28,6 +29,7 @@ export function TopBar(): JSX.Element {
   const location = useLocation()
   const [formOpen, setFormOpen] = useState(false)
   const [bellOpen, setBellOpen] = useState(false)
+  const [projectsOpen, setProjectsOpen] = useState(false)
   const reminders = useAppStore((state) => state.reminders)
   const clearReminders = useAppStore((state) => state.clearReminders)
   const projectCount = useTaskStore((state) => state.projects.length)
@@ -76,10 +78,15 @@ export function TopBar(): JSX.Element {
           <span className="text-muted-foreground">{PHASE_META[pomodoroPhase].label}</span>
         </button>
 
-        <span className="hidden items-center gap-1 rounded-full border border-border bg-muted/50 px-2.5 py-1 text-[11px] text-muted-foreground xl:flex">
-          <Sparkles className="h-3 w-3 text-[#A5B4FC]" />
+        <button
+          type="button"
+          onClick={() => setProjectsOpen(true)}
+          title="管理项目与课程（可新增、编辑、删除）"
+          className="hidden items-center gap-1 rounded-full border border-border bg-muted/50 px-2.5 py-1 text-[11px] text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground xl:flex"
+        >
+          <FolderKanban className="h-3 w-3 text-[#A5B4FC]" />
           {projectCount} 个项目
-        </span>
+        </button>
 
         <div ref={bellRef} className="relative">
           <IconButton label="提醒通知" active={bellOpen} onClick={() => setBellOpen((value) => !value)}>
@@ -139,6 +146,7 @@ export function TopBar(): JSX.Element {
       </div>
 
       <TaskForm open={formOpen} onClose={() => setFormOpen(false)} />
+      <ProjectManager open={projectsOpen} onClose={() => setProjectsOpen(false)} />
     </header>
   )
 }

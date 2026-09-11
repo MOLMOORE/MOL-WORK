@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react'
-import { CalendarClock, Check, GripVertical, Inbox, Star, X } from 'lucide-react'
+import { CalendarClock, Check, GripVertical, Inbox, Star, Trash2 } from 'lucide-react'
 import type { Task } from '@shared/types/domain'
 import { TASK_STATUS_META } from '@shared/constants'
 import {
@@ -8,10 +8,20 @@ import {
   buildWeekDays,
   cn,
   dateKey,
-  relativeDay
+  detectOrderConflict,
+  formatMinutes,
+  relativeDay,
+  type OrderConflict
 } from '../../lib/utils'
 
 export type BoardView = 'day' | 'week' | 'month'
+
+/** 拖拽导致时间顺序被打乱时，向上抛出等待用户确认 */
+export interface DueChangeRequest {
+  task: Task
+  conflict: OrderConflict
+  orderedIds: number[]
+}
 
 export interface ScheduleBoardProps {
   view: BoardView
@@ -21,10 +31,12 @@ export interface ScheduleBoardProps {
   onMove: (taskId: number, dayKey: string) => Promise<void>
   onReorder: (orderedIds: number[]) => Promise<void>
   onOpen: (task: Task) => void
-  /** 快捷切换完成状态 */
+  /** 快捷切换完成状态（弹窗确认由外层处理） */
   onToggleTask?: (task: Task) => void
-  /** 快捷删除任务 */
+  /** 快捷删除任务（弹窗确认由外层处理） */
   onRemoveTask?: (task: Task) => void
+  /** 拖拽把截止时间早的任务拖到更晚位置时触发，需确认是否修改截止时间 */
+  onNeedDueChange?: (request: DueChangeRequest) => void
   /** 点击日期块切换所选日期 */
   onSelectDay: (dayKey: string) => void
   onCreateAt?: (dayKey: string) => void
@@ -70,6 +82,7 @@ export function ScheduleBoard({
   onOpen,
   onToggleTask,
   onRemoveTask,
+  onNeedDueChange,
   onSelectDay,
   onCreateAt
 }: ScheduleBoardProps): JSX.Element {
@@ -97,7 +110,7 @@ export function ScheduleBoard({
     event.dataTransfer.setData('text/plain', String(task.id))
   }
 
-  /** 提交拖拽：把任务放入 dayKey，并可插入到 beforeTaskId 之前；优先事项始终置顶 */
+  /** 提交拖拽：把任务放入 dayKey，并可插入到 beforeTaskId 之前；跨时间顺序时需确认修改截止时间 */
   const commitDrop = async (dayKey: string, beforeTaskId?: number): Promise<void> => {
     const draggedId = draggingRef.current
     if (draggedId === null) return
@@ -114,9 +127,16 @@ export function ScheduleBoard({
       if (index >= 0) insertAt = index
     }
     ordered.splice(insertAt, 0, dragged)
-    // 直接按拖拽后的相对顺序持久化；展示时再按"时间靠上 → 优先靠上"规则排序
     const list = ordered.map((task) => task.id)
     clearDrag()
+
+    // 把截止时间早的任务拖到更晚位置会打乱时间顺序：交由外层弹窗确认是否修改截止时间
+    const conflict = detectOrderConflict(ordered, draggedId)
+    if (conflict && onNeedDueChange) {
+      onNeedDueChange({ task: dragged, conflict, orderedIds: list })
+      return
+    }
+
     if (!sameDay) await onMove(draggedId, dayKey)
     await onReorder(list)
   }
@@ -366,6 +386,34 @@ interface TaskCardProps {
   onDrop: (event: React.DragEvent) => void
 }
 
+/** 卡片内小号 tag（状态 / 项目 / 时间 / 标签等） */
+function MiniTag({
+  children,
+  tone = 'default'
+}: {
+  children: React.ReactNode
+  tone?: 'default' | 'primary' | 'success' | 'warning' | 'danger' | 'info'
+}): JSX.Element {
+  const tones: Record<string, string> = {
+    default: 'border-border/80 bg-muted/60 text-muted-foreground',
+    primary: 'border-primary/40 bg-primary/10 text-[#A5B4FC]',
+    success: 'border-success/40 bg-success/10 text-[#86EFAC]',
+    warning: 'border-warning/40 bg-warning/10 text-[#FCD34D]',
+    danger: 'border-danger/40 bg-danger/10 text-[#FCA5A5]',
+    info: 'border-info/40 bg-info/10 text-[#67E8F9]'
+  }
+  return (
+    <span
+      className={cn(
+        'inline-flex shrink-0 items-center gap-0.5 rounded-full border px-1.5 py-px text-[9px] font-medium leading-none',
+        tones[tone]
+      )}
+    >
+      {children}
+    </span>
+  )
+}
+
 function TaskCard({
   task,
   compact,
@@ -380,6 +428,7 @@ function TaskCard({
   onDrop
 }: TaskCardProps): JSX.Element {
   const done = task.status === 'done'
+  const overdue = task.isOverdue || (task.dueAt !== null && task.dueAt < dateKey(new Date()) + 'T00:00:00' && !done)
   return (
     <div
       draggable
@@ -394,14 +443,38 @@ function TaskCard({
       }}
       className={cn(
         'group cursor-grab rounded-xl border px-2 py-1.5 text-left transition-all active:cursor-grabbing',
-        task.isPriority ? 'border-danger/60 bg-danger/10' : 'border-border/70 bg-muted/30 hover:border-primary/40',
+        task.isPriority
+          ? 'border-danger/60 bg-danger/10'
+          : overdue
+            ? 'border-warning/50 bg-warning/5 hover:border-warning/70'
+            : 'border-border/70 bg-muted/30 hover:border-primary/40',
         dragging && 'opacity-40',
         highlight && 'ring-1 ring-primary/60',
         done && 'opacity-60'
       )}
     >
       <div className="flex items-center gap-1.5">
-        <GripVertical className="h-3 w-3 shrink-0 text-muted-foreground/60" />
+        {onToggle ? (
+          <button
+            type="button"
+            title={done ? '撤销完成' : '标记完成'}
+            aria-label={done ? '撤销完成' : '标记完成'}
+            onClick={(event) => {
+              event.stopPropagation()
+              onToggle()
+            }}
+            className={cn(
+              'flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full border-2 transition-all',
+              done
+                ? 'border-success bg-success/30 text-success'
+                : 'border-success/50 text-transparent hover:border-success hover:bg-success/20 hover:text-success'
+            )}
+          >
+            <Check className="h-3 w-3" strokeWidth={3} />
+          </button>
+        ) : (
+          <GripVertical className="h-3 w-3 shrink-0 text-muted-foreground/60" />
+        )}
         {task.isPriority ? <Star className="h-3 w-3 shrink-0 fill-danger text-danger" /> : null}
         <span className="shrink-0 text-[10px] font-medium text-muted-foreground">{timeOf(task) || '全天'}</span>
         <span
@@ -413,25 +486,6 @@ function TaskCard({
         >
           {task.title}
         </span>
-        {onToggle ? (
-          <button
-            type="button"
-            title={done ? '标记为未完成' : '标记完成'}
-            aria-label={done ? '标记为未完成' : '标记完成'}
-            onClick={(event) => {
-              event.stopPropagation()
-              onToggle()
-            }}
-            className={cn(
-              'flex h-4 w-4 shrink-0 items-center justify-center rounded-full border transition-all',
-              done
-                ? 'border-success bg-success/25 text-success'
-                : 'border-border text-transparent hover:border-success hover:bg-success/15 hover:text-success'
-            )}
-          >
-            <Check className="h-2.5 w-2.5" />
-          </button>
-        ) : null}
         {onRemove ? (
           <button
             type="button"
@@ -441,20 +495,29 @@ function TaskCard({
               event.stopPropagation()
               onRemove()
             }}
-            className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-border text-muted-foreground/60 transition-all hover:border-danger hover:bg-danger/15 hover:text-danger"
+            className="flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-md border border-danger/40 text-danger/70 transition-all hover:border-danger hover:bg-danger/20 hover:text-danger"
           >
-            <X className="h-2.5 w-2.5" />
+            <Trash2 className="h-3 w-3" />
           </button>
         ) : null}
       </div>
-      {!compact && (task.projectName || task.status !== 'todo') ? (
-        <div className="mt-1 flex items-center gap-1.5 pl-4">
-          {task.projectName ? (
-            <span className="truncate text-[10px] text-muted-foreground">{task.projectName}</span>
-          ) : null}
-          {task.status !== 'todo' ? (
-            <span className="shrink-0 text-[10px] text-muted-foreground">{TASK_STATUS_META[task.status].label}</span>
-          ) : null}
+
+      {!compact ? (
+        <div className="mt-1 flex flex-wrap items-center gap-1 pl-6">
+          <MiniTag>{TASK_STATUS_META[task.status].label}</MiniTag>
+          {task.projectName ? <MiniTag tone="primary">{task.projectName}</MiniTag> : null}
+          <MiniTag tone={overdue ? 'danger' : 'default'}>
+            <CalendarClock className="h-2 w-2" />
+            {relativeDay(task.dueAt)}
+          </MiniTag>
+          <MiniTag tone="info">{formatMinutes(task.estimateMinutes)}</MiniTag>
+          {task.focusMinutes ? <MiniTag tone="success">已投入 {formatMinutes(task.focusMinutes)}</MiniTag> : null}
+          {task.isOverdue ? <MiniTag tone="warning">逾期</MiniTag> : null}
+          {task.tags.map((tag) => (
+            <MiniTag key={tag} tone="warning">
+              #{tag}
+            </MiniTag>
+          ))}
         </div>
       ) : null}
     </div>

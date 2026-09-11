@@ -78,7 +78,14 @@ const api: WorkstationApi = {
     toggle: (id: number) => invoke<Task>('task:toggle', id),
     move: (id: number, dayKey: string) => invoke<Task>('task:move', id, dayKey),
     reorder: (orderedIds: number[]) => invoke<void>('task:reorder', orderedIds),
-    due: (referenceIso?: string) => invoke<Task[]>('task:due', referenceIso)
+    due: (referenceIso?: string) => invoke<Task[]>('task:due', referenceIso),
+    restore: (id: number) => invoke<void>('task:restore', id),
+    purge: (id: number) => invoke<void>('task:purge', id),
+    listDeleted: () => invoke<Task[]>('task:list-deleted'),
+    purgeExpired: (retentionDays: number) => invoke<number>('task:purge-expired', retentionDays),
+    listOverdue: () => invoke<Task[]>('task:list-overdue'),
+    markOverdue: (id: number) => invoke<Task>('task:mark-overdue', id),
+    defer: (id: number, minutes: number) => invoke<Task>('task:defer', id, minutes)
   },
   note: {
     list: (taskId?: number | null) => invoke<Note[]>('note:list', taskId ?? null),

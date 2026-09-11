@@ -13,6 +13,8 @@ export type TaskView = 'list' | 'board'
 interface TaskState {
   tasks: Task[]
   projects: Project[]
+  /** 回收站中的任务（软删除，保留期内可恢复） */
+  deleted: Task[]
   filter: TaskFilterState
   view: TaskView
   detail: TaskDetail | null
@@ -20,6 +22,7 @@ interface TaskState {
   detailLoading: boolean
   load: () => Promise<void>
   loadProjects: () => Promise<void>
+  loadDeleted: () => Promise<void>
   setFilter: (patch: Partial<TaskFilterState>) => Promise<void>
   setView: (view: TaskView) => void
   openDetail: (id: number) => Promise<void>
@@ -28,9 +31,13 @@ interface TaskState {
   createTask: (input: TaskInput) => Promise<Task>
   updateTask: (id: number, patch: Partial<TaskInput>) => Promise<void>
   removeTask: (id: number) => Promise<void>
+  restoreTask: (id: number) => Promise<void>
+  purgeTask: (id: number) => Promise<void>
   toggleTask: (id: number) => Promise<void>
   moveTask: (id: number, dayKey: string) => Promise<void>
   reorderTasks: (orderedIds: number[]) => Promise<void>
+  markOverdue: (id: number) => Promise<void>
+  deferTask: (id: number, minutes: number) => Promise<void>
   saveProject: (input: ProjectInput) => Promise<void>
   removeProject: (id: number) => Promise<void>
 }
@@ -38,6 +45,7 @@ interface TaskState {
 export const useTaskStore = create<TaskState>((set, get) => ({
   tasks: [],
   projects: [],
+  deleted: [],
   filter: { projectId: null, status: 'all', keyword: '', onlyOverdue: false },
   view: 'list',
   detail: null,
@@ -99,6 +107,32 @@ export const useTaskStore = create<TaskState>((set, get) => ({
     await api.task.remove(id)
     if (get().detail?.task.id === id) set({ detail: null })
     await Promise.all([get().load(), get().loadProjects()])
+  },
+
+  loadDeleted: async () => {
+    const deleted = await api.task.listDeleted()
+    set({ deleted })
+  },
+
+  restoreTask: async (id) => {
+    await api.task.restore(id)
+    await get().loadDeleted()
+    await get().load()
+  },
+
+  purgeTask: async (id) => {
+    await api.task.purge(id)
+    await get().loadDeleted()
+  },
+
+  markOverdue: async (id) => {
+    await api.task.markOverdue(id)
+    await get().load()
+  },
+
+  deferTask: async (id, minutes) => {
+    await api.task.defer(id, minutes)
+    await get().load()
   },
 
   toggleTask: async (id) => {

@@ -43,8 +43,10 @@ export interface Task {
   title: string
   detail: string
   status: TaskStatus
-  /** 优先事项：日程中红标显示 */
+  /** 优先事项：日程中红标显示，排序最高 */
   isPriority: boolean
+  /** 逾期事项：截止已到且未延期，优先级仅低于优先事项 */
+  isOverdue: boolean
   /** 同一日期内的排序权重，越小越靠前 */
   sortOrder: number
   progress: number
@@ -54,6 +56,8 @@ export interface Task {
   createdAt: string
   updatedAt: string
   completedAt: string | null
+  /** 回收站：删除时间（null 表示正常存在） */
+  deletedAt?: string | null
   focusMinutes?: number
   noteCount?: number
   pendingReviews?: number
@@ -259,7 +263,7 @@ export interface ProjectTime {
 
 export interface TimelineEntry {
   id: string
-  kind: 'focus' | 'tool' | 'task' | 'review'
+  kind: 'focus' | 'tool' | 'task' | 'review' | 'memory'
   title: string
   at: string
   durationMinutes: number
@@ -358,5 +362,7 @@ export interface AppSettings {
   pomodoroAutoStartNext: boolean
   /** 番茄钟：结束时声音提醒 */
   pomodoroSound: boolean
+  /** 回收站保留天数：1=一天 7=一周 30=一个月 */
+  recycleBinDays: number
   dataDir: string
 }
