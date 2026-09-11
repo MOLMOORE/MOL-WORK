@@ -41,6 +41,9 @@ export function ClockDial({ value, max, label, majorLabels = [], onChange, size 
     if (next !== value) onChange(next)
   }
 
+  const needle = radius - 16
+  const needleTail = 10
+
   return (
     <div className="flex flex-col items-center gap-1 select-none">
       <svg
@@ -60,8 +63,26 @@ export function ClockDial({ value, max, label, majorLabels = [], onChange, size 
         onPointerUp={() => setDragging(false)}
         onPointerCancel={() => setDragging(false)}
       >
-        {/* 表盘底圈 */}
-        <circle cx={center} cy={center} r={radius} fill="none" stroke="hsl(var(--border))" strokeWidth={7} />
+        <defs>
+          <linearGradient id="clockDialGradient" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor="#6366F1" />
+            <stop offset="100%" stopColor="#22D3EE" />
+          </linearGradient>
+          <radialGradient id="clockFaceGradient" cx="50%" cy="38%" r="75%">
+            <stop offset="0%" stopColor="hsl(var(--card))" />
+            <stop offset="100%" stopColor="hsl(var(--background))" />
+          </radialGradient>
+          <linearGradient id="bezelGradient" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="hsl(var(--muted-foreground))" stopOpacity="0.55" />
+            <stop offset="100%" stopColor="hsl(var(--muted-foreground))" stopOpacity="0.15" />
+          </linearGradient>
+        </defs>
+
+        {/* 表壳 bezel：双环 */}
+        <circle cx={center} cy={center} r={radius + 9} fill="none" stroke="url(#bezelGradient)" strokeWidth={3} />
+        <circle cx={center} cy={center} r={radius + 5} fill="none" stroke="hsl(var(--border))" strokeWidth={2} />
+        {/* 表盘底 */}
+        <circle cx={center} cy={center} r={radius + 2} fill="url(#clockFaceGradient)" />
         {/* 进度弧 */}
         <circle
           cx={center}
@@ -69,17 +90,12 @@ export function ClockDial({ value, max, label, majorLabels = [], onChange, size 
           r={radius}
           fill="none"
           stroke="url(#clockDialGradient)"
-          strokeWidth={7}
+          strokeWidth={5}
           strokeLinecap="round"
           strokeDasharray={`${Math.max(0.01, ratio) * circumference} ${circumference}`}
           transform={`rotate(-90 ${center} ${center})`}
+          opacity={0.9}
         />
-        <defs>
-          <linearGradient id="clockDialGradient" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%" stopColor="#6366F1" />
-            <stop offset="100%" stopColor="#22D3EE" />
-          </linearGradient>
-        </defs>
         {/* 外圈细刻度 */}
         {Array.from({ length: tickCount }, (_, index) => {
           const rad = ((index / tickCount) * 360 * Math.PI) / 180
@@ -94,36 +110,37 @@ export function ClockDial({ value, max, label, majorLabels = [], onChange, size 
               y2={center - (radius - 1) * Math.cos(rad)}
               stroke="hsl(var(--muted-foreground))"
               strokeWidth={isMajor ? 2 : 1}
-              opacity={isMajor ? 0.7 : 0.3}
+              opacity={isMajor ? 0.75 : 0.3}
             />
           )
         })}
         {/* 主刻度数字标注 */}
         {majorLabels.map((major) => {
           const rad = ((major.at / max) * 360 * Math.PI) / 180
-          const lx = center + (radius - 15) * Math.sin(rad)
-          const ly = center - (radius - 15) * Math.cos(rad)
+          const lx = center + (radius - 16) * Math.sin(rad)
+          const ly = center - (radius - 16) * Math.cos(rad)
           return (
-            <text key={major.at} x={lx} y={ly} textAnchor="middle" dominantBaseline="middle" className="fill-muted-foreground" fontSize={8}>
+            <text key={major.at} x={lx} y={ly} textAnchor="middle" dominantBaseline="middle" className="fill-foreground" fontSize={8.5} fontWeight={600}>
               {major.text}
             </text>
           )
         })}
-        {/* 指针 */}
-        <line
-          x1={center}
-          y1={center}
-          x2={knob.x}
-          y2={knob.y}
-          stroke="#6366F1"
-          strokeWidth={2.5}
-          strokeLinecap="round"
-          opacity={0.85}
-        />
-        <circle cx={knob.x} cy={knob.y} r={6.5} fill="#6366F1" stroke="white" strokeWidth={2} />
-        <circle cx={center} cy={center} r={2} fill="hsl(var(--muted-foreground))" opacity={0.6} />
+        {/* 时钟指针：锥形针身 + 尾部配重，随角度旋转 */}
+        <g transform={`rotate(${angle} ${center} ${center})`}>
+          <polygon
+            points={`${center - 3},${center + needleTail} ${center - 1.4},${center - needle * 0.3} ${center},${center - needle} ${center + 1.4},${center - needle * 0.3} ${center + 3},${center + needleTail}`}
+            fill="url(#clockDialGradient)"
+            stroke="rgba(255,255,255,0.35)"
+            strokeWidth={0.6}
+          />
+        </g>
+        {/* 中心金属帽 */}
+        <circle cx={center} cy={center} r={5.5} fill="hsl(var(--surface))" stroke="hsl(var(--muted-foreground))" strokeWidth={1.2} />
+        <circle cx={center} cy={center} r={2} fill="#6366F1" />
+        {/* 顶部把手（拖动点视觉强化） */}
+        <circle cx={knob.x} cy={knob.y} r={4} fill="#6366F1" opacity={0.9} stroke="white" strokeWidth={1.5} />
         {/* 中心数值 */}
-        <text x={center} y={center + 13} textAnchor="middle" className="fill-foreground" fontSize={17} fontWeight={700}>
+        <text x={center} y={center + 22} textAnchor="middle" className="fill-foreground" fontSize={16} fontWeight={700}>
           {value}
         </text>
       </svg>

@@ -12,6 +12,7 @@ import { ensureDir, isInside, resolveUserPath } from '../utils/paths'
 import { notifyDataChanged } from '../services/bus'
 import { getDbFilePath } from '../db/connection'
 import { schedulerStatus } from '../services/scheduler.service'
+import { hideMainWindow, quitApplication, showSystemNotification } from '../index'
 
 export function registerAppIpc(): void {
   handle<AppSettings>('app:get-settings', () => readSettings())
@@ -80,5 +81,20 @@ export function registerAppIpc(): void {
       insideDataDir: String(isInside(dataDir(), dbPath)),
       scheduler: JSON.stringify(schedulerStatus())
     }
+  })
+
+  /** 系统级弹窗提醒：软件在后台时也可见，点击可回到主窗口 */
+  handle<void>('app:notify', (title: string, body: string) => {
+    showSystemNotification(title, body)
+  })
+
+  /** 隐藏窗口进入后台（托盘保持运行） */
+  handle<void>('app:hide-window', () => {
+    hideMainWindow()
+  })
+
+  /** 真正退出应用 */
+  handle<void>('app:quit-app', () => {
+    quitApplication()
   })
 }

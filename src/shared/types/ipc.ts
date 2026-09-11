@@ -30,7 +30,8 @@ import type {
 export const IPC_EVENTS = {
   reminder: 'event:reminder',
   dataChanged: 'event:data-changed',
-  reviewAutoScheduled: 'event:review-auto-scheduled'
+  reviewAutoScheduled: 'event:review-auto-scheduled',
+  closeRequest: 'event:close-request'
 } as const
 
 export interface ReminderPayload {
@@ -39,6 +40,10 @@ export interface ReminderPayload {
   body: string
   type: string
   startAt: string
+}
+
+export interface CloseRequestPayload {
+  at: string
 }
 
 export interface WorkstationApi {
@@ -53,6 +58,12 @@ export interface WorkstationApi {
     checkDependencies(force?: boolean): Promise<DependencyStatus[]>
     exportReport(date: string): Promise<{ path: string; content: string }>
     seedDemo(): Promise<{ created: boolean }>
+    /** 系统级弹窗提醒（后台可见，点击聚焦窗口） */
+    notify(title: string, body: string): Promise<void>
+    /** 隐藏窗口进入后台（托盘保持运行） */
+    hideWindow(): Promise<void>
+    /** 真正退出应用 */
+    quitApp(): Promise<void>
   }
   project: {
     list(): Promise<Project[]>
@@ -140,4 +151,6 @@ export interface WorkstationApi {
   }
   onReminder(callback: (payload: ReminderPayload) => void): () => void
   onDataChanged(callback: (scope: string) => void): () => void
+  /** 用户点击窗口关闭按钮（主进程已按设置拦截，需要渲染层弹窗询问） */
+  onCloseRequest(callback: (payload: CloseRequestPayload) => void): () => void
 }

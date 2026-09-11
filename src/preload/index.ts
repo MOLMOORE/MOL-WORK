@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { IPC_EVENTS } from '@shared/types/ipc'
-import type { ReminderPayload, WorkstationApi } from '@shared/types/ipc'
+import type { CloseRequestPayload, ReminderPayload, WorkstationApi } from '@shared/types/ipc'
 import type {
   AppSettings,
   DailyReport,
@@ -62,7 +62,10 @@ const api: WorkstationApi = {
     pickPath: (mode) => invoke<string | null>('app:pick-path', mode),
     checkDependencies: (force?: boolean) => invoke<DependencyStatus[]>('app:check-deps', force),
     exportReport: (date) => invoke<{ path: string; content: string }>('app:export-report', date),
-    seedDemo: () => invoke<{ created: boolean }>('app:seed-demo')
+    seedDemo: () => invoke<{ created: boolean }>('app:seed-demo'),
+    notify: (title: string, body: string) => invoke<void>('app:notify', title, body),
+    hideWindow: () => invoke<void>('app:hide-window'),
+    quitApp: () => invoke<void>('app:quit-app')
   },
   project: {
     list: () => invoke<Project[]>('project:list'),
@@ -139,7 +142,9 @@ const api: WorkstationApi = {
     query: (keyword: string, limit?: number) => invoke<SearchHit[]>('search:query', keyword, limit)
   },
   onReminder: (callback: (payload: ReminderPayload) => void) => subscribe<ReminderPayload>(IPC_EVENTS.reminder, callback),
-  onDataChanged: (callback: (scope: string) => void) => subscribe<string>(IPC_EVENTS.dataChanged, callback)
+  onDataChanged: (callback: (scope: string) => void) => subscribe<string>(IPC_EVENTS.dataChanged, callback),
+  onCloseRequest: (callback: (payload: CloseRequestPayload) => void) =>
+    subscribe<CloseRequestPayload>(IPC_EVENTS.closeRequest, callback)
 }
 
 contextBridge.exposeInMainWorld('api', api)

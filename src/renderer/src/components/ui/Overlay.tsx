@@ -1,6 +1,8 @@
 import { useEffect, type ReactNode } from 'react'
 import { X } from 'lucide-react'
 import { cn } from '../../lib/utils'
+import { playChime } from '../../lib/sound'
+import { useAppStore } from '../../stores/appStore'
 import { IconButton, Button } from './Button'
 
 export interface ModalProps {
@@ -14,14 +16,17 @@ export interface ModalProps {
 }
 
 export function Modal({ open, onClose, title, description, children, footer, width = 'max-w-2xl' }: ModalProps): JSX.Element | null {
+  const dialogSound = useAppStore((state) => state.settings?.dialogSound ?? true)
+
   useEffect(() => {
     if (!open) return undefined
+    if (dialogSound) playChime()
     const onKey = (event: KeyboardEvent): void => {
       if (event.key === 'Escape') onClose()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [open, onClose])
+  }, [open, onClose, dialogSound])
 
   if (!open) return null
 

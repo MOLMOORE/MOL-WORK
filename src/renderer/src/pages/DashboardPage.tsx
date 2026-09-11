@@ -194,7 +194,7 @@ export function DashboardPage(): JSX.Element {
         <Card>
           <SectionHeader
             title="今日任务"
-            description="优先事项置顶，可拖拽调整顺序、勾选完成（均有确认弹窗防误触）"
+            description="超时事项置顶、优先事项其次，可拖拽调整顺序、勾选完成（均有确认弹窗防误触）"
             action={
               <Button variant="ghost" size="sm" icon={<ArrowRight className="h-3.5 w-3.5" />} onClick={() => navigate('/tasks')}>
                 全部任务

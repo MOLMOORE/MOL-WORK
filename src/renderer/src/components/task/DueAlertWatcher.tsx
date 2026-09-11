@@ -1,14 +1,22 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { AlarmClock, AlarmClockOff, Hourglass, Star, Timer } from 'lucide-react'
 import type { Task } from '@shared/types/domain'
 import { Badge } from '../ui/Feedback'
 import { Button } from '../ui/Button'
-import { Modal } from '../ui/Overlay'
+import { ConfirmDialog, Modal } from '../ui/Overlay'
 import { DeferDial, formatDeferSeconds } from './DeferDial'
 import { api } from '../../lib/ipc'
 import { cn, formatDateTime } from '../../lib/utils'
 import { useAppStore } from '../../stores/appStore'
 import { useTaskStore } from '../../stores/taskStore'
+
+function pad(value: number): string {
+  return value.toString().padStart(2, '0')
+}
+
+function toLocalIso(date: Date): string {
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
+}
 
 const STORAGE_ACKED = 'workstation.due-acked'
 const STORAGE_SNOOZE = 'workstation.overdue-snooze'
@@ -77,8 +85,13 @@ export function DueAlertWatcher(): JSX.Element | null {
   const [dialMinutes, setDialMinutes] = useState(10)
   const [dialSeconds, setDialSeconds] = useState(0)
   const [busyId, setBusyId] = useState<number | null>(null)
+  /** 稍后提醒前的确认（点击后事项将进入超时状态并每 5 分钟重提醒） */
+  const [snoozeAsk, setSnoozeAsk] = useState<Task | null>(null)
+  const [snoozeAllAsk, setSnoozeAllAsk] = useState(false)
 
   const pushToast = useAppStore((state) => state.pushToast)
+  const knownIdsRef = useRef<Set<number>>(new Set())
+  const notifiedRef = useRef<boolean>(false)
 
   const refreshStores = useCallback((): void => {
     void useTaskStore.getState().load()
@@ -113,6 +126,23 @@ export function DueAlertWatcher(): JSX.Element | null {
           for (const task of needRemind) lastRemindMap[String(task.id)] = now
           writeMap(STORAGE_LAST_REMIND, lastRemindMap)
         }
+
+        // 软件在后台（最小化/失焦）时改用系统级弹窗提醒，点击可回到主窗口
+        const currentIds = new Set<number>([...dueList.filter((task) => !acked.has(ackKey(task))).map((task) => task.id), ...needRemind.map((task) => task.id)])
+        const hasNew = Array.from(currentIds).some((id) => !knownIdsRef.current.has(id))
+        const inBackground = document.hidden || !document.hasFocus()
+        const total = currentIds.size
+        if (total > 0 && (hasNew || !notifiedRef.current) && inBackground) {
+          const first = [...dueList, ...needRemind][0]
+          void api.app.notify(
+            '截止时间提醒 · 个人工作站',
+            `${total} 项事项到期待处理${first ? `：${first.title}` : ''}，点击回到应用处理`
+          )
+          notifiedRef.current = true
+        }
+        knownIdsRef.current = currentIds
+        if (total === 0) notifiedRef.current = false
+
         setOverdueTasks(needRemind)
       } catch {
         /* 桥接不可用时忽略 */
@@ -256,8 +286,8 @@ export function DueAlertWatcher(): JSX.Element | null {
         <button
           type="button"
           disabled={busyId === task.id}
-          onClick={() => void handleSnooze(task)}
-          className="rounded-lg border border-border bg-muted/40 px-2 py-1 text-[10px] text-muted-foreground transition-all hover:text-foreground disabled:opacity-50"
+          onClick={() => setSnoozeAsk(task)}
+          className="rounded-lg border border-danger/60 bg-danger/15 px-2 py-1 text-[10px] font-medium text-[#FCA5A5] transition-all hover:bg-danger/25 disabled:opacity-50"
         >
           稍后提醒
         </button>
@@ -275,6 +305,14 @@ export function DueAlertWatcher(): JSX.Element | null {
               setDialSeconds(next.seconds)
             }}
           />
+          {dialTotalSeconds > 0 ? (
+            <p className="text-[11px] text-muted-foreground">
+              延后 {formatDeferSeconds(dialTotalSeconds)} · 至{' '}
+              <span className="font-medium text-foreground">{formatDateTime(toLocalIso(new Date(Date.now() + dialTotalSeconds * 1000)))}</span>
+            </p>
+          ) : (
+            <p className="text-[11px] text-muted-foreground">拖动转盘选择延后时长</p>
+          )}
           <Button
             size="sm"
             variant="primary"
@@ -289,14 +327,15 @@ export function DueAlertWatcher(): JSX.Element | null {
   )
 
   return (
+    <>
     <Modal
       open
-      onClose={() => void snoozeAll()}
+      onClose={() => setSnoozeAllAsk(true)}
       title="截止时间提醒"
       description={`${dueTasks.length} 项刚到期 · ${overdueTasks.length} 项超时事项待处理 · 稍后提醒会自动标记为超时状态`}
       width="max-w-2xl"
       footer={
-        <Button variant="ghost" disabled={busyId !== null} onClick={() => void snoozeAll()}>
+        <Button variant="danger" disabled={busyId !== null} onClick={() => setSnoozeAllAsk(true)}>
           全部稍后提醒（5 分钟）
         </Button>
       }
@@ -321,5 +360,33 @@ export function DueAlertWatcher(): JSX.Element | null {
         ) : null}
       </div>
     </Modal>
+
+    <ConfirmDialog
+      open={snoozeAsk !== null}
+      title="稍后提醒 · 将进入超时状态"
+      description={`「${snoozeAsk?.title ?? ''}」将进入超时（逾期）状态：优先级最高、红色标识，之后每隔 5 分钟重新提醒一次，直到完成或延期。本次提醒将在 5 分钟后再次弹出。确定继续吗？`}
+      confirmText="进入超时并稍后提醒"
+      tone="danger"
+      onCancel={() => setSnoozeAsk(null)}
+      onConfirm={() => {
+        const task = snoozeAsk
+        setSnoozeAsk(null)
+        if (task) void handleSnooze(task)
+      }}
+    />
+
+    <ConfirmDialog
+      open={snoozeAllAsk}
+      title="全部稍后提醒 · 将进入超时状态"
+      description={`共 ${dueTasks.length + overdueTasks.length} 项事项将全部进入超时（逾期）状态：优先级最高、红色标识，之后每隔 5 分钟重新提醒一次，直到完成或延期。确定继续吗？`}
+      confirmText="全部进入超时并稍后提醒"
+      tone="danger"
+      onCancel={() => setSnoozeAllAsk(false)}
+      onConfirm={() => {
+        setSnoozeAllAsk(false)
+        void snoozeAll()
+      }}
+    />
+    </>
   )
 }

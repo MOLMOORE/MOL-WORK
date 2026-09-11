@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { AppLayout } from './components/layout/AppLayout'
+import { CloseBehaviorDialog } from './components/layout/CloseBehaviorDialog'
 import { DashboardPage } from './pages/DashboardPage'
 import { TasksPage } from './pages/TasksPage'
 import { PomodoroPage } from './pages/PomodoroPage'
@@ -32,18 +33,22 @@ export default function App(): JSX.Element {
   }
 
   return (
-    <Routes>
-      <Route element={<AppLayout />}>
-        <Route path="/" element={<DashboardPage />} />
-        <Route path="/tasks" element={<TasksPage />} />
-        <Route path="/calendar" element={<Navigate to="/tasks" replace />} />
-        <Route path="/pomodoro" element={<PomodoroPage />} />
-        <Route path="/notes" element={<NotesPage />} />
-        <Route path="/tools" element={<ToolsPage />} />
-        <Route path="/stats" element={<StatsPage />} />
-        <Route path="/settings" element={<SettingsPage />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Route>
-    </Routes>
+    <>
+      <Routes>
+        <Route element={<AppLayout />}>
+          <Route path="/" element={<DashboardPage />} />
+          <Route path="/tasks" element={<TasksPage />} />
+          <Route path="/calendar" element={<Navigate to="/tasks" replace />} />
+          <Route path="/pomodoro" element={<PomodoroPage />} />
+          <Route path="/notes" element={<NotesPage />} />
+          <Route path="/tools" element={<ToolsPage />} />
+          <Route path="/stats" element={<StatsPage />} />
+          <Route path="/settings" element={<SettingsPage />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Route>
+      </Routes>
+      {/* 点击窗口 X 后的进入后台/真正关闭选择弹窗 */}
+      <CloseBehaviorDialog />
+    </>
   )
 }

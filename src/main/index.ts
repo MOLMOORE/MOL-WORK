@@ -1,4 +1,4 @@
-import { app, BrowserWindow, shell } from 'electron'
+import { app, BrowserWindow, Menu, nativeImage, Notification, shell, Tray, type NativeImage } from 'electron'
 import { join } from 'node:path'
 import { closeDatabase, initDatabase } from './db/connection'
 import { registerIpcHandlers } from './ipc'
@@ -6,27 +6,78 @@ import { bootstrap } from './services/bootstrap.service'
 import { purgeExpiredService } from './services/task.service'
 import { readSettings } from './services/settings.service'
 import { catchUpOnStartup, startScheduler, stopScheduler } from './services/scheduler.service'
+import { emitToRenderer } from './services/bus'
+import { IPC_EVENTS } from '@shared/types/ipc'
 import { logger } from './utils/logger'
 
 let mainWindow: BrowserWindow | null = null
-
-/** 回收站过期清理：启动时执行一次，之后每 30 分钟检查一次 */
-function startRecycleBinCleaner(): void {
-  const clean = (): void => {
-    try {
-      const purged = purgeExpiredService(readSettings().recycleBinDays)
-      if (purged > 0) logger.info(`回收站清理：彻底删除 ${purged} 个过期任务`)
-    } catch (error) {
-      logger.error('回收站清理失败', error)
-    }
-  }
-  clean()
-  setInterval(clean, 30 * 60 * 1000)
-}
+let tray: Tray | null = null
+/** 用户在退出弹窗中选择「真正退出」后置为 true，绕过 close 拦截 */
+let forceQuit = false
 
 // 自检模式使用独立数据目录，避免污染真实用户数据
 if (process.env.WORKSTATION_SELFTEST === '1') {
   app.setPath('userData', join(app.getPath('temp'), 'workstation-selftest'))
+}
+
+/** 生成 16x16 的纯色托盘图标（品牌紫） */
+function createTrayImage(): NativeImage {
+  const size = 16
+  const buffer = Buffer.alloc(size * size * 4)
+  for (let i = 0; i < size * size; i++) {
+    buffer[i * 4] = 0xf1 // B
+    buffer[i * 4 + 1] = 0x66 // G
+    buffer[i * 4 + 2] = 0x63 // R
+    buffer[i * 4 + 3] = 0xff // A
+  }
+  return nativeImage.createFromBuffer(buffer, { width: size, height: size })
+}
+
+/** 托盘：后台运行时提供入口 */
+function createTray(): void {
+  if (tray) return
+  try {
+    tray = new Tray(createTrayImage())
+  } catch (error) {
+    logger.error('托盘创建失败（后台运行时请通过任务栏窗口回到应用）', error)
+    return
+  }
+  tray.setToolTip('个人工作站（后台运行中）')
+  tray.setContextMenu(
+    Menu.buildFromTemplate([
+      {
+        label: '打开主窗口',
+        click: () => {
+          if (!mainWindow) {
+            createWindow()
+            return
+          }
+          mainWindow.show()
+          mainWindow.focus()
+        }
+      },
+      { type: 'separator' },
+      {
+        label: '退出',
+        click: () => {
+          forceQuit = true
+          app.quit()
+        }
+      }
+    ])
+  )
+  tray.on('double-click', () => {
+    if (!mainWindow) return
+    mainWindow.show()
+    mainWindow.focus()
+  })
+}
+
+function destroyTray(): void {
+  if (tray) {
+    tray.destroy()
+    tray = null
+  }
 }
 
 function createWindow(): void {
@@ -78,8 +129,32 @@ function createWindow(): void {
     mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
   }
 
+  // 拦截右上角关闭按钮：按用户设置进入后台 / 退出 / 弹窗询问
+  interceptWindowClose(mainWindow)
+
   mainWindow.on('closed', () => {
     mainWindow = null
+  })
+}
+
+/** 拦截窗口关闭：按用户设置进入后台、直接退出或交给渲染层弹窗询问 */
+function interceptWindowClose(window: BrowserWindow): void {
+  window.on('close', (event) => {
+    if (forceQuit) return
+    let action: 'ask' | 'background' | 'exit' = 'ask'
+    try {
+      action = readSettings().closeAction
+    } catch {
+      /* 设置不可用时按默认询问 */
+    }
+    if (action === 'exit') return
+    event.preventDefault()
+    if (action === 'background') {
+      window.hide()
+      logger.info('窗口已进入后台（按用户设置）')
+      return
+    }
+    emitToRenderer(IPC_EVENTS.closeRequest, { at: new Date().toISOString() })
   })
 }
 
@@ -88,8 +163,12 @@ if (!gotLock) {
   app.quit()
 } else {
   app.on('second-instance', () => {
-    if (!mainWindow) return
+    if (!mainWindow) {
+      createWindow()
+      return
+    }
     if (mainWindow.isMinimized()) mainWindow.restore()
+    mainWindow.show()
     mainWindow.focus()
   })
 
@@ -109,6 +188,7 @@ if (!gotLock) {
     createWindow()
     startScheduler()
     startRecycleBinCleaner()
+    createTray()
 
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) createWindow()
@@ -121,6 +201,50 @@ if (!gotLock) {
 
   app.on('before-quit', () => {
     stopScheduler()
+    destroyTray()
     closeDatabase()
   })
+}
+
+/** 回收站过期清理：启动时执行一次，之后每 30 分钟检查一次 */
+function startRecycleBinCleaner(): void {
+  const clean = (): void => {
+    try {
+      const purged = purgeExpiredService(readSettings().recycleBinDays)
+      if (purged > 0) logger.info(`回收站清理：彻底删除 ${purged} 个过期任务`)
+    } catch (error) {
+      logger.error('回收站清理失败', error)
+    }
+  }
+  clean()
+  setInterval(clean, 30 * 60 * 1000)
+}
+
+/** 供 IPC 调用：把窗口隐藏到后台（托盘保持运行） */
+export function hideMainWindow(): void {
+  if (mainWindow) {
+    mainWindow.hide()
+    logger.info('窗口已隐藏到后台')
+  }
+}
+
+/** 供 IPC 调用：真正退出应用（绕过关闭拦截） */
+export function quitApplication(): void {
+  forceQuit = true
+  app.quit()
+}
+
+/** 供 IPC 调用：发送系统通知，点击可聚焦主窗口 */
+export function showSystemNotification(title: string, body: string): void {
+  if (!Notification.isSupported()) return
+  const notice = new Notification({ title, body })
+  notice.on('click', () => {
+    if (!mainWindow) {
+      createWindow()
+      return
+    }
+    mainWindow.show()
+    mainWindow.focus()
+  })
+  notice.show()
 }

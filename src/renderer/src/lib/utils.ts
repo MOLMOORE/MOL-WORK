@@ -6,10 +6,10 @@ export function cn(...inputs: ClassValue[]): string {
   return twMerge(clsx(inputs))
 }
 
-/** 排序层级：优先事项(0) > 逾期事项(1) > 普通事项(2)，跨层拖拽显示时会被自动归位 */
+/** 排序层级：逾期事项(0) > 优先事项(1) > 普通事项(2)，跨层拖拽显示时会被自动归位 */
 export function taskTier(task: Task): number {
-  if (task.isPriority) return 0
-  if (task.isOverdue) return 1
+  if (task.isOverdue) return 0
+  if (task.isPriority) return 1
   return 2
 }
 

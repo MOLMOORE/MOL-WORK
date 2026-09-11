@@ -364,5 +364,9 @@ export interface AppSettings {
   pomodoroSound: boolean
   /** 回收站保留天数：1=一天 7=一周 30=一个月 */
   recycleBinDays: number
+  /** 弹窗出现时是否播放提示音 */
+  dialogSound: boolean
+  /** 点击窗口关闭按钮的行为：ask=每次询问 background=进入后台 exit=直接退出 */
+  closeAction: 'ask' | 'background' | 'exit'
   dataDir: string
 }

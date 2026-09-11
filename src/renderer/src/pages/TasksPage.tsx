@@ -288,7 +288,8 @@ export function TasksPage(): JSX.Element {
 
   return (
     <div className="grid gap-5">
-      <Card>
+      {/* 头部卡片抬高层级：搜索候选浮层需要覆盖下方卡片（毛玻璃卡片各自形成层叠上下文） */}
+      <Card className="relative z-30">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <p className="text-[10px] uppercase tracking-widest text-muted-foreground">今日</p>
@@ -510,7 +511,7 @@ export function TasksPage(): JSX.Element {
                     ? '本周日程'
                     : '本月日程'
               }
-              description="拖拽卡片可在任意日期之间移动，同一日期内可自由排序；优先事项置顶、逾期事项其次，未设置截止时间的事项可随意拖拽；把截止时间早的事项拖到更晚位置时会弹窗确认是否修改截止时间"
+              description="拖拽卡片可在任意日期之间移动，同一日期内可自由排序；超时事项置顶、优先事项其次，未设置截止时间的事项可随意拖拽；把截止时间早的事项拖到更晚位置时会弹窗确认是否修改截止时间"
               action={
                 <div className="flex items-center gap-2">
                   <IconButton label="上一页" onClick={() => shift(-1)}>

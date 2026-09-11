@@ -98,6 +98,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   pomodoroAutoStartNext: true,
   pomodoroSound: true,
   recycleBinDays: 7,
+  dialogSound: true,
+  closeAction: 'ask',
   dataDir: ''
 }
 

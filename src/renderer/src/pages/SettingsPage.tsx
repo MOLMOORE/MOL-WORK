@@ -137,6 +137,29 @@ export function SettingsPage(): JSX.Element {
               </Field>
             </div>
 
+            <div className="grid grid-cols-2 gap-4">
+              <Field label="关闭窗口行为" hint="点击右上角 X 后的动作">
+                <Select
+                  value={draft.closeAction ?? 'ask'}
+                  onChange={(event) => void patch({ closeAction: event.target.value as AppSettings['closeAction'] })}
+                >
+                  <option value="ask">每次询问（进入后台或退出）</option>
+                  <option value="background">直接进入后台（托盘运行）</option>
+                  <option value="exit">直接退出软件</option>
+                </Select>
+              </Field>
+              <div className="rounded-xl border border-border/70 bg-muted/25 p-3">
+                <Switch
+                  checked={draft.dialogSound}
+                  onChange={(checked) => void patch({ dialogSound: checked })}
+                  label="弹窗出现时播放提示音"
+                />
+                <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground/80">
+                  关闭后所有弹窗（提醒、确认、回收站等）将静默出现。
+                </p>
+              </div>
+            </div>
+
             <div className="grid grid-cols-3 gap-4">
               <Field label="工作时段开始">
                 <Input
