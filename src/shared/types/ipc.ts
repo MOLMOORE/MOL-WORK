@@ -85,8 +85,8 @@ export interface WorkstationApi {
     listOverdue(): Promise<Task[]>
     /** 保持截止时间：升级为逾期事项 */
     markOverdue(id: number): Promise<Task>
-    /** 延期：从当前时刻延后 N 分钟 */
-    defer(id: number, minutes: number): Promise<Task>
+    /** 延期：从当前时刻延后 N 秒 */
+    defer(id: number, seconds: number): Promise<Task>
   }
   note: {
     list(taskId?: number | null): Promise<Note[]>

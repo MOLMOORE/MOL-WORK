@@ -85,7 +85,7 @@ const api: WorkstationApi = {
     purgeExpired: (retentionDays: number) => invoke<number>('task:purge-expired', retentionDays),
     listOverdue: () => invoke<Task[]>('task:list-overdue'),
     markOverdue: (id: number) => invoke<Task>('task:mark-overdue', id),
-    defer: (id: number, minutes: number) => invoke<Task>('task:defer', id, minutes)
+    defer: (id: number, seconds: number) => invoke<Task>('task:defer', id, seconds)
   },
   note: {
     list: (taskId?: number | null) => invoke<Note[]>('note:list', taskId ?? null),

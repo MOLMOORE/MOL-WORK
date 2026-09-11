@@ -35,7 +35,7 @@ export function Modal({ open, onClose, title, description, children, footer, wid
       />
       <div
         className={cn(
-          'relative z-10 flex max-h-[86vh] w-full flex-col overflow-hidden rounded-2xl border border-border/80 bg-surface/95 shadow-2xl backdrop-blur-2xl animate-scale-in',
+          'relative z-10 flex max-h-full w-full flex-col overflow-hidden rounded-2xl border border-border/80 bg-surface/95 shadow-2xl backdrop-blur-2xl animate-scale-in',
           width
         )}
       >

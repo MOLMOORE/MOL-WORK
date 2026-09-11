@@ -48,7 +48,7 @@ export function listMemoryLogs(fromIso: string, toIso: string): TimelineEntry[] 
     detail:
       row.kind === 'due'
         ? `截止到期 · ${row.note}`
-        : `延后 ${Number(row.minutes)} 分钟 · ${row.note}`
+        : `延期 · ${row.note}`
   }))
 }
 

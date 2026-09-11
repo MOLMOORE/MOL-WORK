@@ -49,6 +49,7 @@ export function TopBar(): JSX.Element {
   }, [])
 
   return (
+    <>
     <header className="relative z-30 flex h-14 shrink-0 items-center gap-4 border-b border-border/70 bg-surface/60 px-5 backdrop-blur-2xl">
       <div className="min-w-[190px] max-w-[260px] shrink-0">
         <h1 className="truncate text-sm font-semibold tracking-tight text-foreground">{meta.title}</h1>
@@ -145,8 +146,11 @@ export function TopBar(): JSX.Element {
         </Button>
       </div>
 
-      <TaskForm open={formOpen} onClose={() => setFormOpen(false)} />
-      <ProjectManager open={projectsOpen} onClose={() => setProjectsOpen(false)} />
     </header>
+
+    {/* 弹窗挂在 header 之外：header 的 backdrop-filter 会把 fixed 定位限制在 56px 高的栏内导致弹窗被截断 */}
+    <TaskForm open={formOpen} onClose={() => setFormOpen(false)} />
+    <ProjectManager open={projectsOpen} onClose={() => setProjectsOpen(false)} />
+    </>
   )
 }

@@ -4,7 +4,7 @@ import type { Task } from '@shared/types/domain'
 import { Badge } from '../ui/Feedback'
 import { Button } from '../ui/Button'
 import { Modal } from '../ui/Overlay'
-import { DeferDial } from './DeferDial'
+import { DeferDial, formatDeferSeconds } from './DeferDial'
 import { api } from '../../lib/ipc'
 import { cn, formatDateTime } from '../../lib/utils'
 import { useAppStore } from '../../stores/appStore'
@@ -17,8 +17,13 @@ const STORAGE_LAST_REMIND = 'workstation.overdue-last-remind'
 /** 逾期事项重提醒间隔：默认每 5 分钟 */
 const OVERDUE_REMIND_INTERVAL_MS = 5 * 60 * 1000
 const POLL_MS = 20 * 1000
-/** 快捷延后档位（分钟） */
-const QUICK_DEFER = [5, 10, 30, 60]
+/** 快捷延后档位（秒） */
+const QUICK_DEFER: { label: string; seconds: number }[] = [
+  { label: '+5分钟', seconds: 5 * 60 },
+  { label: '+10分钟', seconds: 10 * 60 },
+  { label: '+30分钟', seconds: 30 * 60 },
+  { label: '+1小时', seconds: 60 * 60 }
+]
 
 function readMap<T>(key: string): Record<string, T> {
   try {
@@ -60,15 +65,17 @@ function ackKey(task: Task): string {
 
 /**
  * 截止时间提醒：
- * - 到期事项支持快捷延后（5/10/30 分钟/1 小时）与延时转盘，或保持截止时间升级为「逾期事项」
- * - 逾期事项优先级仅低于优先事项，默认每 5 分钟重新提醒，可延时提醒
- * - 延期与升级都会计入统计（记忆）
+ * - 到期事项支持快捷延后（5/10/30 分钟/1 小时）与时/分/秒三个钟表转盘
+ * - 「稍后提醒 / 全部稍后提醒」会把事项自动标记为超时（逾期）状态，并按间隔重新提醒
+ * - 延期与超时都会计入统计（记忆）
  */
 export function DueAlertWatcher(): JSX.Element | null {
   const [dueTasks, setDueTasks] = useState<Task[]>([])
   const [overdueTasks, setOverdueTasks] = useState<Task[]>([])
   const [dialTask, setDialTask] = useState<Task | null>(null)
-  const [dialMinutes, setDialMinutes] = useState(15)
+  const [dialHours, setDialHours] = useState(0)
+  const [dialMinutes, setDialMinutes] = useState(10)
+  const [dialSeconds, setDialSeconds] = useState(0)
   const [busyId, setBusyId] = useState<number | null>(null)
 
   const pushToast = useAppStore((state) => state.pushToast)
@@ -121,54 +128,56 @@ export function DueAlertWatcher(): JSX.Element | null {
 
   const open = dueTasks.length > 0 || overdueTasks.length > 0
 
-  /** 延期：把截止时间从当前时刻延后 minutes 分钟 */
-  const handleDefer = async (task: Task, minutes: number): Promise<void> => {
+  /** 延期：把截止时间从当前时刻延后 seconds 秒 */
+  const handleDefer = async (task: Task, seconds: number): Promise<void> => {
+    if (seconds <= 0) {
+      pushToast({ title: '请先选择延后时长', tone: 'warning' })
+      return
+    }
     setBusyId(task.id)
     try {
-      await api.task.defer(task.id, minutes)
+      await api.task.defer(task.id, seconds)
       const acked = readAcked()
       acked.add(ackKey(task))
       writeAcked(acked)
       removeTask(task.id)
-      pushToast({ title: `已延后 ${minutes >= 60 ? `${minutes / 60} 小时` : `${minutes} 分钟`}`, description: task.title, tone: 'success' })
+      pushToast({ title: `已延后 ${formatDeferSeconds(seconds)}`, description: task.title, tone: 'success' })
       refreshStores()
     } finally {
       setBusyId(null)
     }
   }
 
-  /** 保持截止时间：升级为逾期事项 */
-  const handleKeepOverdue = async (task: Task): Promise<void> => {
+  /** 稍后提醒：事项自动变为超时（逾期）状态，并延后本次提醒 */
+  const handleSnooze = async (task: Task, minutes = 5): Promise<void> => {
     setBusyId(task.id)
     try {
-      await api.task.markOverdue(task.id)
+      if (!task.isOverdue) {
+        await api.task.markOverdue(task.id)
+      }
+      const snoozeMap = readMap<number>(STORAGE_SNOOZE)
+      snoozeMap[String(task.id)] = Date.now() + minutes * 60000
+      writeMap(STORAGE_SNOOZE, snoozeMap)
       const acked = readAcked()
       acked.add(ackKey(task))
       writeAcked(acked)
       removeTask(task.id)
-      pushToast({ title: '已升级为逾期事项', description: '将每 5 分钟重新提醒，直到完成或延期', tone: 'warning' })
+      pushToast({ title: `已稍后提醒（${minutes} 分钟）`, description: `${task.title} · 已标记为超时状态`, tone: 'info' })
       refreshStores()
     } finally {
       setBusyId(null)
     }
   }
 
-  /** 稍后提醒：不改变任何状态，仅延后提醒时间 */
-  const handleSnooze = (task: Task, minutes = 5): void => {
-    const snoozeMap = readMap<number>(STORAGE_SNOOZE)
-    snoozeMap[String(task.id)] = Date.now() + minutes * 60000
-    writeMap(STORAGE_SNOOZE, snoozeMap)
-    const acked = readAcked()
-    acked.add(ackKey(task))
-    writeAcked(acked)
-    removeTask(task.id)
-  }
-
-  const snoozeAll = (): void => {
-    for (const task of [...dueTasks, ...overdueTasks]) handleSnooze(task)
+  const snoozeAll = async (): Promise<void> => {
+    for (const task of [...dueTasks, ...overdueTasks]) {
+      await handleSnooze(task)
+    }
   }
 
   if (!open) return null
+
+  const dialTotalSeconds = dialHours * 3600 + dialMinutes * 60 + dialSeconds
 
   const renderTaskRow = (task: Task, overdue: boolean): JSX.Element => (
     <div
@@ -180,7 +189,7 @@ export function DueAlertWatcher(): JSX.Element | null {
     >
       <div className="flex items-start gap-3">
         {overdue ? (
-          <AlarmClockOff className={cn('mt-0.5 h-4 w-4 shrink-0 text-warning')} />
+          <AlarmClockOff className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
         ) : (
           <AlarmClock className={cn('mt-0.5 h-4 w-4 shrink-0', task.isPriority ? 'text-danger' : 'text-warning')} />
         )}
@@ -195,14 +204,14 @@ export function DueAlertWatcher(): JSX.Element | null {
             {task.title}
           </p>
           <p className="mt-0.5 text-[11px] text-muted-foreground">
-            {overdue ? '逾期 · ' : '截止 '}
+            {overdue ? '超时 · ' : '截止 '}
             {formatDateTime(task.dueAt)}
             {task.projectName ? ` · ${task.projectName}` : ''}
             {overdue ? ' · 每 5 分钟将重新提醒' : ''}
           </p>
         </div>
         <Badge tone={task.isPriority ? 'danger' : overdue ? 'warning' : 'default'}>
-          {task.isPriority ? '优先' : overdue ? '逾期' : '到期'}
+          {task.isPriority ? '优先' : overdue ? '超时' : '到期'}
         </Badge>
       </div>
 
@@ -211,15 +220,15 @@ export function DueAlertWatcher(): JSX.Element | null {
           <Hourglass className="h-3 w-3" />
           快捷延后
         </span>
-        {QUICK_DEFER.map((minutes) => (
+        {QUICK_DEFER.map((option) => (
           <button
-            key={minutes}
+            key={option.seconds}
             type="button"
             disabled={busyId === task.id}
-            onClick={() => void handleDefer(task, minutes)}
+            onClick={() => void handleDefer(task, option.seconds)}
             className="rounded-lg border border-primary/40 bg-primary/10 px-2 py-1 text-[10px] font-medium text-[#A5B4FC] transition-all hover:bg-primary/20 disabled:opacity-50"
           >
-            +{minutes >= 60 ? `${minutes / 60}小时` : `${minutes}分钟`}
+            {option.label}
           </button>
         ))}
         <button
@@ -230,7 +239,9 @@ export function DueAlertWatcher(): JSX.Element | null {
               return
             }
             setDialTask(task)
-            setDialMinutes(15)
+            setDialHours(0)
+            setDialMinutes(10)
+            setDialSeconds(0)
           }}
           className={cn(
             'inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[10px] font-medium transition-all',
@@ -245,30 +256,32 @@ export function DueAlertWatcher(): JSX.Element | null {
         <button
           type="button"
           disabled={busyId === task.id}
-          onClick={() => void handleKeepOverdue(task)}
-          className="rounded-lg border border-warning/50 bg-warning/10 px-2 py-1 text-[10px] font-medium text-[#FCD34D] transition-all hover:bg-warning/20 disabled:opacity-50"
-        >
-          保持截止（升级逾期）
-        </button>
-        <button
-          type="button"
-          onClick={() => handleSnooze(task)}
-          className="rounded-lg border border-border bg-muted/40 px-2 py-1 text-[10px] text-muted-foreground transition-all hover:text-foreground"
+          onClick={() => void handleSnooze(task)}
+          className="rounded-lg border border-border bg-muted/40 px-2 py-1 text-[10px] text-muted-foreground transition-all hover:text-foreground disabled:opacity-50"
         >
           稍后提醒
         </button>
       </div>
 
       {dialTask?.id === task.id ? (
-        <div className="mt-3 flex flex-col items-center gap-2 rounded-xl border border-info/30 bg-info/5 p-3">
-          <DeferDial minutes={dialMinutes} onChange={setDialMinutes} />
+        <div className="mt-3 flex flex-col items-center gap-3 rounded-xl border border-info/30 bg-info/5 p-3">
+          <DeferDial
+            hours={dialHours}
+            minutes={dialMinutes}
+            seconds={dialSeconds}
+            onChange={(next) => {
+              setDialHours(next.hours)
+              setDialMinutes(next.minutes)
+              setDialSeconds(next.seconds)
+            }}
+          />
           <Button
             size="sm"
             variant="primary"
-            disabled={busyId === task.id}
-            onClick={() => void handleDefer(task, dialMinutes)}
+            disabled={busyId === task.id || dialTotalSeconds <= 0}
+            onClick={() => void handleDefer(task, dialTotalSeconds)}
           >
-            确认延后 {dialMinutes} 分钟
+            确认延后 {formatDeferSeconds(dialTotalSeconds)}
           </Button>
         </div>
       ) : null}
@@ -278,16 +291,14 @@ export function DueAlertWatcher(): JSX.Element | null {
   return (
     <Modal
       open
-      onClose={snoozeAll}
+      onClose={() => void snoozeAll()}
       title="截止时间提醒"
-      description={`${dueTasks.length} 项刚到期 · ${overdueTasks.length} 项逾期事项待处理`}
-      width="max-w-xl"
+      description={`${dueTasks.length} 项刚到期 · ${overdueTasks.length} 项超时事项待处理 · 稍后提醒会自动标记为超时状态`}
+      width="max-w-2xl"
       footer={
-        <>
-          <Button variant="ghost" onClick={snoozeAll}>
-            全部稍后提醒（5 分钟）
-          </Button>
-        </>
+        <Button variant="ghost" disabled={busyId !== null} onClick={() => void snoozeAll()}>
+          全部稍后提醒（5 分钟）
+        </Button>
       }
     >
       <div className="flex flex-col gap-4">
@@ -303,7 +314,7 @@ export function DueAlertWatcher(): JSX.Element | null {
         {overdueTasks.length > 0 ? (
           <section className="flex flex-col gap-2">
             <p className="text-[10px] font-semibold uppercase tracking-widest text-warning">
-              逾期事项 · 每 5 分钟重提醒 · {overdueTasks.length} 项
+              超时事项 · 每 5 分钟重提醒 · {overdueTasks.length} 项
             </p>
             {overdueTasks.map((task) => renderTaskRow(task, true))}
           </section>

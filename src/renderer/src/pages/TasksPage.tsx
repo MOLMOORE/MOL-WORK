@@ -334,29 +334,23 @@ export function TasksPage(): JSX.Element {
                     setSuggestOpen(false)
                     void setFilter({ keyword: keywordDraft })
                   }
-                  if (event.key === 'Escape') setSuggestOpen(false)
+                  if (event.key === 'Escape') {
+                    setKeywordDraft('')
+                    setSuggestOpen(false)
+                    void setFilter({ keyword: '' })
+                  }
                 }}
                 placeholder="搜索任务，输入即时候选，回车筛选"
                 className="h-full flex-1 border-0 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/70 focus:outline-none"
               />
-              {keywordDraft ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setKeywordDraft('')
-                    setSuggestOpen(false)
-                    void setFilter({ keyword: '' })
-                  }}
-                  className="text-[11px] text-muted-foreground hover:text-foreground"
-                >
-                  清空
-                </button>
-              ) : null}
+              <kbd className="shrink-0 rounded-md border border-border bg-muted/60 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
+                Esc
+              </kbd>
 
               {suggestOpen && keywordDraft.trim() !== '' && suggestions.length > 0 ? (
-                <div className="absolute left-0 right-0 top-10 z-40 max-h-[360px] overflow-y-auto rounded-xl border border-border/80 bg-surface/95 shadow-2xl backdrop-blur-xl animate-scale-in">
-                  <p className="sticky top-0 border-b border-border/60 bg-surface/95 px-3 py-1.5 text-[10px] uppercase tracking-widest text-muted-foreground">
-                    候选任务 · {suggestions.length}
+                <div className="absolute left-0 right-0 top-11 z-40 max-h-[420px] overflow-y-auto rounded-2xl border border-border/80 bg-surface/95 p-2 shadow-2xl backdrop-blur-2xl animate-scale-in">
+                  <p className="sticky top-0 z-10 bg-surface/95 px-2 py-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                    任务 · {suggestions.length}
                   </p>
                   {suggestions.map((task) => (
                     <button
@@ -367,25 +361,33 @@ export function TasksPage(): JSX.Element {
                         setSuggestOpen(false)
                         void openDetail(task.id)
                       }}
-                      className="flex w-full items-center gap-2 px-3 py-2 text-left transition-colors hover:bg-muted/60"
+                      className="flex w-full items-center gap-3 rounded-xl px-2.5 py-2 text-left transition-colors hover:bg-muted/60"
                     >
-                      {task.isPriority ? (
-                        <Star className="h-3 w-3 shrink-0 fill-danger text-danger" />
-                      ) : (
-                        <CalendarClock className="h-3 w-3 shrink-0 text-muted-foreground" />
-                      )}
                       <span
                         className={cn(
-                          'min-w-0 flex-1 truncate text-xs font-medium',
-                          task.isPriority ? 'text-danger' : 'text-foreground'
+                          'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg',
+                          task.isPriority ? 'bg-danger/15 text-[#FCA5A5]' : 'bg-primary/15 text-[#A5B4FC]'
                         )}
                       >
-                        {task.title}
+                        <ListChecks className="h-4 w-4" />
                       </span>
-                      {task.projectName ? (
-                        <span className="shrink-0 text-[10px] text-muted-foreground">{task.projectName}</span>
-                      ) : null}
-                      <span className="shrink-0 text-[10px] text-muted-foreground">{relativeDay(task.dueAt)}</span>
+                      <span className="min-w-0 flex-1">
+                        <span
+                          className={cn(
+                            'block truncate text-xs font-medium',
+                            task.isPriority ? 'text-danger' : 'text-foreground'
+                          )}
+                        >
+                          {task.title}
+                        </span>
+                        <span className="block truncate text-[11px] text-muted-foreground">
+                          {task.detail ? task.detail.slice(0, 60) : '暂无说明'}
+                        </span>
+                      </span>
+                      <span className="shrink-0 text-[10px] text-muted-foreground">
+                        {task.projectName ?? '未归属'} · {TASK_STATUS_META[task.status].label}
+                        {task.isPriority ? ' · 优先事项' : ''}
+                      </span>
                     </button>
                   ))}
                 </div>

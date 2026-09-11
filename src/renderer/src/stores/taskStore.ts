@@ -37,7 +37,7 @@ interface TaskState {
   moveTask: (id: number, dayKey: string) => Promise<void>
   reorderTasks: (orderedIds: number[]) => Promise<void>
   markOverdue: (id: number) => Promise<void>
-  deferTask: (id: number, minutes: number) => Promise<void>
+  deferTask: (id: number, seconds: number) => Promise<void>
   saveProject: (input: ProjectInput) => Promise<void>
   removeProject: (id: number) => Promise<void>
 }
@@ -130,8 +130,8 @@ export const useTaskStore = create<TaskState>((set, get) => ({
     await get().load()
   },
 
-  deferTask: async (id, minutes) => {
-    await api.task.defer(id, minutes)
+  deferTask: async (id, seconds) => {
+    await api.task.defer(id, seconds)
     await get().load()
   },
 

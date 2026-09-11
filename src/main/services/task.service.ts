@@ -22,7 +22,7 @@ import { listReviewsByTask } from '../db/repositories/review.repo'
 import { listFocusByTask } from '../db/repositories/focus.repo'
 import { listNotes } from './note.service'
 import { ensureReviewForNote } from './review.service'
-import { addMinutes, nowIso } from '../utils/time'
+import { nowIso, parseIso, toLocalIso } from '../utils/time'
 
 export function listTaskService(filter: TaskFilter = {}): Task[] {
   return listTasks(filter)
@@ -101,8 +101,11 @@ export function taskDetail(id: number): TaskDetail {
   }
 }
 
-/** 不修改截止时间：升级为逾期事项（优先级仅低于优先事项），并计入记忆 */
+/** 不修改截止时间：升级为逾期事项（优先级仅低于优先事项），并计入记忆；重复升级时幂等 */
 export function markOverdueService(id: number): Task {
+  const current = getTask(id)
+  if (!current) throw new Error(`任务不存在：${id}`)
+  if (current.isOverdue) return current
   const task = markTaskOverdue(id)
   if (!task) throw new Error(`任务不存在：${id}`)
   recordMemoryLog({
@@ -115,19 +118,31 @@ export function markOverdueService(id: number): Task {
   return task
 }
 
-/** 延期：把截止时间从当前时刻延后 minutes 分钟（解除逾期升级），并计入记忆 */
-export function deferTaskService(id: number, minutes: number): Task {
+/** 延期：把截止时间从当前时刻延后 seconds 秒（解除逾期升级），并计入记忆 */
+export function deferTaskService(id: number, seconds: number): Task {
   const current = getTask(id)
   if (!current) throw new Error(`任务不存在：${id}`)
-  const safeMinutes = Math.max(1, Math.round(minutes))
+  const safeSeconds = Math.max(1, Math.round(seconds))
   const base = current.dueAt && current.dueAt > nowIso() ? current.dueAt : nowIso()
-  const task = updateTask(id, { dueAt: addMinutes(base, safeMinutes) })
+  const nextDue = new Date(parseIso(base).getTime() + safeSeconds * 1000)
+  const task = updateTask(id, { dueAt: toLocalIso(nextDue) })
   recordMemoryLog({
     taskId: id,
     taskTitle: task.title,
     kind: 'defer',
-    minutes: safeMinutes,
-    note: `截止时间延后 ${safeMinutes} 分钟`
+    minutes: Math.max(1, Math.round(safeSeconds / 60)),
+    note: `截止时间延后 ${formatDefer(safeSeconds)}`
   })
   return task
+}
+
+function formatDefer(totalSeconds: number): string {
+  const hours = Math.floor(totalSeconds / 3600)
+  const minutes = Math.floor((totalSeconds % 3600) / 60)
+  const seconds = totalSeconds % 60
+  const parts: string[] = []
+  if (hours > 0) parts.push(`${hours} 小时`)
+  if (minutes > 0) parts.push(`${minutes} 分钟`)
+  if (seconds > 0 || parts.length === 0) parts.push(`${seconds} 秒`)
+  return parts.join(' ')
 }
