@@ -216,7 +216,7 @@ export function PomodoroPage(): JSX.Element {
   const patch = config.roundsPerLong
 
   const entries: GridEntry[] = [
-    { id: 'clock', title: '时间显示', x: 4, y: 0, w: 4, h: 3, minW: 3, minH: 2, node: <ClockTile /> },
+    { id: 'clock', title: '时间显示', x: 0, y: 0, w: 12, h: 3, minW: 4, minH: 2, node: <ClockTile /> },
     {
       id: 'metric-phase',
       title: '当前阶段',
@@ -460,7 +460,7 @@ export function PomodoroPage(): JSX.Element {
 
   return (
     <div className="grid gap-5">
-      <GridBoard entries={entries} storageKey="workstation.grid.pomodoro.v1" />
+      <GridBoard entries={entries} storageKey="workstation.grid.pomodoro.v2" />
       <PomodoroStatsDialog chart={chart} config={config} onClose={() => setChart(null)} />
     </div>
   )

@@ -413,7 +413,7 @@ export function DashboardPage(): JSX.Element {
 
   const entries = useMemo<GridEntry[]>(
     () => [
-      { id: 'clock', title: '时间显示', x: 4, y: 0, w: 4, h: 3, minW: 3, minH: 2, node: clockNode },
+      { id: 'clock', title: '时间显示', x: 0, y: 0, w: 12, h: 3, minW: 4, minH: 2, node: clockNode },
       { id: 'metric-todo', title: '今日待办', x: 0, y: 3, w: 3, h: 2, minW: 2, minH: 2, node: metricNodes[0] },
       { id: 'metric-review', title: '到期复习', x: 3, y: 3, w: 3, h: 2, minW: 2, minH: 2, node: metricNodes[1] },
       { id: 'metric-estimate', title: '预计专注', x: 6, y: 3, w: 3, h: 2, minW: 2, minH: 2, node: metricNodes[2] },
@@ -429,7 +429,7 @@ export function DashboardPage(): JSX.Element {
   return (
     <div className="grid gap-5">
       {ready ? (
-        <GridBoard entries={entries} storageKey="workstation.grid.dashboard.v1" />
+        <GridBoard entries={entries} storageKey="workstation.grid.dashboard.v2" />
       ) : (
         <div className="grid gap-4">
           <div className="grid grid-cols-4 gap-4">

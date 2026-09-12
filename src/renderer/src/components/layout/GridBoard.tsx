@@ -79,6 +79,8 @@ interface DragState {
   lastGY: number
   lastGW: number
   lastGH: number
+  /** 拖动悬停时命中的互换目标 */
+  swapId: string | null
   rafId: number
   clientX: number
   clientY: number
@@ -348,11 +350,37 @@ export function GridBoard({ entries, storageKey, className, toolbar = true }: Gr
       setActiveId(null)
       if (!drag) return
       const element = drag.el
+      for (const other of drag.cells) {
+        if (other.id === drag.id) continue
+        const oel = drag.els.get(other.id)
+        if (oel) {
+          oel.style.outline = ''
+          oel.style.outlineOffset = ''
+        }
+      }
       if (commit) {
         // 让落点带过渡吸附到网格位置，随后交还给 React 托管
         element.style.transition = TRANSITION
         const { stepX: sx, stepY: sy } = metricsRef.current
-        const cell = drag.cells.find((item) => item.id === drag.id)
+        // 优先与悬停目标互换位置（双方大小互换）；无目标时自由落位
+        const target = drag.swapId ? drag.cells.find((item) => item.id === drag.swapId) : undefined
+        const nextCells = target
+          ? drag.cells.map((cell) => {
+              if (cell.id === drag.id) return { ...cell, x: target.x, y: target.y, w: target.w, h: target.h }
+              if (cell.id === target.id)
+                return { ...cell, x: drag.base.x, y: drag.base.y, w: drag.base.w, h: drag.base.h }
+              return cell
+            })
+          : drag.cells.map((cell) => (cell.id === drag.id ? { ...cell, x: drag.lastGX, y: drag.lastGY } : cell))
+        for (const other of nextCells) {
+          if (other.id === drag.id) continue
+          const oel = drag.els.get(other.id)
+          if (!oel) continue
+          oel.style.transform = `translate3d(${other.x * sx}px, ${other.y * sy}px, 0)`
+          oel.style.width = `${other.w * sx - GAP}px`
+          oel.style.height = `${other.h * ROW_HEIGHT + (other.h - 1) * GAP}px`
+        }
+        const cell = nextCells.find((item) => item.id === drag.id)
         if (cell) {
           element.style.transform = `translate3d(${cell.x * sx}px, ${cell.y * sy}px, 0)`
           element.style.width = `${cell.w * sx - GAP}px`
@@ -362,10 +390,10 @@ export function GridBoard({ entries, storageKey, className, toolbar = true }: Gr
           element.style.willChange = ''
           element.style.zIndex = ''
         })
-        layoutRef.current = drag.cells
-        setLayout(drag.cells)
+        layoutRef.current = nextCells
+        setLayout(nextCells)
         try {
-          window.localStorage.setItem(storageKey, JSON.stringify(drag.cells))
+          window.localStorage.setItem(storageKey, JSON.stringify(nextCells))
         } catch {
           /* 静默忽略 */
         }
@@ -405,11 +433,35 @@ export function GridBoard({ entries, storageKey, className, toolbar = true }: Gr
           if (gx !== current.lastGX || gy !== current.lastGY) {
             current.lastGX = gx
             current.lastGY = gy
-            current.cells = resolveLayout(
-              current.cells.map((cell) => (cell.id === current.id ? { ...cell, x: gx, y: gy } : cell)),
-              current.id
-            )
-            paintCells(current.cells, current.id)
+            // 只寻找互换目标，不推挤其他方块
+            const rect = { id: current.id, x: gx, y: gy, w: current.base.w, h: current.base.h }
+            const area = rect.w * rect.h
+            let best: Cell | null = null
+            let bestArea = 0
+            for (const cell of current.cells) {
+              if (cell.id === current.id) continue
+              const ox = Math.min(rect.x + rect.w, cell.x + cell.w) - Math.max(rect.x, cell.x)
+              const oy = Math.min(rect.y + rect.h, cell.y + cell.h) - Math.max(rect.y, cell.y)
+              const ov = ox > 0 && oy > 0 ? ox * oy : 0
+              if (ov > bestArea && ov > area * 0.3) {
+                bestArea = ov
+                best = cell
+              }
+            }
+            const nextSwap = best?.id ?? null
+            if (nextSwap !== current.swapId) {
+              const prev = current.swapId ? current.els.get(current.swapId) : undefined
+              if (prev) {
+                prev.style.outline = ''
+                prev.style.outlineOffset = ''
+              }
+              current.swapId = nextSwap
+              const next = nextSwap ? current.els.get(nextSwap) : undefined
+              if (next) {
+                next.style.outline = '2px solid rgba(99,102,241,0.85)'
+                next.style.outlineOffset = '2px'
+              }
+            }
           }
           // 被拖方块始终跟随指针，不做任何吸附延迟
           const rx = clamp(dx - (gx - current.base.x) * sx, -sx / 2, sx / 2)
@@ -509,6 +561,7 @@ export function GridBoard({ entries, storageKey, className, toolbar = true }: Gr
           layoutRef.current.reduce((m, cell) => (cell.id === base.id ? m : Math.max(m, cell.y + cell.h)), base.y + base.h) -
             base.h
         ),
+        swapId: null,
         lastGX: base.x,
         lastGY: base.y,
         lastGW: base.w,

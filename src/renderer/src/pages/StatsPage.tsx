@@ -19,7 +19,7 @@ import { formatMinutes, todayKey } from '../lib/utils'
 
 const STORAGE_LAST_DEGREE = 'workstation.procrastination-last-degree'
 const STORAGE_REMIND_DAY = 'workstation.procrastination-remind-day'
-const STATS_LAYOUT_KEY = 'workstation.grid.stats.v1'
+const STATS_LAYOUT_KEY = 'workstation.grid.stats.v2'
 
 function readStorage(key: string): string | null {
   try {
@@ -206,7 +206,7 @@ export function StatsPage(): JSX.Element {
 
   const entries = useMemo<GridEntry[]>(
     () => [
-      { id: 'clock', title: '时间显示', x: 4, y: 0, w: 4, h: 3, minW: 3, minH: 2, node: clockNode },
+      { id: 'clock', title: '时间显示', x: 0, y: 0, w: 12, h: 3, minW: 4, minH: 2, node: clockNode },
       { id: 'metric-focus', title: '区间专注总时长', x: 0, y: 3, w: 3, h: 2, minW: 2, minH: 2, node: metricNodes[0] },
       { id: 'metric-completed', title: '区间完成任务', x: 3, y: 3, w: 3, h: 2, minW: 2, minH: 2, node: metricNodes[1] },
       { id: 'metric-tools', title: '区间工具调用', x: 6, y: 3, w: 3, h: 2, minW: 2, minH: 2, node: metricNodes[2] },

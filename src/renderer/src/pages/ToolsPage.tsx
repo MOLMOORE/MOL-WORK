@@ -147,8 +147,8 @@ export function ToolsPage(): JSX.Element {
   )
 
   const entries: GridEntry[] = [
-    { id: 'clock', title: '时间显示', x: 4, y: 0, w: 4, h: 3, minW: 3, minH: 2, node: <ClockTile /> },
-    { id: 'header', title: '工具集说明', x: 0, y: 3, w: 12, h: 3, minW: 6, minH: 3, node: headerNode },
+    { id: 'clock', title: '时间显示', x: 0, y: 0, w: 12, h: 3, minW: 4, minH: 2, node: <ClockTile /> },
+    { id: 'header', title: '工具集说明', x: 0, y: 3, w: 12, h: 2, minW: 6, minH: 2, node: headerNode },
     {
       id: 'metric-tools',
       title: '已注册工具',
@@ -483,7 +483,7 @@ export function ToolsPage(): JSX.Element {
 
   return (
     <div className="grid gap-5">
-      <GridBoard entries={entries} storageKey="workstation.grid.tools.v1" />
+      <GridBoard entries={entries} storageKey="workstation.grid.tools.v2" />
 
       <ToolDetailDrawer manifest={selected} open={selected !== null} onClose={() => select(null)} />
 

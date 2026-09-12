@@ -364,7 +364,7 @@ export function NotesPage(): JSX.Element {
       ]
 
   const entries: GridEntry[] = [
-    { id: 'clock', title: '时间显示', x: 4, y: 0, w: 4, h: 3, minW: 3, minH: 2, node: <ClockTile /> },
+    { id: 'clock', title: '时间显示', x: 0, y: 0, w: 12, h: 3, minW: 4, minH: 2, node: <ClockTile /> },
     { id: 'tasks', title: '归属任务', x: 0, y: 3, w: 3, h: 12, minW: 2, minH: 5, node: tasksNode },
     { id: 'list', title: '笔记列表', x: 3, y: 3, w: 4, h: 12, minW: 3, minH: 5, node: listNode },
     ...detailNodes
@@ -372,7 +372,7 @@ export function NotesPage(): JSX.Element {
 
   return (
     <div className="grid gap-5">
-      <GridBoard entries={entries} storageKey="workstation.grid.notes.v1" />
+      <GridBoard entries={entries} storageKey="workstation.grid.notes.v2" />
 
       {createOpen ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
