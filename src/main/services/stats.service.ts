@@ -1,7 +1,13 @@
 import type {
   DailyStats,
   HourlyBucket,
+  ProcrastinationEvent,
+  ProcrastinationEventKind,
   ProcrastinationItem,
+  ProcrastinationLevel,
+  ProcrastinationPeriod,
+  ProcrastinationPoint,
+  ProcrastinationReport,
   ProjectTime,
   Task,
   TimelineEntry,
@@ -11,20 +17,25 @@ import { all, count } from '../db/query'
 import { listTaskRunsForRange } from './tool.service'
 import { mapTask, type TaskRow } from '../db/mappers'
 import {
+  addDaysKey,
   dayKey,
   diffDays,
+  diffMinutes,
   endOfDay,
+  endOfMonthKey,
   nowIso,
   parseIso,
   rangeDays,
   startOfDay,
+  startOfMonthKey,
+  startOfWeekKey,
   todayKey
 } from '../utils/time'
 import { listFocusRange } from '../db/repositories/focus.repo'
 import { countEventsBetween } from '../db/repositories/schedule.repo'
 import { dueCount } from '../db/repositories/review.repo'
 import { listTasks } from '../db/repositories/task.repo'
-import { listMemoryLogs } from '../db/repositories/memory.repo'
+import { listMemoryLogs, listMemoryLogsRaw, listRecentMemoryLogs } from '../db/repositories/memory.repo'
 
 const TASK_SELECT_FOR_STATS = `
 SELECT t.*, p.name AS project_name, p.color AS project_color
@@ -230,39 +241,380 @@ export function trend(fromKey: string, toKey: string): TrendPoint[] {
   })
 }
 
+/**
+ * 拖延量化模型
+ * ---------------------------------------------------------------
+ * 设计参考：风险管理中「发生频率 × 影响严重度」的二维评估矩阵，
+ * 并对单次拖延时长做对数压缩，避免个别超长逾期把整体分数一次性顶满。
+ *
+ *   单次事件得分  s(h) = min(40, 6 + 10 × ln(1 + h))   h = 本次拖延小时数
+ *   频率增益      g(n) = 1 + 0.12 × (n − 1)            n = 区间内拖延次数
+ *   综合程度      PI   = min(100, round(Σ s(h_i) × g(n)))
+ *
+ * 特点：
+ * - 次数与单次时长两个要素都会影响结果（次数提升增益，时长提升单项得分）；
+ * - 对数压缩让「1 次拖 2 小时」显著低于「5 次各拖 1 小时」，符合直觉；
+ * - 分级：0-24 轻微 / 25-59 中等 / 60-100 严重。
+ */
+export function procrastinationDegree(events: { delayMinutes: number }[]): number {
+  const n = events.length
+  if (n === 0) return 0
+  const sum = events.reduce((acc, event) => {
+    const hours = Math.max(0.05, event.delayMinutes / 60)
+    return acc + Math.min(40, 6 + 10 * Math.log(1 + hours))
+  }, 0)
+  const gain = 1 + 0.12 * (n - 1)
+  return Math.max(0, Math.min(100, Math.round(sum * gain)))
+}
+
+export function procrastinationLevel(degree: number): ProcrastinationLevel {
+  if (degree >= 60) return 'high'
+  if (degree >= 25) return 'medium'
+  return 'low'
+}
+
+interface DelayEvent {
+  id: string
+  taskId: number | null
+  taskTitle: string
+  kind: ProcrastinationEventKind
+  delayMinutes: number
+  at: string
+}
+
+const ALL_FROM = '0000-01-01T00:00:00'
+const ALL_TO = '9999-12-31T23:59:59'
+
+function listAllTasks(): Task[] {
+  return all<TaskRow>(`${TASK_SELECT_FOR_STATS} WHERE t.deleted_at IS NULL`).map(mapTask)
+}
+
+/** 汇聚全部拖延事件：记忆流水（延期 / 进入逾期）+ 完成时已超时的兜底记录 */
+function collectDelayEvents(tasks: Task[]): DelayEvent[] {
+  const events: DelayEvent[] = []
+  const tasksWithMemory = new Set<number>()
+  for (const log of listMemoryLogsRaw(ALL_FROM, ALL_TO)) {
+    const delay = log.delayMinutes > 0 ? log.delayMinutes : log.minutes
+    events.push({
+      id: `memory-${log.id}`,
+      taskId: log.taskId,
+      taskTitle: log.taskTitle && log.taskTitle.trim() !== '' ? log.taskTitle : '未命名事项',
+      kind: log.kind === 'due' ? 'due' : 'defer',
+      delayMinutes: Math.max(0, Math.round(delay)),
+      at: log.createdAt
+    })
+    if (log.taskId !== null) tasksWithMemory.add(log.taskId)
+  }
+  // 兜底：完成任务在截止时间之后才完成，且从未产生延期/逾期处置记录
+  for (const task of tasks) {
+    if (!task.dueAt || !task.completedAt) continue
+    if (tasksWithMemory.has(task.id)) continue
+    if (task.completedAt > task.dueAt) {
+      events.push({
+        id: `complete-${task.id}`,
+        taskId: task.id,
+        taskTitle: task.title,
+        kind: 'complete',
+        delayMinutes: Math.max(1, diffMinutes(task.dueAt, task.completedAt)),
+        at: task.completedAt
+      })
+    }
+  }
+  return events.sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0))
+}
+
+/** 当前仍未完成的逾期事项数量与累计拖欠时长 */
+function activeOverdueSummary(tasks: Task[]): { count: number; minutes: number } {
+  const now = nowIso()
+  let count = 0
+  let minutes = 0
+  for (const task of tasks) {
+    if (task.status === 'done' || !task.dueAt) continue
+    if (task.dueAt >= now) continue
+    count += 1
+    minutes += Math.max(1, diffMinutes(task.dueAt, now))
+  }
+  return { count, minutes }
+}
+
+function eventsInRange(events: DelayEvent[], fromKey: string, toKey: string): DelayEvent[] {
+  return events.filter((event) => {
+    const key = dayKey(event.at)
+    return key >= fromKey && key <= toKey
+  })
+}
+
+function aggregate(events: DelayEvent[]): { events: number; delayMinutes: number; degree: number } {
+  const delayMinutes = events.reduce((sum, event) => sum + event.delayMinutes, 0)
+  return { events: events.length, delayMinutes, degree: procrastinationDegree(events) }
+}
+
+function changePercent(current: number, previous: number): number | null {
+  if (previous === 0) return current === 0 ? 0 : null
+  return Math.round(((current - previous) / previous) * 100)
+}
+
+function formatDelayCN(minutes: number): string {
+  const safe = Math.max(1, Math.round(minutes))
+  if (safe < 60) return `${safe} 分钟`
+  const days = Math.floor(safe / 1440)
+  const hours = Math.floor((safe % 1440) / 60)
+  const rest = Math.round(safe % 60)
+  const parts: string[] = []
+  if (days > 0) parts.push(`${days} 天`)
+  if (hours > 0) parts.push(`${hours} 小时`)
+  if (rest > 0 && days === 0) parts.push(`${rest} 分钟`)
+  return parts.join(' ')
+}
+
+function buildDailySeries(events: DelayEvent[], anchor: string, days: number): ProcrastinationPoint[] {
+  const from = addDaysKey(anchor, -(days - 1))
+  return rangeDays(from, anchor).map((key) => {
+    const stat = aggregate(eventsInRange(events, key, key))
+    return { key, label: key.slice(5), events: stat.events, delayMinutes: stat.delayMinutes, degree: stat.degree }
+  })
+}
+
+function buildWeeklySeries(events: DelayEvent[], anchor: string, weeks: number): ProcrastinationPoint[] {
+  const currentWeek = startOfWeekKey(anchor)
+  const points: ProcrastinationPoint[] = []
+  for (let i = weeks - 1; i >= 0; i -= 1) {
+    const start = addDaysKey(currentWeek, -7 * i)
+    const end = addDaysKey(start, 6)
+    const stat = aggregate(eventsInRange(events, start, end))
+    points.push({
+      key: start,
+      label: `${start.slice(5)} 周`,
+      events: stat.events,
+      delayMinutes: stat.delayMinutes,
+      degree: stat.degree
+    })
+  }
+  return points
+}
+
+function buildMonthlySeries(events: DelayEvent[], anchor: string, months: number): ProcrastinationPoint[] {
+  const points: ProcrastinationPoint[] = []
+  const [year, month] = anchor.slice(0, 7).split('-').map(Number)
+  for (let i = months - 1; i >= 0; i -= 1) {
+    const date = new Date(year, month - 1 - i, 1)
+    const start = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-01`
+    const end = endOfMonthKey(start)
+    const stat = aggregate(eventsInRange(events, start, end))
+    points.push({
+      key: start.slice(0, 7),
+      label: start.slice(0, 7),
+      events: stat.events,
+      delayMinutes: stat.delayMinutes,
+      degree: stat.degree
+    })
+  }
+  return points
+}
+
+/** 日 / 周 / 月三档周期对比（含与上一周期的环比） */
+function buildPeriods(events: DelayEvent[], anchor: string): ProcrastinationPeriod[] {
+  const weekStart = startOfWeekKey(anchor)
+  const weekEnd = addDaysKey(weekStart, 6)
+  const lastWeekStart = addDaysKey(weekStart, -7)
+  const monthStart = startOfMonthKey(anchor)
+  const monthEnd = endOfMonthKey(anchor)
+  const lastMonthEnd = addDaysKey(monthStart, -1)
+
+  const segments: {
+    key: ProcrastinationPeriod['key']
+    label: string
+    from: string
+    to: string
+    prevFrom: string
+    prevTo: string
+  }[] = [
+    {
+      key: 'day',
+      label: '今日',
+      from: anchor,
+      to: anchor,
+      prevFrom: addDaysKey(anchor, -1),
+      prevTo: addDaysKey(anchor, -1)
+    },
+    { key: 'week', label: '本周', from: weekStart, to: weekEnd, prevFrom: lastWeekStart, prevTo: addDaysKey(weekStart, -1) },
+    {
+      key: 'month',
+      label: '本月',
+      from: monthStart,
+      to: monthEnd,
+      prevFrom: startOfMonthKey(lastMonthEnd),
+      prevTo: lastMonthEnd
+    }
+  ]
+
+  return segments.map((segment) => {
+    const current = aggregate(eventsInRange(events, segment.from, segment.to))
+    const previous = aggregate(eventsInRange(events, segment.prevFrom, segment.prevTo))
+    return {
+      key: segment.key,
+      label: segment.label,
+      rangeFrom: segment.from,
+      rangeTo: segment.to,
+      events: current.events,
+      delayMinutes: current.delayMinutes,
+      avgDelayMinutes: current.events === 0 ? 0 : Math.round(current.delayMinutes / current.events),
+      degree: current.degree,
+      level: procrastinationLevel(current.degree),
+      changePercent: changePercent(current.degree, previous.degree)
+    }
+  })
+}
+
+/** 拖延量化报告：日 / 周 / 月对比图 + 记忆流水 + 提醒文案 */
+export function procrastinationReport(anchor: string = todayKey(), historyDays = 30): ProcrastinationReport {
+  const tasks = listAllTasks()
+  const events = collectDelayEvents(tasks)
+  const active = activeOverdueSummary(tasks)
+  const periods = buildPeriods(events, anchor)
+  const weekPeriod = periods.find((period) => period.key === 'week') ?? periods[0]
+
+  const totalDelayMinutes = events.reduce((sum, event) => sum + event.delayMinutes, 0)
+
+  // 按任务汇总，找出最需要关注的拖延事项
+  const byTask = new Map<number, DelayEvent[]>()
+  for (const event of events) {
+    if (event.taskId === null) continue
+    const list = byTask.get(event.taskId) ?? []
+    list.push(event)
+    byTask.set(event.taskId, list)
+  }
+  const worstTask = Array.from(byTask.entries())
+    .map(([taskId, list]) => ({
+      taskId,
+      title: list[0]?.taskTitle ?? '未命名事项',
+      count: list.length,
+      minutes: list.reduce((sum, event) => sum + event.delayMinutes, 0),
+      degree: procrastinationDegree(list)
+    }))
+    .sort((a, b) => b.degree - a.degree)[0]
+
+  const advice: string[] = []
+  if (active.count > 0) {
+    advice.push(`当前有 ${active.count} 项事项处于逾期在途，累计拖欠 ${formatDelayCN(active.minutes)}，建议优先处理最久的一项。`)
+  }
+  const dayPeriod = periods.find((period) => period.key === 'day')
+  if (dayPeriod && dayPeriod.events > 0) {
+    advice.push(`今日已发生 ${dayPeriod.events} 次拖延，累计 ${formatDelayCN(dayPeriod.delayMinutes)}，尽快收口。`)
+  }
+  if (weekPeriod.changePercent !== null && weekPeriod.changePercent > 20) {
+    advice.push(`本周拖延程度较上周上升 ${weekPeriod.changePercent}%，注意节流。`)
+  } else if (weekPeriod.changePercent !== null && weekPeriod.changePercent < -20) {
+    advice.push(`本周拖延程度较上周下降 ${Math.abs(weekPeriod.changePercent)}%，继续保持。`)
+  }
+  if (worstTask && worstTask.degree >= 50) {
+    advice.push(
+      `「${worstTask.title}」已拖延 ${worstTask.count} 次、累计 ${formatDelayCN(worstTask.minutes)}，建议拆分任务或重新评估截止时间。`
+    )
+  }
+  if (advice.length === 0) advice.push('本周期拖延情况良好，保持当前节奏即可。')
+
+  const recentEvents: ProcrastinationEvent[] = listRecentMemoryLogs(20).map((log) => ({
+    id: `memory-${log.id}`,
+    taskId: log.taskId,
+    taskTitle: log.taskTitle && log.taskTitle.trim() !== '' ? log.taskTitle : '未命名事项',
+    kind: log.kind === 'due' ? 'due' : 'defer',
+    delayMinutes: Math.max(0, Math.round(log.delayMinutes > 0 ? log.delayMinutes : log.minutes)),
+    at: log.createdAt,
+    note: log.note
+  }))
+
+  return {
+    generatedAt: nowIso(),
+    totalEvents: events.length,
+    totalDelayMinutes,
+    avgDelayMinutes: events.length === 0 ? 0 : Math.round(totalDelayMinutes / events.length),
+    activeOverdueCount: active.count,
+    activeDelayMinutes: active.minutes,
+    degree: weekPeriod.degree,
+    level: procrastinationLevel(weekPeriod.degree),
+    periods,
+    daily: buildDailySeries(events, anchor, Math.max(7, Math.min(90, historyDays))),
+    weekly: buildWeeklySeries(events, anchor, 12),
+    monthly: buildMonthlySeries(events, anchor, 6),
+    recentEvents,
+    advice
+  }
+}
+
 export function procrastination(): ProcrastinationItem[] {
   const today = todayKey()
-  const rows = all<TaskRow>(
-    `${TASK_SELECT_FOR_STATS} WHERE t.status <> 'done' AND t.deleted_at IS NULL ORDER BY t.is_priority DESC, t.is_overdue DESC, t.sort_order ASC, t.due_at ASC`
-  ).map(mapTask)
+  const now = nowIso()
+  const tasks = listAllTasks()
+  const delayEvents = collectDelayEvents(tasks)
+  const eventsByTask = new Map<number, DelayEvent[]>()
+  for (const event of delayEvents) {
+    if (event.taskId === null) continue
+    const list = eventsByTask.get(event.taskId) ?? []
+    list.push(event)
+    eventsByTask.set(event.taskId, list)
+  }
 
   const items: ProcrastinationItem[] = []
-  for (const task of rows) {
+  for (const task of tasks) {
+    if (task.status === 'done') continue
     const stalledDays = Math.max(0, diffDays(task.updatedAt, today))
     const overdueDays = task.dueAt ? Math.max(0, diffDays(task.dueAt, today)) : 0
     const progressLag = task.progress < 30 && stalledDays >= 5 && overdueDays === 0
+    const taskEvents = eventsByTask.get(task.id) ?? []
+    const activeDelayMinutes =
+      task.dueAt && task.dueAt < now ? Math.max(1, diffMinutes(task.dueAt, now)) : 0
+    // 没有处置记录但仍处于逾期在途时，以在途时长作为一次拖延度量
+    const measured =
+      taskEvents.length > 0
+        ? taskEvents
+        : activeDelayMinutes > 0
+          ? [
+              {
+                id: `active-${task.id}`,
+                taskId: task.id,
+                taskTitle: task.title,
+                kind: 'due' as ProcrastinationEventKind,
+                delayMinutes: activeDelayMinutes,
+                at: now
+              }
+            ]
+          : []
+    const delayCount = measured.length
+    const delayMinutes = measured.reduce((sum, event) => sum + event.delayMinutes, 0)
+    const degree = procrastinationDegree(measured)
 
-    if (overdueDays < 1 && stalledDays < 4 && !progressLag) continue
+    if (overdueDays < 1 && stalledDays < 4 && !progressLag && delayCount === 0) continue
 
     const reasons: string[] = []
-    if (overdueDays >= 1) reasons.push(`已逾期 ${overdueDays} 天`)
+    if (overdueDays >= 1) reasons.push(activeDelayMinutes > 0 ? `逾期中 ${overdueDays} 天` : `已逾期 ${overdueDays} 天`)
     if (stalledDays >= 4) reasons.push(`停滞 ${stalledDays} 天未更新`)
     if (progressLag) reasons.push(`进度仅 ${task.progress}%`)
+    if (delayCount > 0) reasons.push(`拖延 ${delayCount} 次 · 累计 ${formatDelayCN(delayMinutes)}`)
 
     const severity: ProcrastinationItem['severity'] =
-      overdueDays >= 7 || stalledDays >= 14 ? 'high' : overdueDays >= 3 || stalledDays >= 7 ? 'medium' : 'low'
+      overdueDays >= 7 || stalledDays >= 14 || degree >= 70
+        ? 'high'
+        : overdueDays >= 3 || stalledDays >= 7 || degree >= 40
+          ? 'medium'
+          : 'low'
 
     items.push({
       task,
       stalledDays,
       overdueDays,
       reason: reasons.join(' · ') || '长期未推进',
-      severity
+      severity,
+      delayCount,
+      delayMinutes,
+      activeOverdue: activeDelayMinutes > 0,
+      activeDelayMinutes,
+      degree
     })
   }
   return items.sort((a, b) => {
     const rank = { high: 0, medium: 1, low: 2 }
-    return rank[a.severity] - rank[b.severity] || b.overdueDays - a.overdueDays
+    return rank[a.severity] - rank[b.severity] || b.degree - a.degree || b.overdueDays - a.overdueDays
   })
 }
 

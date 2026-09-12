@@ -43,6 +43,9 @@ export interface StatCardProps {
   tone?: 'primary' | 'info' | 'success' | 'warning'
   icon?: ReactNode
   onClick?: () => void
+  className?: string
+  /** 是否显示可点击的提示样式 */
+  clickable?: boolean
 }
 
 const TONES: Record<NonNullable<StatCardProps['tone']>, string> = {
@@ -52,15 +55,18 @@ const TONES: Record<NonNullable<StatCardProps['tone']>, string> = {
   warning: 'from-[#F59E0B]/25 to-[#EF4444]/10 text-[#FCD34D]'
 }
 
-export function StatCard({ label, value, hint, tone = 'primary', icon, onClick }: StatCardProps): JSX.Element {
+export function StatCard({ label, value, hint, tone = 'primary', icon, onClick, className, clickable }: StatCardProps): JSX.Element {
+  const interactive = onClick !== undefined || clickable
   return (
     <button
       type="button"
       onClick={onClick}
       className={cn(
-        'glass-card group relative overflow-hidden p-4 text-left transition-all duration-200',
-        'hover:-translate-y-0.5 hover:border-primary/50 hover:shadow-glow',
-        !onClick && 'cursor-default hover:translate-y-0 hover:shadow-card'
+        'glass-card group relative flex h-full w-full flex-col justify-center overflow-hidden p-4 text-left transition-all duration-200',
+        interactive
+          ? 'hover:-translate-y-0.5 hover:border-primary/50 hover:shadow-glow'
+          : 'cursor-default hover:translate-y-0 hover:shadow-card',
+        className
       )}
     >
       <div className={cn('absolute inset-0 bg-gradient-to-br opacity-70 transition-opacity group-hover:opacity-100', TONES[tone])} />
@@ -70,8 +76,17 @@ export function StatCard({ label, value, hint, tone = 'primary', icon, onClick }
           <p className="mt-2 truncate text-2xl font-semibold tracking-tight text-foreground">{value}</p>
           {hint ? <p className="mt-1 truncate text-xs text-muted-foreground">{hint}</p> : null}
         </div>
-        {icon ? <div className={cn('shrink-0 rounded-xl bg-background/60 p-2', TONES[tone])}>{icon}</div> : null}
+        {icon ? (
+          <div className={cn('shrink-0 rounded-xl bg-background/60 p-2 transition-transform group-hover:scale-105', TONES[tone])}>
+            {icon}
+          </div>
+        ) : null}
       </div>
+      {interactive ? (
+        <span className="pointer-events-none absolute bottom-2 right-3 text-[10px] text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100">
+          点击查看明细
+        </span>
+      ) : null}
     </button>
   )
 }

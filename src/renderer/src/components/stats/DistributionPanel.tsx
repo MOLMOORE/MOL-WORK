@@ -29,20 +29,26 @@ export function ProjectDonut({ projects, totalMinutes }: ProjectDonutProps): JSX
   )
 
   return (
-    <Card>
+    <Card className="flex h-full flex-col">
       <SectionHeader
         title="项目 / 课程投入分布"
         description="按专注记录聚合的时长占比"
         action={<PieIcon className="h-4 w-4 text-muted-foreground" />}
+        className="mb-3"
       />
       {slices.length === 0 ? (
-        <EmptyState icon={<PieIcon className="h-5 w-5" />} title="暂无投入记录" description="在任务详情页开始一次专注计时即可产生分布数据" />
+        <EmptyState
+          icon={<PieIcon className="h-5 w-5" />}
+          title="暂无投入记录"
+          description="在任务详情页开始一次专注计时即可产生分布数据"
+          className="h-full py-0"
+        />
       ) : (
-        <div className="grid grid-cols-1 items-center gap-4 md:grid-cols-[220px_1fr]">
-          <div className="relative">
-            <ResponsiveContainer width="100%" height={200}>
+        <div className="grid min-h-0 flex-1 grid-cols-1 items-stretch gap-4 md:grid-cols-[220px_1fr]">
+          <div className="relative h-full min-h-[120px]">
+            <ResponsiveContainer width="100%" height="100%">
               <PieChart>
-                <Pie data={slices} dataKey="value" nameKey="name" innerRadius={54} outerRadius={82} paddingAngle={2} stroke="none">
+                <Pie data={slices} dataKey="value" nameKey="name" innerRadius="52%" outerRadius="82%" paddingAngle={2} stroke="none">
                   {slices.map((slice) => (
                     <Cell key={slice.name} fill={slice.color} />
                   ))}
@@ -56,15 +62,15 @@ export function ProjectDonut({ projects, totalMinutes }: ProjectDonutProps): JSX
             </div>
           </div>
 
-          <div className="flex flex-col gap-2">
+          <div className="flex min-h-0 flex-col gap-2 overflow-y-auto pr-1">
             {slices.map((slice) => (
               <div key={slice.name}>
-                <div className="flex items-center justify-between text-xs">
-                  <span className="flex items-center gap-2 text-foreground">
-                    <span className="h-2 w-2 rounded-full" style={{ background: slice.color }} />
-                    {slice.name}
+                <div className="flex items-center justify-between gap-2 text-xs">
+                  <span className="flex min-w-0 items-center gap-2 text-foreground">
+                    <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: slice.color }} />
+                    <span className="truncate">{slice.name}</span>
                   </span>
-                  <span className="text-muted-foreground">
+                  <span className="shrink-0 whitespace-nowrap text-muted-foreground">
                     {formatMinutes(slice.value)} · {percent(slice.value, totalMinutes)}%
                   </span>
                 </div>
@@ -107,20 +113,26 @@ export function ToolUsageDonut({ toolRuns }: ToolUsageDonutProps): JSX.Element {
     toolRuns.length === 0 ? 0 : Math.round((toolRuns.filter((run) => run.status === 'success').length / toolRuns.length) * 100)
 
   return (
-    <Card>
+    <Card className="flex h-full flex-col">
       <SectionHeader
         title="工具调用分布"
         description="按工具类别统计调用次数，闭环回流统计层"
         action={<Wrench className="h-4 w-4 text-muted-foreground" />}
+        className="mb-3"
       />
       {slices.length === 0 ? (
-        <EmptyState icon={<Wrench className="h-5 w-5" />} title="暂无工具调用" description="在工具集市执行任意工具后即可看到分布" />
+        <EmptyState
+          icon={<Wrench className="h-5 w-5" />}
+          title="暂无工具调用"
+          description="在工具集市执行任意工具后即可看到分布"
+          className="h-full py-0"
+        />
       ) : (
-        <div className="grid grid-cols-1 items-center gap-4 md:grid-cols-[220px_1fr]">
-          <div className="relative">
-            <ResponsiveContainer width="100%" height={200}>
+        <div className="grid min-h-0 flex-1 grid-cols-1 items-stretch gap-4 md:grid-cols-[220px_1fr]">
+          <div className="relative h-full min-h-[120px]">
+            <ResponsiveContainer width="100%" height="100%">
               <PieChart>
-                <Pie data={slices} dataKey="value" nameKey="name" innerRadius={54} outerRadius={82} paddingAngle={2} stroke="none">
+                <Pie data={slices} dataKey="value" nameKey="name" innerRadius="52%" outerRadius="82%" paddingAngle={2} stroke="none">
                   {slices.map((slice) => (
                     <Cell key={slice.name} fill={slice.color} />
                   ))}
@@ -134,14 +146,14 @@ export function ToolUsageDonut({ toolRuns }: ToolUsageDonutProps): JSX.Element {
             </div>
           </div>
 
-          <div className="flex flex-col gap-2">
+          <div className="flex min-h-0 flex-col gap-2 overflow-y-auto pr-1">
             {slices.map((slice) => (
-              <div key={slice.name} className="flex items-center justify-between text-xs">
-                <span className="flex items-center gap-2 text-foreground">
-                  <span className="h-2 w-2 rounded-full" style={{ background: slice.color }} />
-                  {slice.name}
+              <div key={slice.name} className="flex items-center justify-between gap-2 text-xs">
+                <span className="flex min-w-0 items-center gap-2 text-foreground">
+                  <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: slice.color }} />
+                  <span className="truncate">{slice.name}</span>
                 </span>
-                <span className="text-muted-foreground">
+                <span className="shrink-0 whitespace-nowrap text-muted-foreground">
                   {slice.value} 次 · {percent(slice.value, total)}%
                 </span>
               </div>

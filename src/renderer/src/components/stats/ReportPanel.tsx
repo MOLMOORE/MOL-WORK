@@ -55,8 +55,9 @@ export function ReportPanel({ report, anchor, onAnchorChange }: ReportPanelProps
   }
 
   return (
-    <Card>
+    <Card className="flex h-full flex-col">
       <SectionHeader
+        className="mb-3"
         title="日报复盘"
         description={report ? `生成时间 ${report.generatedAt.replace('T', ' ').slice(0, 16)}` : '正在生成…'}
         action={
@@ -98,7 +99,7 @@ export function ReportPanel({ report, anchor, onAnchorChange }: ReportPanelProps
       />
 
       {exportedPath ? (
-        <div className="mb-4 flex items-center gap-2 rounded-xl border border-success/30 bg-success/10 px-3 py-2">
+        <div className="mb-3 flex items-center gap-2 rounded-xl border border-success/30 bg-success/10 px-3 py-2">
           <FileText className="h-3.5 w-3.5 text-success" />
           <span className="min-w-0 flex-1 truncate text-[11px] text-foreground">{exportedPath}</span>
           <IconButton label="打开文件" onClick={() => void api.app.openPath(exportedPath)}>
@@ -107,6 +108,7 @@ export function ReportPanel({ report, anchor, onAnchorChange }: ReportPanelProps
         </div>
       ) : null}
 
+      <div className="min-h-0 flex-1 overflow-y-auto pr-1">
       {!report ? (
         <EmptyState icon={<FileText className="h-5 w-5" />} title="暂无可复盘数据" description="先记录一次专注、复习或工具调用" />
       ) : view === 'summary' ? (
@@ -187,6 +189,7 @@ export function ReportPanel({ report, anchor, onAnchorChange }: ReportPanelProps
           </div>
         </div>
       )}
+      </div>
     </Card>
   )
 }

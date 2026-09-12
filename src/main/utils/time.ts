@@ -99,3 +99,23 @@ export function rangeDays(fromKey: string, toKey: string): string[] {
   }
   return result
 }
+
+/** 以周一为一周起点，返回该日期所在周的周一（yyyy-MM-dd） */
+export function startOfWeekKey(value: string): string {
+  const [year, month, day] = value.slice(0, 10).split('-').map(Number)
+  const date = new Date(year, (month ?? 1) - 1, day ?? 1)
+  date.setDate(date.getDate() - ((date.getDay() + 6) % 7))
+  return dayKey(date)
+}
+
+/** 返回该日期所在月的最后一个自然日（yyyy-MM-dd） */
+export function endOfMonthKey(value: string): string {
+  const [year, month] = value.slice(0, 10).split('-').map(Number)
+  const date = new Date(year, month, 0)
+  return dayKey(date)
+}
+
+/** 返回该日期所在月的第一天（yyyy-MM-dd） */
+export function startOfMonthKey(value: string): string {
+  return `${value.slice(0, 7)}-01`
+}

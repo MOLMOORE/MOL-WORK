@@ -11,6 +11,7 @@ import type {
   NoteInput,
   OverviewData,
   ProcrastinationItem,
+  ProcrastinationReport,
   Project,
   ProjectInput,
   ProjectTime,
@@ -136,6 +137,8 @@ const api: WorkstationApi = {
     trend: (from: string, to: string) => invoke<TrendPoint[]>('stats:trend', from, to),
     byProject: (from: string, to: string) => invoke<ProjectTime[]>('stats:by-project', from, to),
     procrastination: () => invoke<ProcrastinationItem[]>('stats:procrastination'),
+    procrastinationReport: (anchor: string, days?: number) =>
+      invoke<ProcrastinationReport>('stats:procrastination-report', anchor, days),
     report: (date: string) => invoke<DailyReport>('stats:report', date),
     reportMarkdown: (date: string) => invoke<string>('stats:report-markdown', date)
   },

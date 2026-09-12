@@ -1,24 +1,40 @@
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import {
-  BarChart3,
-  CalendarRange,
-  ChevronLeft,
-  ChevronRight,
-  FileText,
-  TrendingUp,
-  TriangleAlert
-} from 'lucide-react'
-import { Card, SectionHeader, StatCard } from '../components/ui/Card'
-import { Badge, EmptyState, Spinner } from '../components/ui/Feedback'
+import { BarChart3, CalendarRange, ChevronLeft, ChevronRight, FileText, TrendingUp } from 'lucide-react'
+import { Card, StatCard } from '../components/ui/Card'
+import { Spinner } from '../components/ui/Feedback'
 import { Button } from '../components/ui/Button'
 import { Tabs } from '../components/ui/Tabs'
-import { TrendPanel } from '../components/stats/TrendPanel'
-import { ProjectDonut, SeverityDistribution, ToolUsageDonut } from '../components/stats/DistributionPanel'
+import { FocusTrendCard, HourlyDistributionCard, OutputTrendCard } from '../components/stats/TrendPanel'
+import { ProjectDonut, ToolUsageDonut } from '../components/stats/DistributionPanel'
 import { ReportPanel } from '../components/stats/ReportPanel'
+import { ProcrastinationPanel } from '../components/stats/ProcrastinationPanel'
+import { MetricDetailDialog, type MetricDetailKind } from '../components/stats/MetricDetailDialog'
+import { StatsGrid, type StatsGridEntry } from '../components/stats/StatsGrid'
 import { TREND_RANGES, trendWindow, useStatsStore, type TrendDays } from '../stores/statsStore'
 import { useAppStore } from '../stores/appStore'
+import { api } from '../lib/ipc'
 import { formatMinutes, todayKey } from '../lib/utils'
+
+const STORAGE_LAST_DEGREE = 'workstation.procrastination-last-degree'
+const STORAGE_REMIND_DAY = 'workstation.procrastination-remind-day'
+const STATS_LAYOUT_KEY = 'workstation.stats-layout.v1'
+
+function readStorage(key: string): string | null {
+  try {
+    return window.localStorage.getItem(key)
+  } catch {
+    return null
+  }
+}
+
+function writeStorage(key: string, value: string): void {
+  try {
+    window.localStorage.setItem(key, value)
+  } catch {
+    /* 存储不可用时静默忽略 */
+  }
+}
 
 export function StatsPage(): JSX.Element {
   const navigate = useNavigate()
@@ -28,6 +44,7 @@ export function StatsPage(): JSX.Element {
   const trendData = useStatsStore((state) => state.trendData)
   const projects = useStatsStore((state) => state.projects)
   const procrastinated = useStatsStore((state) => state.procrastinated)
+  const procrastinationReport = useStatsStore((state) => state.procrastinationReport)
   const report = useStatsStore((state) => state.report)
   const toolRuns = useStatsStore((state) => state.toolRuns)
   const loading = useStatsStore((state) => state.loading)
@@ -36,12 +53,16 @@ export function StatsPage(): JSX.Element {
   const setAnchor = useStatsStore((state) => state.setAnchor)
   const shift = useStatsStore((state) => state.shift)
   const overview = useAppStore((state) => state.overview)
+  const pushToast = useAppStore((state) => state.pushToast)
+
+  const [detail, setDetail] = useState<MetricDetailKind | null>(null)
+  const remindedRef = useRef(false)
 
   useEffect(() => {
     void load()
   }, [load])
 
-  const window = trendWindow(trendDays, anchor)
+  const range = trendWindow(trendDays, anchor)
 
   const totals = useMemo(() => {
     const focus = trendData.reduce((sum, point) => sum + point.focusMinutes, 0)
@@ -62,24 +83,219 @@ export function StatsPage(): JSX.Element {
   }, [trendData])
 
   const windowToolRuns = useMemo(
-    () => toolRuns.filter((run) => run.createdAt.slice(0, 10) >= window.from && run.createdAt.slice(0, 10) <= window.to),
-    [toolRuns, window.from, window.to]
+    () => toolRuns.filter((run) => run.createdAt.slice(0, 10) >= range.from && run.createdAt.slice(0, 10) <= range.to),
+    [toolRuns, range.from, range.to]
   )
 
-  const highSeverity = procrastinated.filter((item) => item.severity === 'high').length
+  /** 拖延记忆与提醒：记录本次程度，并在程度偏高或上升时提醒一次 */
+  useEffect(() => {
+    if (!procrastinationReport) return
+    const reportData = procrastinationReport
+    const stored = readStorage(STORAGE_LAST_DEGREE)
+    const lastDegree = stored === null ? null : Number(stored)
+    writeStorage(STORAGE_LAST_DEGREE, String(reportData.degree))
+
+    if (remindedRef.current) return
+    remindedRef.current = true
+
+    const levelLabel = reportData.level === 'high' ? '严重' : reportData.level === 'medium' ? '中等' : '轻微'
+    const today = todayKey()
+    const remindedDay = readStorage(STORAGE_REMIND_DAY)
+    if (reportData.level !== 'low' && remindedDay !== today) {
+      writeStorage(STORAGE_REMIND_DAY, today)
+      pushToast({
+        title: `拖延程度${levelLabel} · 指数 ${reportData.degree}`,
+        description: reportData.advice[0],
+        tone: reportData.level === 'high' ? 'danger' : 'warning'
+      })
+      void api.app.notify(
+        `拖延提醒 · 指数 ${reportData.degree}（${levelLabel}）`,
+        reportData.advice[0] ?? '建议尽快处理逾期事项'
+      )
+    } else if (lastDegree !== null && reportData.degree > lastDegree && reportData.degree >= 25) {
+      pushToast({
+        title: '拖延程度上升',
+        description: `较上次查看上升 ${reportData.degree - lastDegree} 分，当前 ${reportData.degree} 分`,
+        tone: 'warning'
+      })
+    }
+  }, [procrastinationReport, pushToast])
+
+  const entries: StatsGridEntry[] = [
+    {
+      id: 'metric-focus',
+      title: '区间专注总时长',
+      x: 0,
+      y: 0,
+      w: 3,
+      h: 2,
+      minW: 2,
+      minH: 2,
+      node: (
+        <StatCard
+          label="区间专注总时长"
+          value={formatMinutes(totals.focus)}
+          hint={`日均 ${formatMinutes(totals.average)}`}
+          tone="success"
+          icon={<TrendingUp className="h-4 w-4" />}
+          onClick={() => setDetail('focus')}
+        />
+      )
+    },
+    {
+      id: 'metric-completed',
+      title: '区间完成任务',
+      x: 3,
+      y: 0,
+      w: 3,
+      h: 2,
+      minW: 2,
+      minH: 2,
+      node: (
+        <StatCard
+          label="区间完成任务"
+          value={`${totals.completed} 项`}
+          hint={`复习 ${totals.reviews} 条`}
+          tone="primary"
+          icon={<BarChart3 className="h-4 w-4" />}
+          onClick={() => setDetail('completed')}
+        />
+      )
+    },
+    {
+      id: 'metric-tools',
+      title: '区间工具调用',
+      x: 6,
+      y: 0,
+      w: 3,
+      h: 2,
+      minW: 2,
+      minH: 2,
+      node: (
+        <StatCard
+          label="区间工具调用"
+          value={`${totals.runs} 次`}
+          hint={`累计耗时 ${formatMinutes(totals.tool)}`}
+          tone="warning"
+          icon={<FileText className="h-4 w-4" />}
+          onClick={() => setDetail('tools')}
+        />
+      )
+    },
+    {
+      id: 'metric-today',
+      title: '今日快照',
+      x: 9,
+      y: 0,
+      w: 3,
+      h: 2,
+      minW: 2,
+      minH: 2,
+      node: (
+        <StatCard
+          label="今日快照"
+          value={formatMinutes(daily?.focusMinutes ?? 0)}
+          hint={`完成 ${daily?.tasksCompleted ?? 0} 项 · 复习 ${daily?.reviewsDone ?? 0}/${daily?.reviewsDue ?? 0}`}
+          tone="info"
+          icon={<CalendarRange className="h-4 w-4" />}
+          onClick={() => setDetail('today')}
+        />
+      )
+    },
+    {
+      id: 'trend-focus',
+      title: '投入趋势',
+      x: 0,
+      y: 2,
+      w: 6,
+      h: 6,
+      minW: 4,
+      minH: 4,
+      node: <FocusTrendCard trendData={trendData} loading={loading} />
+    },
+    {
+      id: 'trend-output',
+      title: '产出趋势',
+      x: 6,
+      y: 2,
+      w: 6,
+      h: 6,
+      minW: 4,
+      minH: 4,
+      node: <OutputTrendCard trendData={trendData} loading={loading} />
+    },
+    {
+      id: 'hourly',
+      title: '单日时段分布',
+      x: 0,
+      y: 8,
+      w: 12,
+      h: 5,
+      minW: 6,
+      minH: 4,
+      node: <HourlyDistributionCard daily={daily} />
+    },
+    {
+      id: 'project-donut',
+      title: '项目投入分布',
+      x: 0,
+      y: 13,
+      w: 6,
+      h: 7,
+      minW: 5,
+      minH: 5,
+      node: (
+        <ProjectDonut projects={projects} totalMinutes={projects.reduce((sum, project) => sum + project.focusMinutes, 0)} />
+      )
+    },
+    {
+      id: 'tool-donut',
+      title: '工具调用分布',
+      x: 6,
+      y: 13,
+      w: 6,
+      h: 7,
+      minW: 5,
+      minH: 5,
+      node: <ToolUsageDonut toolRuns={windowToolRuns} />
+    },
+    {
+      id: 'procrastination',
+      title: '拖延识别',
+      x: 0,
+      y: 20,
+      w: 12,
+      h: 11,
+      minW: 6,
+      minH: 7,
+      node: (
+        <ProcrastinationPanel
+          report={procrastinationReport}
+          items={procrastinated}
+          loading={loading}
+          onOpenTask={(taskId) => navigate('/tasks', { state: { taskId } })}
+        />
+      )
+    },
+    {
+      id: 'report',
+      title: '日报复盘',
+      x: 0,
+      y: 31,
+      w: 12,
+      h: 9,
+      minW: 6,
+      minH: 5,
+      node: <ReportPanel report={report} anchor={anchor} onAnchorChange={(next) => void setAnchor(next)} />
+    }
+  ]
 
   return (
     <div className="grid gap-5">
       <Card className="relative overflow-hidden">
         <div className="pointer-events-none absolute -left-12 -top-16 h-52 w-52 rounded-full bg-info/20 blur-3xl" />
-        <div className="relative flex flex-wrap items-start justify-between gap-4">
-          <div className="max-w-2xl">
-            <h2 className="text-lg font-semibold tracking-tight text-foreground">统计与复盘</h2>
-            <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
-              以「任务 → 日程 / 专注 / 工具」全链路数据为底，趋势图、投入环形图与日报导出全部基于真实记录聚合，
-              数据存储在本机 SQLite，无任何云端上传。
-            </p>
-          </div>
+        <div className="relative flex flex-wrap items-center justify-between gap-4">
+          <h2 className="text-lg font-semibold tracking-tight text-foreground">统计与复盘</h2>
           <div className="flex flex-wrap items-center gap-2">
             <Tabs
               size="sm"
@@ -106,7 +322,7 @@ export function StatsPage(): JSX.Element {
           </div>
         </div>
         <p className="relative mt-3 text-[11px] text-muted-foreground">
-          当前区间：{window.from} ~ {window.to} · 共 {trendDays} 天 · 活跃 {totals.activeDays} 天
+          当前区间：{range.from} ~ {range.to} · 共 {trendDays} 天 · 活跃 {totals.activeDays} 天
         </p>
       </Card>
 
@@ -117,81 +333,17 @@ export function StatsPage(): JSX.Element {
         </div>
       ) : null}
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard
-          label="区间专注总时长"
-          value={formatMinutes(totals.focus)}
-          hint={`日均 ${formatMinutes(totals.average)}`}
-          tone="success"
-          icon={<TrendingUp className="h-4 w-4" />}
-        />
-        <StatCard
-          label="区间完成任务"
-          value={`${totals.completed} 项`}
-          hint={`复习 ${totals.reviews} 条`}
-          tone="primary"
-          icon={<BarChart3 className="h-4 w-4" />}
-        />
-        <StatCard
-          label="区间工具调用"
-          value={`${totals.runs} 次`}
-          hint={`累计耗时 ${formatMinutes(totals.tool)}`}
-          tone="warning"
-          icon={<FileText className="h-4 w-4" />}
-        />
-        <StatCard
-          label="今日快照"
-          value={formatMinutes(daily?.focusMinutes ?? 0)}
-          hint={`完成 ${daily?.tasksCompleted ?? 0} 项 · 复习 ${daily?.reviewsDone ?? 0}/${daily?.reviewsDue ?? 0}`}
-          tone="info"
-          icon={<CalendarRange className="h-4 w-4" />}
-        />
-      </div>
+      <StatsGrid entries={entries} storageKey={STATS_LAYOUT_KEY} />
 
-      <TrendPanel trendData={trendData} daily={daily} loading={loading} />
-
-      <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
-        <ProjectDonut projects={projects} totalMinutes={projects.reduce((sum, project) => sum + project.focusMinutes, 0)} />
-        <ToolUsageDonut toolRuns={windowToolRuns} />
-      </div>
-
-      <Card>
-        <SectionHeader
-          title="拖延识别"
-          description={`${procrastinated.length} 项任务长期未推进或已逾期`}
-          action={<Badge tone={highSeverity > 0 ? 'danger' : 'default'}>{highSeverity} 项严重</Badge>}
-        />
-        {procrastinated.length === 0 ? (
-          <EmptyState icon={<TriangleAlert className="h-5 w-5" />} title="没有发现拖延事项" description="所有任务都在正常推进中" />
-        ) : (
-          <div className="grid gap-4 lg:grid-cols-[1fr_1.4fr]">
-            <div className="rounded-xl border border-border/70 bg-muted/25 p-3">
-              <p className="mb-3 text-[11px] font-medium text-muted-foreground">严重度分布</p>
-              <SeverityDistribution items={procrastinated} />
-            </div>
-            <div className="flex max-h-[320px] flex-col gap-2 overflow-y-auto pr-1">
-              {procrastinated.slice(0, 12).map((item) => (
-                <button
-                  key={item.task.id}
-                  type="button"
-                  onClick={() => navigate('/tasks', { state: { taskId: item.task.id } })}
-                  className="rounded-xl border border-border/70 bg-muted/25 p-3 text-left transition-colors hover:border-danger/40"
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="truncate text-xs font-medium text-foreground">{item.task.title}</p>
-                    <Badge tone={item.severity === 'high' ? 'danger' : item.severity === 'medium' ? 'warning' : 'default'}>
-                      {item.severity === 'high' ? '严重' : item.severity === 'medium' ? '中等' : '轻微'}
-                    </Badge>
-                  </div>
-                  <p className="mt-1 text-[11px] text-muted-foreground">{item.reason}</p>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-      </Card>
-
-      <ReportPanel report={report} anchor={anchor} onAnchorChange={(next) => void setAnchor(next)} />
+      <MetricDetailDialog
+        kind={detail}
+        rangeFrom={range.from}
+        rangeTo={range.to}
+        toolRuns={toolRuns}
+        daily={daily}
+        onClose={() => setDetail(null)}
+        onNavigate={(path) => navigate(path)}
+      />
 
       {overview ? (
         <p className="text-center text-[11px] text-muted-foreground">

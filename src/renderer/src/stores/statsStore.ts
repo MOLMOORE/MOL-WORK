@@ -3,6 +3,7 @@ import type {
   DailyReport,
   DailyStats,
   ProcrastinationItem,
+  ProcrastinationReport,
   ProjectTime,
   ToolRunRecord,
   TrendPoint
@@ -22,6 +23,7 @@ interface StatsState {
   trendData: TrendPoint[]
   projects: ProjectTime[]
   procrastinated: ProcrastinationItem[]
+  procrastinationReport: ProcrastinationReport | null
   report: DailyReport | null
   toolRuns: ToolRunRecord[]
   loading: boolean
@@ -45,6 +47,7 @@ export const useStatsStore = create<StatsState>((set, get) => ({
   trendData: [],
   projects: [],
   procrastinated: [],
+  procrastinationReport: null,
   report: null,
   toolRuns: [],
   loading: false,
@@ -70,14 +73,15 @@ export const useStatsStore = create<StatsState>((set, get) => ({
     const { trendDays, anchor } = get()
     const { from, to } = trendWindow(trendDays, anchor)
     set({ loading: true })
-    const [daily, trendData, projects, procrastinated, report, toolRuns] = await Promise.all([
+    const [daily, trendData, projects, procrastinated, procrastinationReport, report, toolRuns] = await Promise.all([
       api.stats.daily(anchor),
       api.stats.trend(from, to),
       api.stats.byProject(from, to),
       api.stats.procrastination(),
+      api.stats.procrastinationReport(anchor, 30),
       api.stats.report(anchor),
       api.tool.history(300)
     ])
-    set({ daily, trendData, projects, procrastinated, report, toolRuns, loading: false })
+    set({ daily, trendData, projects, procrastinated, procrastinationReport, report, toolRuns, loading: false })
   }
 }))

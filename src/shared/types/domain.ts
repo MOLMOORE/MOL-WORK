@@ -306,6 +306,87 @@ export interface ProcrastinationItem {
   overdueDays: number
   reason: string
   severity: 'high' | 'medium' | 'low'
+  /** 该事项累计拖延次数（延期 + 逾期 + 完成时已逾期） */
+  delayCount: number
+  /** 该事项累计拖延时长（分钟） */
+  delayMinutes: number
+  /** 当前是否仍在逾期在途（未完成且已过截止） */
+  activeOverdue: boolean
+  /** 当前在途逾期时长（分钟），未在途时为 0 */
+  activeDelayMinutes: number
+  /** 综合拖延程度 0-100（仅由次数与单次时长决定） */
+  degree: number
+}
+
+/** 拖延事件类型：defer=延期继续推迟，due=进入逾期状态，complete=完成时已超时 */
+export type ProcrastinationEventKind = 'defer' | 'due' | 'complete'
+
+/** 单条拖延事件（记忆流水） */
+export interface ProcrastinationEvent {
+  id: string
+  taskId: number | null
+  taskTitle: string
+  kind: ProcrastinationEventKind
+  /** 该次拖延时长（分钟） */
+  delayMinutes: number
+  /** 事件发生时间 */
+  at: string
+  note: string
+}
+
+export type ProcrastinationLevel = 'low' | 'medium' | 'high'
+
+/** 单个周期（日 / 周 / 月）的拖延概览，用于横向对比 */
+export interface ProcrastinationPeriod {
+  key: 'day' | 'week' | 'month'
+  label: string
+  rangeFrom: string
+  rangeTo: string
+  /** 区间内拖延次数 */
+  events: number
+  /** 区间内累计拖延时长（分钟） */
+  delayMinutes: number
+  /** 单次平均拖延时长（分钟） */
+  avgDelayMinutes: number
+  /** 拖延程度 0-100 */
+  degree: number
+  level: ProcrastinationLevel
+  /** 与本周期上一段相比的变化百分比（正数=恶化），无对比基准时为 null */
+  changePercent: number | null
+}
+
+/** 序列聚合点（按天 / 周 / 月聚合），用于走势对比图 */
+export interface ProcrastinationPoint {
+  /** 天：yyyy-MM-dd；周：该周周一；月：yyyy-MM */
+  key: string
+  label: string
+  events: number
+  delayMinutes: number
+  degree: number
+}
+
+export interface ProcrastinationReport {
+  generatedAt: string
+  /** 全量累计：拖延次数 / 拖延时长（分钟） */
+  totalEvents: number
+  totalDelayMinutes: number
+  avgDelayMinutes: number
+  /** 当前仍未完成的逾期事项数量与累计拖欠时长（分钟） */
+  activeOverdueCount: number
+  activeDelayMinutes: number
+  /** 当前周期综合拖延程度 0-100 与等级 */
+  degree: number
+  level: ProcrastinationLevel
+  /** 日 / 周 / 月 三个周期对比 */
+  periods: ProcrastinationPeriod[]
+  /** 走势序列 */
+  daily: ProcrastinationPoint[]
+  weekly: ProcrastinationPoint[]
+  monthly: ProcrastinationPoint[]
+  /** 最近的拖延记忆事件 */
+  recentEvents: ProcrastinationEvent[]
+  /** 拖延提醒文案 */
+  advice: string[]
 }
 
 export interface DailyReport {

@@ -8,6 +8,7 @@ import type {
   NoteInput,
   OverviewData,
   ProcrastinationItem,
+  ProcrastinationReport,
   Project,
   ProjectInput,
   ProjectTime,
@@ -145,6 +146,8 @@ export interface WorkstationApi {
     trend(from: string, to: string): Promise<TrendPoint[]>
     byProject(from: string, to: string): Promise<ProjectTime[]>
     procrastination(): Promise<ProcrastinationItem[]>
+    /** 拖延量化报告：日 / 周 / 月对比、走势序列与记忆提醒 */
+    procrastinationReport(anchor: string, days?: number): Promise<ProcrastinationReport>
     report(date: string): Promise<DailyReport>
     reportMarkdown(date: string): Promise<string>
   }
