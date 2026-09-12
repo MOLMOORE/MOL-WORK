@@ -274,7 +274,7 @@ runner.run()     ──►  执行并返回 outputs / preview / resultPath
 
 ```powershell
 npm run dist
-# 产物：release\PersonalWorkstation-Setup-1.1.11.exe（约 94 MB，NSIS 可选安装目录）
+# 产物：release\PersonalWorkstation-Setup-1.1.12.exe（约 94 MB，NSIS 可选安装目录）
 ```
 
 若打包时无法访问 GitHub（electron-builder 需要下载 Electron 与 NSIS 二进制），可切换到国内镜像：
@@ -304,7 +304,7 @@ npm run dist
 | 工具端到端 | 同一自检在 `release\win-unpacked` 打包产物内运行 | ✅ 9 / 9 通过 |
 | 界面运行时 | 通过 CDP 连接真实 Electron 窗口遍历工具集市 / 统计页 | ✅ 0 渲染层错误，10 个图表渲染成功 |
 | 日报导出 | 界面点击「导出日报」→ 落盘 + 定位文件 | ✅ 生成 `reports\日报-YYYY-MM-DD.md` |
-| Windows 分发 | `npm run dist` | ✅ `release\PersonalWorkstation-Setup-1.1.11.exe`（约 94 MB） |
+| Windows 分发 | `npm run dist` | ✅ `release\PersonalWorkstation-Setup-1.1.12.exe`（约 94 MB） |
 
 自检覆盖的 9 个用例：Markdown → DOCX（Pandoc）、DOCX → Markdown（Pandoc）、WAV → MP3（FFmpeg）、
 单位换算、电路计算、学习卡片（联动复习计划）、网页正文提取（Playwright）、整页截图（Playwright）、网络资源下载（yt-dlp）。

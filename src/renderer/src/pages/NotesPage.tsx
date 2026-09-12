@@ -10,6 +10,8 @@ import { Button, IconButton } from '../components/ui/Button'
 import { Field, Input, Select, Switch, Textarea } from '../components/ui/Field'
 import { ConfirmDialog } from '../components/ui/Overlay'
 import { Tabs } from '../components/ui/Tabs'
+import { GridBoard, type GridEntry } from '../components/layout/GridBoard'
+import { ClockTile } from '../components/layout/ClockTile'
 import { ReviewQueue } from '../components/review/ReviewQueue'
 import { useNoteStore } from '../stores/noteStore'
 import { useTaskStore } from '../stores/taskStore'
@@ -124,9 +126,8 @@ export function NotesPage(): JSX.Element {
     pushToast({ title: `已排入 ${day} 日程`, tone: 'success' })
   }
 
-  return (
-    <div className="grid gap-5 xl:grid-cols-[240px_320px_1fr]">
-      <Card className="flex h-[calc(100vh-140px)] flex-col">
+  const tasksNode = (
+      <Card className="flex h-full flex-col">
         <SectionHeader
           title="归属任务"
           description="按任务浏览笔记与资料"
@@ -164,8 +165,10 @@ export function NotesPage(): JSX.Element {
           ))}
         </div>
       </Card>
+  )
 
-      <Card className="flex h-[calc(100vh-140px)] flex-col">
+  const listNode = (
+      <Card className="flex h-full flex-col">
         <div className="mb-3 flex h-9 items-center gap-2 rounded-xl border border-border bg-input/60 px-3">
           <Search className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
           <input
@@ -229,11 +232,21 @@ export function NotesPage(): JSX.Element {
           )}
         </div>
       </Card>
+  )
 
-      <div className="flex flex-col gap-5">
-        {current ? (
-          <>
-            <Card>
+  const detailNodes: GridEntry[] = current
+    ? [
+        {
+          id: 'editor',
+          title: '编辑笔记',
+          x: 7,
+          y: 3,
+          w: 5,
+          h: 8,
+          minW: 4,
+          minH: 5,
+          node: (
+            <Card className="flex h-full flex-col overflow-y-auto">
               <SectionHeader
                 title="编辑笔记"
                 description={`最近更新 ${current.updatedAt.replace('T', ' ').slice(0, 16)}`}
@@ -291,8 +304,19 @@ export function NotesPage(): JSX.Element {
                 )}
               </div>
             </Card>
-
-            <Card>
+          )
+        },
+        {
+          id: 'review',
+          title: '遗忘曲线复习',
+          x: 7,
+          y: 11,
+          w: 5,
+          h: 4,
+          minW: 4,
+          minH: 3,
+          node: (
+            <Card className="flex h-full flex-col overflow-y-auto">
               <SectionHeader title="遗忘曲线复习" description="评分后会按 SM-2 计算下次复习时间" />
               {current.review ? (
                 <ReviewQueue
@@ -309,9 +333,21 @@ export function NotesPage(): JSX.Element {
                 />
               )}
             </Card>
-          </>
-        ) : (
-          <Card className="flex h-[calc(100vh-140px)] items-center justify-center">
+          )
+        }
+      ]
+    : [
+        {
+          id: 'empty',
+          title: '笔记编辑区',
+          x: 7,
+          y: 3,
+          w: 5,
+          h: 12,
+          minW: 4,
+          minH: 5,
+          node: (
+            <Card className="flex h-full items-center justify-center">
             <EmptyState
               icon={<FileText className="h-6 w-6" />}
               title="选择左侧笔记开始编辑"
@@ -323,8 +359,20 @@ export function NotesPage(): JSX.Element {
               }
             />
           </Card>
-        )}
-      </div>
+          )
+        }
+      ]
+
+  const entries: GridEntry[] = [
+    { id: 'clock', title: '时间显示', x: 4, y: 0, w: 4, h: 3, minW: 3, minH: 2, node: <ClockTile /> },
+    { id: 'tasks', title: '归属任务', x: 0, y: 3, w: 3, h: 12, minW: 2, minH: 5, node: tasksNode },
+    { id: 'list', title: '笔记列表', x: 3, y: 3, w: 4, h: 12, minW: 3, minH: 5, node: listNode },
+    ...detailNodes
+  ]
+
+  return (
+    <div className="grid gap-5">
+      <GridBoard entries={entries} storageKey="workstation.grid.notes.v1" />
 
       {createOpen ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-6">

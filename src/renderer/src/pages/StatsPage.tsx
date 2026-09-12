@@ -10,7 +10,8 @@ import { ProjectDonut, ToolUsageDonut } from '../components/stats/DistributionPa
 import { ReportPanel } from '../components/stats/ReportPanel'
 import { ProcrastinationPanel } from '../components/stats/ProcrastinationPanel'
 import { MetricDetailDialog, type MetricDetailKind } from '../components/stats/MetricDetailDialog'
-import { StatsGrid, type StatsGridEntry } from '../components/stats/StatsGrid'
+import { GridBoard, type GridEntry } from '../components/layout/GridBoard'
+import { ClockTile } from '../components/layout/ClockTile'
 import { TREND_RANGES, trendWindow, useStatsStore, type TrendDays } from '../stores/statsStore'
 import { useAppStore } from '../stores/appStore'
 import { api } from '../lib/ipc'
@@ -18,7 +19,7 @@ import { formatMinutes, todayKey } from '../lib/utils'
 
 const STORAGE_LAST_DEGREE = 'workstation.procrastination-last-degree'
 const STORAGE_REMIND_DAY = 'workstation.procrastination-remind-day'
-const STATS_LAYOUT_KEY = 'workstation.stats-layout.v1'
+const STATS_LAYOUT_KEY = 'workstation.grid.stats.v1'
 
 function readStorage(key: string): string | null {
   try {
@@ -87,6 +88,8 @@ export function StatsPage(): JSX.Element {
     [toolRuns, range.from, range.to]
   )
 
+  const projectMinutes = useMemo(() => projects.reduce((sum, project) => sum + project.focusMinutes, 0), [projects])
+
   /** 拖延记忆与提醒：记录本次程度，并在程度偏高或上升时提醒一次 */
   useEffect(() => {
     if (!procrastinationReport) return
@@ -121,174 +124,103 @@ export function StatsPage(): JSX.Element {
     }
   }, [procrastinationReport, pushToast])
 
-  const entries: StatsGridEntry[] = [
-    {
-      id: 'metric-focus',
-      title: '区间专注总时长',
-      x: 0,
-      y: 0,
-      w: 3,
-      h: 2,
-      minW: 2,
-      minH: 2,
-      node: (
-        <StatCard
-          label="区间专注总时长"
-          value={formatMinutes(totals.focus)}
-          hint={`日均 ${formatMinutes(totals.average)}`}
-          tone="success"
-          icon={<TrendingUp className="h-4 w-4" />}
-          onClick={() => setDetail('focus')}
-        />
-      )
-    },
-    {
-      id: 'metric-completed',
-      title: '区间完成任务',
-      x: 3,
-      y: 0,
-      w: 3,
-      h: 2,
-      minW: 2,
-      minH: 2,
-      node: (
-        <StatCard
-          label="区间完成任务"
-          value={`${totals.completed} 项`}
-          hint={`复习 ${totals.reviews} 条`}
-          tone="primary"
-          icon={<BarChart3 className="h-4 w-4" />}
-          onClick={() => setDetail('completed')}
-        />
-      )
-    },
-    {
-      id: 'metric-tools',
-      title: '区间工具调用',
-      x: 6,
-      y: 0,
-      w: 3,
-      h: 2,
-      minW: 2,
-      minH: 2,
-      node: (
-        <StatCard
-          label="区间工具调用"
-          value={`${totals.runs} 次`}
-          hint={`累计耗时 ${formatMinutes(totals.tool)}`}
-          tone="warning"
-          icon={<FileText className="h-4 w-4" />}
-          onClick={() => setDetail('tools')}
-        />
-      )
-    },
-    {
-      id: 'metric-today',
-      title: '今日快照',
-      x: 9,
-      y: 0,
-      w: 3,
-      h: 2,
-      minW: 2,
-      minH: 2,
-      node: (
-        <StatCard
-          label="今日快照"
-          value={formatMinutes(daily?.focusMinutes ?? 0)}
-          hint={`完成 ${daily?.tasksCompleted ?? 0} 项 · 复习 ${daily?.reviewsDone ?? 0}/${daily?.reviewsDue ?? 0}`}
-          tone="info"
-          icon={<CalendarRange className="h-4 w-4" />}
-          onClick={() => setDetail('today')}
-        />
-      )
-    },
-    {
-      id: 'trend-focus',
-      title: '投入趋势',
-      x: 0,
-      y: 2,
-      w: 6,
-      h: 6,
-      minW: 4,
-      minH: 4,
-      node: <FocusTrendCard trendData={trendData} loading={loading} />
-    },
-    {
-      id: 'trend-output',
-      title: '产出趋势',
-      x: 6,
-      y: 2,
-      w: 6,
-      h: 6,
-      minW: 4,
-      minH: 4,
-      node: <OutputTrendCard trendData={trendData} loading={loading} />
-    },
-    {
-      id: 'hourly',
-      title: '单日时段分布',
-      x: 0,
-      y: 8,
-      w: 12,
-      h: 5,
-      minW: 6,
-      minH: 4,
-      node: <HourlyDistributionCard daily={daily} />
-    },
-    {
-      id: 'project-donut',
-      title: '项目投入分布',
-      x: 0,
-      y: 13,
-      w: 6,
-      h: 7,
-      minW: 5,
-      minH: 5,
-      node: (
-        <ProjectDonut projects={projects} totalMinutes={projects.reduce((sum, project) => sum + project.focusMinutes, 0)} />
-      )
-    },
-    {
-      id: 'tool-donut',
-      title: '工具调用分布',
-      x: 6,
-      y: 13,
-      w: 6,
-      h: 7,
-      minW: 5,
-      minH: 5,
-      node: <ToolUsageDonut toolRuns={windowToolRuns} />
-    },
-    {
-      id: 'procrastination',
-      title: '拖延识别',
-      x: 0,
-      y: 20,
-      w: 12,
-      h: 11,
-      minW: 6,
-      minH: 7,
-      node: (
-        <ProcrastinationPanel
-          report={procrastinationReport}
-          items={procrastinated}
-          loading={loading}
-          onOpenTask={(taskId) => navigate('/tasks', { state: { taskId } })}
-        />
-      )
-    },
-    {
-      id: 'report',
-      title: '日报复盘',
-      x: 0,
-      y: 31,
-      w: 12,
-      h: 9,
-      minW: 6,
-      minH: 5,
-      node: <ReportPanel report={report} anchor={anchor} onAnchorChange={(next) => void setAnchor(next)} />
-    }
-  ]
+  // 各模块 JSX 单独记忆化：拖动/缩放时数据未变则引用不变，避免图表被反复重绘
+  const clockNode = useMemo(() => <ClockTile />, [])
+
+  const metricNodes = useMemo(
+    () => [
+      <StatCard
+        key="focus"
+        label="区间专注总时长"
+        value={formatMinutes(totals.focus)}
+        hint={`日均 ${formatMinutes(totals.average)}`}
+        tone="success"
+        icon={<TrendingUp className="h-4 w-4" />}
+        onClick={() => setDetail('focus')}
+      />,
+      <StatCard
+        key="completed"
+        label="区间完成任务"
+        value={`${totals.completed} 项`}
+        hint={`复习 ${totals.reviews} 条`}
+        tone="primary"
+        icon={<BarChart3 className="h-4 w-4" />}
+        onClick={() => setDetail('completed')}
+      />,
+      <StatCard
+        key="tools"
+        label="区间工具调用"
+        value={`${totals.runs} 次`}
+        hint={`累计耗时 ${formatMinutes(totals.tool)}`}
+        tone="warning"
+        icon={<FileText className="h-4 w-4" />}
+        onClick={() => setDetail('tools')}
+      />,
+      <StatCard
+        key="today"
+        label="今日快照"
+        value={formatMinutes(daily?.focusMinutes ?? 0)}
+        hint={`完成 ${daily?.tasksCompleted ?? 0} 项 · 复习 ${daily?.reviewsDone ?? 0}/${daily?.reviewsDue ?? 0}`}
+        tone="info"
+        icon={<CalendarRange className="h-4 w-4" />}
+        onClick={() => setDetail('today')}
+      />
+    ],
+    [totals, daily]
+  )
+
+  const trendNodes = useMemo(
+    () => [
+      <FocusTrendCard key="focus" trendData={trendData} loading={loading} />,
+      <OutputTrendCard key="output" trendData={trendData} loading={loading} />
+    ],
+    [trendData, loading]
+  )
+
+  const hourlyNode = useMemo(() => <HourlyDistributionCard daily={daily} />, [daily])
+
+  const donutNodes = useMemo(
+    () => [
+      <ProjectDonut key="project" projects={projects} totalMinutes={projectMinutes} />,
+      <ToolUsageDonut key="tool" toolRuns={windowToolRuns} />
+    ],
+    [projects, projectMinutes, windowToolRuns]
+  )
+
+  const procrastinationNode = useMemo(
+    () => (
+      <ProcrastinationPanel
+        report={procrastinationReport}
+        items={procrastinated}
+        loading={loading}
+        onOpenTask={(taskId) => navigate('/tasks', { state: { taskId } })}
+      />
+    ),
+    [procrastinationReport, procrastinated, loading, navigate]
+  )
+
+  const reportNode = useMemo(
+    () => <ReportPanel report={report} anchor={anchor} onAnchorChange={(next) => void setAnchor(next)} />,
+    [report, anchor, setAnchor]
+  )
+
+  const entries = useMemo<GridEntry[]>(
+    () => [
+      { id: 'clock', title: '时间显示', x: 4, y: 0, w: 4, h: 3, minW: 3, minH: 2, node: clockNode },
+      { id: 'metric-focus', title: '区间专注总时长', x: 0, y: 3, w: 3, h: 2, minW: 2, minH: 2, node: metricNodes[0] },
+      { id: 'metric-completed', title: '区间完成任务', x: 3, y: 3, w: 3, h: 2, minW: 2, minH: 2, node: metricNodes[1] },
+      { id: 'metric-tools', title: '区间工具调用', x: 6, y: 3, w: 3, h: 2, minW: 2, minH: 2, node: metricNodes[2] },
+      { id: 'metric-today', title: '今日快照', x: 9, y: 3, w: 3, h: 2, minW: 2, minH: 2, node: metricNodes[3] },
+      { id: 'trend-focus', title: '投入趋势', x: 0, y: 5, w: 6, h: 6, minW: 4, minH: 4, node: trendNodes[0] },
+      { id: 'trend-output', title: '产出趋势', x: 6, y: 5, w: 6, h: 6, minW: 4, minH: 4, node: trendNodes[1] },
+      { id: 'hourly', title: '单日时段分布', x: 0, y: 11, w: 12, h: 5, minW: 6, minH: 4, node: hourlyNode },
+      { id: 'project-donut', title: '项目投入分布', x: 0, y: 16, w: 6, h: 7, minW: 5, minH: 5, node: donutNodes[0] },
+      { id: 'tool-donut', title: '工具调用分布', x: 6, y: 16, w: 6, h: 7, minW: 5, minH: 5, node: donutNodes[1] },
+      { id: 'procrastination', title: '拖延识别', x: 0, y: 23, w: 12, h: 11, minW: 6, minH: 7, node: procrastinationNode },
+      { id: 'report', title: '日报复盘', x: 0, y: 34, w: 12, h: 9, minW: 6, minH: 5, node: reportNode }
+    ],
+    [clockNode, metricNodes, trendNodes, hourlyNode, donutNodes, procrastinationNode, reportNode]
+  )
 
   return (
     <div className="grid gap-5">
@@ -333,7 +265,7 @@ export function StatsPage(): JSX.Element {
         </div>
       ) : null}
 
-      <StatsGrid entries={entries} storageKey={STATS_LAYOUT_KEY} />
+      <GridBoard entries={entries} storageKey={STATS_LAYOUT_KEY} />
 
       <MetricDetailDialog
         kind={detail}

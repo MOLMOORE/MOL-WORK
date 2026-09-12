@@ -24,8 +24,9 @@ import { Badge, EmptyState, Progress, Skeleton } from '../components/ui/Feedback
 import { Button, IconButton } from '../components/ui/Button'
 import { Input, Select } from '../components/ui/Field'
 import { Tabs } from '../components/ui/Tabs'
-import { FlipDigit } from '../components/ui/FlipDigit'
 import { ConfirmDialog } from '../components/ui/Overlay'
+import { GridBoard, type GridEntry } from '../components/layout/GridBoard'
+import { ClockTile } from '../components/layout/ClockTile'
 import { TaskForm } from '../components/task/TaskForm'
 import { TaskDetailDrawer } from '../components/task/TaskDetailDrawer'
 import { ScheduleBoard, type BoardView, type DueChangeRequest } from '../components/task/ScheduleBoard'
@@ -61,11 +62,6 @@ const STATUS_TABS: { key: TaskStatus | 'all'; label: string }[] = [
   { key: 'done', label: '已完成' }
 ]
 
-function clockText(date: Date): string {
-  const pad = (value: number): string => String(value).padStart(2, '0')
-  return `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
-}
-
 export function TasksPage(): JSX.Element {
   const location = useLocation()
   const navigate = useNavigate()
@@ -94,7 +90,6 @@ export function TasksPage(): JSX.Element {
   const [defaultDue, setDefaultDue] = useState<string | null>(null)
   const [keywordDraft, setKeywordDraft] = useState(filter.keyword)
   const [suggestOpen, setSuggestOpen] = useState(false)
-  const [now, setNow] = useState(() => new Date())
   const [listOrder, setListOrder] = useState<number[] | null>(null)
   const [listDragId, setListDragId] = useState<number | null>(null)
   const [listOverId, setListOverId] = useState<number | null>(null)
@@ -109,12 +104,6 @@ export function TasksPage(): JSX.Element {
   useEffect(() => {
     void load()
   }, [load])
-
-  // 顶栏实时时钟（精确到秒）
-  useEffect(() => {
-    const timer = window.setInterval(() => setNow(new Date()), 1000)
-    return () => window.clearInterval(timer)
-  }, [])
 
   useEffect(() => {
     const state = location.state as { taskId?: number } | null
@@ -273,9 +262,7 @@ export function TasksPage(): JSX.Element {
     { key: 'list', label: '清单', icon: <List className="h-3 w-3" /> }
   ]
 
-  return (
-    <div className="grid gap-5">
-      {/* 头部卡片小幅抬升（低于顶栏 z-40）：候选浮层覆盖下方卡片，同时不遮挡顶栏的到点提醒面板 */}
+  const headerNode = (
       <Card className="relative z-20">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
@@ -291,16 +278,6 @@ export function TasksPage(): JSX.Element {
             </p>
           </div>
 
-          <div className="text-right">
-            <p className="text-[10px] uppercase tracking-widest text-muted-foreground">当前时间</p>
-            <p className="mt-1 flex items-baseline justify-end text-6xl font-bold leading-tight tabular-nums tracking-tight text-foreground">
-              {clockText(now)
-                .split('')
-                .map((char, index) => (
-                  <FlipDigit key={`${index}-${char}`} char={char} />
-                ))}
-            </p>
-          </div>
         </div>
 
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
@@ -437,15 +414,10 @@ export function TasksPage(): JSX.Element {
           </div>
         ) : null}
       </Card>
+  )
 
-      {loading && tasks.length === 0 ? (
-        <div className="grid gap-3">
-          {[0, 1, 2, 3].map((key) => (
-            <Skeleton key={key} className="h-[120px]" />
-          ))}
-        </div>
-      ) : view === 'list' ? (
-        <Card padded={false}>
+  const listNode = (
+      <Card padded={false}>
           {tasks.length === 0 ? (
             <EmptyState
               icon={<ListChecks className="h-5 w-5" />}
@@ -486,11 +458,12 @@ export function TasksPage(): JSX.Element {
               ))}
             </div>
           )}
-        </Card>
-      ) : (
-        <>
-          <Card>
-            <SectionHeader
+      </Card>
+  )
+
+  const boardNode = (
+      <Card>
+        <SectionHeader
               title={
                 view === 'day'
                   ? `${formatDateCN(selectedDay)} · ${weekdayCN(selectedDay)}`
@@ -520,7 +493,7 @@ export function TasksPage(): JSX.Element {
               }
             />
             <ScheduleBoard
-              view={view}
+              view={view as BoardView}
               anchor={anchor}
               selectedDay={selectedDay}
               tasks={tasks}
@@ -534,9 +507,65 @@ export function TasksPage(): JSX.Element {
               onCreateAt={(dayKey) => openCreate(dayKey)}
             />
           </Card>
+  )
 
-          {view === 'day' ? <DayReviewCard day={selectedDay} /> : null}
-        </>
+  const entries: GridEntry[] = [
+    { id: 'clock', title: '时间显示', x: 4, y: 0, w: 4, h: 3, minW: 3, minH: 2, node: <ClockTile /> },
+    { id: 'header', title: '任务工具头', x: 0, y: 3, w: 12, h: 4, minW: 6, minH: 3, node: headerNode },
+    ...(view === 'list'
+      ? [
+          {
+            id: 'list',
+            title: '任务清单',
+            x: 0,
+            y: 7,
+            w: 12,
+            h: 12,
+            minW: 6,
+            minH: 5,
+            node: listNode
+          } satisfies GridEntry
+        ]
+      : [
+          {
+            id: 'board',
+            title: '日程看板',
+            x: 0,
+            y: 7,
+            w: 12,
+            h: 15,
+            minW: 8,
+            minH: 6,
+            node: boardNode
+          } satisfies GridEntry,
+          ...(view === 'day'
+            ? [
+                {
+                  id: 'day-review',
+                  title: '当日到期复习',
+                  x: 0,
+                  y: 22,
+                  w: 12,
+                  h: 4,
+                  minW: 6,
+                  minH: 3,
+                  node: <DayReviewCard day={selectedDay} />
+                } satisfies GridEntry
+              ]
+            : [])
+        ])
+  ]
+
+  return (
+    <div className="grid gap-5">
+      {loading && tasks.length === 0 ? (
+        <div className="grid gap-3">
+          {[0, 1, 2, 3].map((key) => (
+            <Skeleton key={key} className="h-[120px]" />
+          ))}
+        </div>
+      ) : (
+        <GridBoard entries={entries} storageKey="workstation.grid.tasks.v1" />
       )}
 
       <TaskForm

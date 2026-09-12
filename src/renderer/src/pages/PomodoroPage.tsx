@@ -20,6 +20,8 @@ import { Badge } from '../components/ui/Feedback'
 import { Button } from '../components/ui/Button'
 import { Field, Input, Select, Switch } from '../components/ui/Field'
 import { Modal } from '../components/ui/Overlay'
+import { GridBoard, type GridEntry } from '../components/layout/GridBoard'
+import { ClockTile } from '../components/layout/ClockTile'
 import { usePomodoroStore, PHASE_META } from '../stores/pomodoroStore'
 import { useAppStore } from '../stores/appStore'
 import { useTaskStore } from '../stores/taskStore'
@@ -213,9 +215,18 @@ export function PomodoroPage(): JSX.Element {
 
   const patch = config.roundsPerLong
 
-  return (
-    <div className="grid gap-5">
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+  const entries: GridEntry[] = [
+    { id: 'clock', title: '时间显示', x: 4, y: 0, w: 4, h: 3, minW: 3, minH: 2, node: <ClockTile /> },
+    {
+      id: 'metric-phase',
+      title: '当前阶段',
+      x: 0,
+      y: 3,
+      w: 3,
+      h: 2,
+      minW: 2,
+      minH: 2,
+      node: (
         <StatCard
           label="当前阶段"
           value={meta.label}
@@ -224,6 +235,18 @@ export function PomodoroPage(): JSX.Element {
           icon={<Timer className="h-4 w-4" />}
           onClick={() => setChart('phase')}
         />
+      )
+    },
+    {
+      id: 'metric-tomato',
+      title: '本次完成番茄',
+      x: 3,
+      y: 3,
+      w: 3,
+      h: 2,
+      minW: 2,
+      minH: 2,
+      node: (
         <StatCard
           label="本次完成番茄"
           value={`${totalFocus} 个`}
@@ -232,6 +255,18 @@ export function PomodoroPage(): JSX.Element {
           icon={<Sparkles className="h-4 w-4" />}
           onClick={() => setChart('tomato')}
         />
+      )
+    },
+    {
+      id: 'metric-today',
+      title: '今日专注',
+      x: 6,
+      y: 3,
+      w: 3,
+      h: 2,
+      minW: 2,
+      minH: 2,
+      node: (
         <StatCard
           label="今日专注"
           value={formatMinutes(overview?.todayFocusMinutes ?? 0)}
@@ -240,6 +275,18 @@ export function PomodoroPage(): JSX.Element {
           icon={<Flame className="h-4 w-4" />}
           onClick={() => setChart('today')}
         />
+      )
+    },
+    {
+      id: 'metric-duration',
+      title: '专注时长',
+      x: 9,
+      y: 3,
+      w: 3,
+      h: 2,
+      minW: 2,
+      minH: 2,
+      node: (
         <StatCard
           label="专注时长"
           value={`${Math.round(config.focus / 60)} 分钟`}
@@ -248,12 +295,19 @@ export function PomodoroPage(): JSX.Element {
           icon={<Coffee className="h-4 w-4" />}
           onClick={() => setChart('duration')}
         />
-      </div>
-
-      <PomodoroStatsDialog chart={chart} config={config} onClose={() => setChart(null)} />
-
-      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1.1fr_1fr]">
-        <Card className="flex flex-col items-center gap-5">
+      )
+    },
+    {
+      id: 'timer',
+      title: '番茄计时器',
+      x: 0,
+      y: 5,
+      w: 7,
+      h: 11,
+      minW: 5,
+      minH: 7,
+      node: (
+        <Card className="flex h-full flex-col items-center justify-center gap-5">
           <div className="flex w-full items-center justify-between">
             <div>
               <p className="text-sm font-semibold text-foreground">番茄工作法</p>
@@ -297,9 +351,19 @@ export function PomodoroPage(): JSX.Element {
             </Select>
           </Field>
         </Card>
-
-        <div className="flex flex-col gap-5">
-          <Card>
+      )
+    },
+    {
+      id: 'params',
+      title: '番茄钟参数',
+      x: 7,
+      y: 5,
+      w: 5,
+      h: 8,
+      minW: 4,
+      minH: 5,
+      node: (
+          <Card className="flex h-full flex-col overflow-y-auto">
             <SectionHeader
               title="番茄钟参数"
               description="修改后立即生效，并同步保存到设置"
@@ -368,8 +432,19 @@ export function PomodoroPage(): JSX.Element {
               />
             </div>
           </Card>
-
-          <Card>
+      )
+    },
+    {
+      id: 'help',
+      title: '使用说明',
+      x: 7,
+      y: 13,
+      w: 5,
+      h: 4,
+      minW: 4,
+      minH: 3,
+      node: (
+          <Card className="flex h-full flex-col overflow-y-auto">
             <SectionHeader title="使用说明" description="番茄钟完成的专注会写入专注记录并计入统计" />
             <ul className="flex flex-col gap-2 text-[11px] leading-relaxed text-muted-foreground">
               <li>· 选择关联任务后，每个完成的专注会自动累计到该任务的投入时长。</li>
@@ -379,8 +454,14 @@ export function PomodoroPage(): JSX.Element {
               <li>· 点击上方任意统计卡片，可弹出对应的图表统计。</li>
             </ul>
           </Card>
-        </div>
-      </div>
+      )
+    }
+  ]
+
+  return (
+    <div className="grid gap-5">
+      <GridBoard entries={entries} storageKey="workstation.grid.pomodoro.v1" />
+      <PomodoroStatsDialog chart={chart} config={config} onClose={() => setChart(null)} />
     </div>
   )
 }

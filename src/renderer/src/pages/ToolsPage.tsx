@@ -21,6 +21,8 @@ import { Button, IconButton } from '../components/ui/Button'
 import { Input, Switch } from '../components/ui/Field'
 import { Tabs } from '../components/ui/Tabs'
 import { ConfirmDialog } from '../components/ui/Overlay'
+import { GridBoard, type GridEntry } from '../components/layout/GridBoard'
+import { ClockTile } from '../components/layout/ClockTile'
 import { ToolIcon } from '../components/tool/ToolIcon'
 import { ToolDetailDrawer } from '../components/tool/ToolDetailDrawer'
 import { useToolStore } from '../stores/toolStore'
@@ -101,8 +103,7 @@ export function ToolsPage(): JSX.Element {
     setPendingRemove(null)
   }
 
-  return (
-    <div className="grid gap-5">
+  const headerNode = (
       <Card className="relative overflow-hidden">
         <div className="pointer-events-none absolute -right-10 -top-16 h-52 w-52 rounded-full bg-primary/25 blur-3xl" />
         <div className="relative flex flex-wrap items-start justify-between gap-4">
@@ -143,9 +144,39 @@ export function ToolsPage(): JSX.Element {
           </div>
         </div>
       </Card>
+  )
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="已注册工具" value={`${tools.length} 个`} hint={`启用 ${tools.filter((t) => t.enabled).length} 个`} icon={<Boxes className="h-4 w-4" />} />
+  const entries: GridEntry[] = [
+    { id: 'clock', title: '时间显示', x: 4, y: 0, w: 4, h: 3, minW: 3, minH: 2, node: <ClockTile /> },
+    { id: 'header', title: '工具集说明', x: 0, y: 3, w: 12, h: 3, minW: 6, minH: 3, node: headerNode },
+    {
+      id: 'metric-tools',
+      title: '已注册工具',
+      x: 0,
+      y: 6,
+      w: 3,
+      h: 2,
+      minW: 2,
+      minH: 2,
+      node: (
+        <StatCard
+          label="已注册工具"
+          value={`${tools.length} 个`}
+          hint={`启用 ${tools.filter((t) => t.enabled).length} 个`}
+          icon={<Boxes className="h-4 w-4" />}
+        />
+      )
+    },
+    {
+      id: 'metric-deps',
+      title: '外部依赖',
+      x: 3,
+      y: 6,
+      w: 3,
+      h: 2,
+      minW: 2,
+      minH: 2,
+      node: (
         <StatCard
           label="外部依赖"
           value={`${dependencies.length - missingDependencies.length} / ${dependencies.length}`}
@@ -153,11 +184,43 @@ export function ToolsPage(): JSX.Element {
           tone={missingDependencies.length === 0 ? 'success' : 'warning'}
           icon={<Terminal className="h-4 w-4" />}
         />
+      )
+    },
+    {
+      id: 'metric-today',
+      title: '今日调用',
+      x: 6,
+      y: 6,
+      w: 3,
+      h: 2,
+      minW: 2,
+      minH: 2,
+      node: (
         <StatCard label="今日调用" value={`${todayRuns.length} 次`} hint={`累计记录 ${history.length} 条`} tone="info" icon={<Play className="h-4 w-4" />} />
-        <StatCard label="累计工具耗时" value={formatMinutes(totalToolMinutes)} tone="primary" icon={<Clock4 className="h-4 w-4" />} />
-      </div>
-
-      <Card>
+      )
+    },
+    {
+      id: 'metric-cost',
+      title: '累计工具耗时',
+      x: 9,
+      y: 6,
+      w: 3,
+      h: 2,
+      minW: 2,
+      minH: 2,
+      node: <StatCard label="累计工具耗时" value={formatMinutes(totalToolMinutes)} tone="primary" icon={<Clock4 className="h-4 w-4" />} />
+    },
+    {
+      id: 'deps',
+      title: '外部依赖状态',
+      x: 0,
+      y: 8,
+      w: 6,
+      h: 7,
+      minW: 4,
+      minH: 4,
+      node: (
+        <Card className="flex h-full flex-col overflow-y-auto">
         <SectionHeader
           title="外部依赖状态"
           description="按托管目录 → 系统 PATH → winget → pip 的顺序自动解析可执行文件"
@@ -213,9 +276,20 @@ export function ToolsPage(): JSX.Element {
             </div>
           ))}
         </div>
-      </Card>
-
-      <Card>
+          </Card>
+        )
+      },
+      {
+        id: 'market',
+        title: '工具集市',
+        x: 6,
+        y: 8,
+        w: 6,
+        h: 12,
+        minW: 5,
+        minH: 6,
+        node: (
+          <Card className="flex h-full flex-col overflow-y-auto">
         <SectionHeader
           title="工具集市"
           description="按 manifest 自动渲染表单，点击工具卡片或「执行」开始使用"
@@ -335,9 +409,20 @@ export function ToolsPage(): JSX.Element {
             })}
           </div>
         )}
-      </Card>
-
-      <Card>
+          </Card>
+        )
+      },
+      {
+        id: 'runs',
+        title: '运行记录',
+        x: 0,
+        y: 15,
+        w: 12,
+        h: 8,
+        minW: 6,
+        minH: 5,
+        node: (
+          <Card className="flex h-full flex-col overflow-y-auto">
         <SectionHeader
           title="运行记录"
           description="工具执行的输入摘要、耗时、状态与结果路径，可直接打开产出文件"
@@ -391,7 +476,14 @@ export function ToolsPage(): JSX.Element {
             ))}
           </div>
         )}
-      </Card>
+          </Card>
+        )
+      }
+  ]
+
+  return (
+    <div className="grid gap-5">
+      <GridBoard entries={entries} storageKey="workstation.grid.tools.v1" />
 
       <ToolDetailDrawer manifest={selected} open={selected !== null} onClose={() => select(null)} />
 
