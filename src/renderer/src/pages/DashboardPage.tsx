@@ -176,9 +176,10 @@ export function DashboardPage(): JSX.Element {
         <StatCard
           label="预计专注"
           value={formatMinutes(overview.estimateMinutes)}
-          hint="根据今日任务预估"
+          hint="根据今日任务预估 · 点击进入番茄钟"
           tone="warning"
           icon={<Timer className="h-4 w-4" />}
+          onClick={() => navigate('/pomodoro')}
         />
         <StatCard
           label="今日投入"

@@ -41,6 +41,25 @@ const SECTIONS: { key: string; title: string; description: string; icon: typeof 
 /** 版本更新日志（新版本发布时在最上方追加一条） */
 const CHANGELOG: { version: string; date: string; items: string[] }[] = [
   {
+    version: '1.1.10',
+    date: '2026-09-12',
+    items: [
+      '版本中心升级：任意版本均可查看本版与历史版本的完整更新信息',
+      '番茄钟计时器全新设计：更精致的番茄造型（果体渐变、高光、萼叶）与外圈进度环',
+      '任务页时钟数字加大；仪表盘「预计专注」卡片可点击跳转番茄钟'
+    ]
+  },
+  {
+    version: '1.1.9',
+    date: '2026-09-11',
+    items: [
+      '番茄钟计时器改为番茄造型（专注红番茄 / 休息绿番茄），内圈进度弧显示剩余时间',
+      '番茄钟四个统计卡片可点击，弹出环形图、柱状图与趋势面积图',
+      '任务页与设置页隐藏全局时钟；未排期任务为 0 时面板自动收起；当日事项卡片加大',
+      '侧边栏删去英文副标题；移除工具页与统计页的阶段交付徽标'
+    ]
+  },
+  {
     version: '1.1.8',
     date: '2026-09-11',
     items: [
@@ -511,11 +530,11 @@ function AboutBadge(): JSX.Element | null {
   )
 }
 
-/** 关于与版本：显示当前版本 + 本版较于上一版本的更新内容 + 历史日志 */
+/** 关于与版本：显示当前版本 + 本版较于上一版本的更新内容 + 完整历史日志 */
 function AboutSection(): JSX.Element {
   const [version, setVersion] = useState('…')
   const [previousSeen, setPreviousSeen] = useState<string | null>(null)
-  const [showHistory, setShowHistory] = useState(false)
+  const [showHistory, setShowHistory] = useState(true)
 
   useEffect(() => {
     let active = true
@@ -535,9 +554,11 @@ function AboutSection(): JSX.Element {
     }
   }, [])
 
-  const currentIndex = CHANGELOG.findIndex((entry) => entry.version === version)
-  const current = currentIndex >= 0 ? CHANGELOG[currentIndex] : null
-  const previous = currentIndex >= 0 && currentIndex + 1 < CHANGELOG.length ? CHANGELOG[currentIndex + 1] : null
+  const matchedIndex = CHANGELOG.findIndex((entry) => entry.version === version)
+  const isMatched = matchedIndex >= 0
+  // 当前版本缺少独立日志时回退展示最新一条，保证任何版本都有更新信息可看
+  const current = isMatched ? CHANGELOG[matchedIndex] : (CHANGELOG[0] ?? null)
+  const history = CHANGELOG.filter((entry) => entry.version !== current?.version)
 
   return (
     <div className="grid gap-4">
@@ -558,12 +579,19 @@ function AboutSection(): JSX.Element {
       </div>
 
       <div className="rounded-xl border border-border/70 bg-muted/25 p-4">
-        <p className="text-xs font-semibold text-foreground">
+        <p className="flex flex-wrap items-center gap-2 text-xs font-semibold text-foreground">
           本版更新内容
-          {previous ? <span className="ml-2 text-[11px] font-normal text-muted-foreground">较上一版本 v{previous.version}</span> : null}
+          {isMatched ? (
+            <span className="text-[11px] font-normal text-muted-foreground">
+              v{current?.version}
+              {current?.date ? ` · ${current.date}` : ''}
+            </span>
+          ) : (
+            <span className="text-[11px] font-normal text-warning">该版本日志待补充，以下为最新版本 v{current?.version} 的更新内容</span>
+          )}
         </p>
         <ul className="mt-2 flex flex-col gap-1.5">
-          {(current?.items ?? ['本地版本日志中暂无该版本的记录']).map((item) => (
+          {(current?.items ?? ['暂无更新记录']).map((item) => (
             <li key={item} className="flex items-start gap-2 text-[11px] leading-relaxed text-muted-foreground">
               <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-[#A5B4FC]" />
               {item}
@@ -572,37 +600,35 @@ function AboutSection(): JSX.Element {
         </ul>
       </div>
 
-      {previous ? (
-        <div className="rounded-xl border border-border/70 bg-muted/25">
-          <button
-            type="button"
-            onClick={() => setShowHistory((value) => !value)}
-            className="flex w-full items-center justify-between px-4 py-3 text-left"
-          >
-            <span className="text-xs font-medium text-foreground">历史版本更新日志</span>
-            <ChevronRight className={cn('h-3.5 w-3.5 text-muted-foreground transition-transform', showHistory && 'rotate-90')} />
-          </button>
-          {showHistory ? (
-            <div className="flex flex-col gap-3 border-t border-border/50 px-4 py-3">
-              {CHANGELOG.slice(currentIndex + 1).map((entry) => (
-                <div key={entry.version}>
-                  <p className="text-[11px] font-semibold text-foreground">
-                    v{entry.version} <span className="ml-1 font-normal text-muted-foreground">{entry.date}</span>
-                  </p>
-                  <ul className="mt-1 flex flex-col gap-1">
-                    {entry.items.map((item) => (
-                      <li key={item} className="flex items-start gap-2 text-[11px] leading-relaxed text-muted-foreground">
-                        <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-muted-foreground/50" />
-                        {item}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ))}
-            </div>
-          ) : null}
-        </div>
-      ) : null}
+      <div className="rounded-xl border border-border/70 bg-muted/25">
+        <button
+          type="button"
+          onClick={() => setShowHistory((value) => !value)}
+          className="flex w-full items-center justify-between px-4 py-3 text-left"
+        >
+          <span className="text-xs font-medium text-foreground">历史版本更新日志 · {history.length} 个版本</span>
+          <ChevronRight className={cn('h-3.5 w-3.5 text-muted-foreground transition-transform', showHistory && 'rotate-90')} />
+        </button>
+        {showHistory ? (
+          <div className="flex flex-col gap-3 border-t border-border/50 px-4 py-3">
+            {history.map((entry) => (
+              <div key={entry.version}>
+                <p className="text-[11px] font-semibold text-foreground">
+                  v{entry.version} <span className="ml-1 font-normal text-muted-foreground">{entry.date}</span>
+                </p>
+                <ul className="mt-1 flex flex-col gap-1">
+                  {entry.items.map((item) => (
+                    <li key={item} className="flex items-start gap-2 text-[11px] leading-relaxed text-muted-foreground">
+                      <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-muted-foreground/50" />
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        ) : null}
+      </div>
 
       <p className="text-[11px] leading-relaxed text-muted-foreground">
         本地应用无在线更新源；发布新版本后重新安装即可，此页面会自动对比上次使用的版本并展示更新内容。

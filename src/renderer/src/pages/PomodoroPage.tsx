@@ -26,9 +26,6 @@ import { useTaskStore } from '../stores/taskStore'
 import { api } from '../lib/ipc'
 import { addDays, formatDay, formatMinutes, todayKey } from '../lib/utils'
 
-const TOMATO_RADIUS = 88
-const TOMATO_CIRCUMFERENCE = 2 * Math.PI * TOMATO_RADIUS
-
 type StatsChart = 'phase' | 'tomato' | 'today' | 'duration' | null
 
 function formatClock(seconds: number): string {
@@ -38,7 +35,7 @@ function formatClock(seconds: number): string {
   return `${String(minutes).padStart(2, '0')}:${String(rest).padStart(2, '0')}`
 }
 
-/** 番茄造型计时器：番茄主体（专注红/休息绿）+ 蒂叶 + 内圈进度弧 */
+/** 番茄造型计时器：饱满果形（专注红/休息绿）+ 五瓣萼叶 + 外圈进度环 + 端点圆点 */
 function TomatoTimer({
   progress,
   secondsLeft,
@@ -50,64 +47,114 @@ function TomatoTimer({
   phaseLabel: string
   isFocus: boolean
 }): JSX.Element {
-  const body = isFocus
-    ? { light: '#F87171', mid: '#EF4444', dark: '#991B1B', leaf: '#16A34A', leafDark: '#166534' }
-    : { light: '#4ADE80', mid: '#22C55E', dark: '#15803D', leaf: '#0D9488', leafDark: '#115E59' }
-  const dash = TOMATO_CIRCUMFERENCE * Math.min(1, Math.max(0, progress))
+  const safeProgress = Math.min(1, Math.max(0, progress))
+  const radius = 128
+  const circumference = 2 * Math.PI * radius
+  const angle = safeProgress * 360
+  const knob = {
+    x: 150 + radius * Math.sin((angle * Math.PI) / 180),
+    y: 192 - radius * Math.cos((angle * Math.PI) / 180)
+  }
+  // 萼叶角度与大小（参考真实番茄的放射状萼片，交替大小更自然）
+  const leaves: { deg: number; scale: number }[] = [
+    { deg: -78, scale: 0.82 },
+    { deg: -40, scale: 1 },
+    { deg: -4, scale: 0.72 },
+    { deg: 32, scale: 1 },
+    { deg: 70, scale: 0.82 }
+  ]
 
   return (
-    <svg viewBox="0 0 260 288" className="h-[300px] w-[276px]">
+    <svg viewBox="0 0 300 340" className="h-[330px] w-[292px]">
       <defs>
-        <radialGradient id="tomatoBody" cx="38%" cy="30%" r="82%">
-          <stop offset="0%" stopColor={body.light} />
-          <stop offset="55%" stopColor={body.mid} />
-          <stop offset="100%" stopColor={body.dark} />
+        <radialGradient id="tomatoBody" cx="36%" cy="26%" r="88%">
+          <stop offset="0%" stopColor={isFocus ? '#FF9B8F' : '#A7F3D0'} />
+          <stop offset="38%" stopColor={isFocus ? '#F2544B' : '#4ADE80'} />
+          <stop offset="72%" stopColor={isFocus ? '#DC2626' : '#22C55E'} />
+          <stop offset="100%" stopColor={isFocus ? '#8F1212' : '#166534'} />
         </radialGradient>
+        <linearGradient id="tomatoLeaf" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor="#86EFAC" />
+          <stop offset="55%" stopColor="#22C55E" />
+          <stop offset="100%" stopColor="#15803D" />
+        </linearGradient>
+        <filter id="tomatoGlow" x="-30%" y="-30%" width="160%" height="160%">
+          <feDropShadow dx="0" dy="10" stdDeviation="14" floodColor={isFocus ? '#B91C1C' : '#166534'} floodOpacity="0.45" />
+        </filter>
+        <filter id="tomatoTextShadow" x="-20%" y="-20%" width="140%" height="140%">
+          <feDropShadow dx="0" dy="2" stdDeviation="3" floodColor="#000" floodOpacity="0.4" />
+        </filter>
       </defs>
 
-      {/* 茎与萼叶 */}
-      <g transform="translate(130,74)">
-        <path d="M0,-14 C-2,-24 3,-30 8,-34" stroke={body.leafDark} strokeWidth="5.5" fill="none" strokeLinecap="round" />
-        {[-70, -35, 0, 35, 70].map((deg) => (
-          <path
-            key={deg}
-            d="M0,0 C13,-7 23,-5 30,1 C21,10 8,10 0,0 Z"
-            fill={body.leaf}
-            stroke={body.leafDark}
-            strokeWidth="1"
-            transform={`rotate(${deg})`}
-          />
-        ))}
-        <circle r="4.5" fill={body.leafDark} />
-      </g>
-
-      {/* 番茄主体 */}
-      <ellipse cx="130" cy="168" rx="106" ry="98" fill="url(#tomatoBody)" />
-      <ellipse cx="90" cy="122" rx="30" ry="17" fill="white" opacity="0.28" transform="rotate(-22 90 122)" />
-      <ellipse cx="176" cy="232" rx="22" ry="12" fill="black" opacity="0.12" transform="rotate(-18 176 232)" />
-
-      {/* 内圈进度弧 */}
-      <circle cx="130" cy="168" r={TOMATO_RADIUS} fill="none" stroke="rgba(0,0,0,0.28)" strokeWidth="10" />
+      {/* 外圈进度轨道 */}
+      <circle cx="150" cy="192" r={radius} fill="none" stroke="rgba(255,255,255,0.10)" strokeWidth="9" />
+      {/* 外圈进度 */}
       <circle
-        cx="130"
-        cy="168"
-        r={TOMATO_RADIUS}
+        cx="150"
+        cy="192"
+        r={radius}
         fill="none"
-        stroke="white"
-        strokeOpacity="0.9"
-        strokeWidth="10"
+        stroke="#FFFFFF"
+        strokeOpacity="0.92"
+        strokeWidth="9"
         strokeLinecap="round"
-        strokeDasharray={TOMATO_CIRCUMFERENCE}
-        strokeDashoffset={TOMATO_CIRCUMFERENCE * (1 - Math.max(0.001, progress))}
-        transform="rotate(-90 130 168)"
+        strokeDasharray={circumference}
+        strokeDashoffset={circumference * (1 - Math.max(0.002, safeProgress))}
+        transform="rotate(-90 150 192)"
         style={{ transition: 'stroke-dashoffset 0.6s linear' }}
       />
+      {/* 进度端点圆点 */}
+      <circle cx={knob.x} cy={knob.y} r="6" fill="#FFFFFF" stroke={isFocus ? '#DC2626' : '#22C55E'} strokeWidth="2.5" />
 
-      {/* 中央时间 */}
-      <text x="130" y="162" textAnchor="middle" fontSize="46" fontWeight="700" fill="white" style={{ fontVariantNumeric: 'tabular-nums' }}>
+      {/* 番茄果体（贝塞尔果形，顶部带肩、底部饱满） */}
+      <path
+        d="M150 82
+           C 98 74, 48 108, 40 160
+           C 34 204, 54 254, 100 276
+           C 122 286, 178 286, 200 276
+           C 246 254, 266 204, 260 160
+           C 252 108, 202 74, 150 82 Z"
+        fill="url(#tomatoBody)"
+        filter="url(#tomatoGlow)"
+      />
+      {/* 左上大弧高光 */}
+      <path
+        d="M88 128 C 100 100, 126 86, 150 84 C 130 94, 110 112, 100 140 C 94 154, 92 166, 94 176 C 84 162, 82 144, 88 128 Z"
+        fill="#FFFFFF"
+        opacity="0.32"
+      />
+      {/* 右上小反光 */}
+      <ellipse cx="198" cy="122" rx="15" ry="9" fill="#FFFFFF" opacity="0.22" transform="rotate(26 198 122)" />
+      {/* 底部暗部 */}
+      <path d="M100 276 C 122 286, 178 286, 200 276 C 176 266, 124 266, 100 276 Z" fill="#000000" opacity="0.12" />
+
+      {/* 果茎与五瓣萼叶 */}
+      <g transform="translate(150, 84)">
+        <path d="M0 -4 C -2 -18, 5 -28, 15 -33" stroke="#15803D" strokeWidth="6" fill="none" strokeLinecap="round" />
+        {leaves.map((leaf) => (
+          <g key={leaf.deg} transform={`rotate(${leaf.deg}) scale(${leaf.scale})`}>
+            <path d="M0 0 C 9 -20, 32 -28, 48 -15 C 35 5, 12 11, 0 0 Z" fill="url(#tomatoLeaf)" />
+            <path d="M3 -2 Q 24 -16 45 -14" stroke="#166534" strokeWidth="1.2" fill="none" opacity="0.75" strokeLinecap="round" />
+          </g>
+        ))}
+        <circle r="5.5" fill="#166534" />
+        <circle r="2.5" cx="-1.5" cy="-1.5" fill="#4ADE80" opacity="0.8" />
+      </g>
+
+      {/* 中央时间与阶段 */}
+      <text
+        x="150"
+        y="190"
+        textAnchor="middle"
+        fontSize="52"
+        fontWeight="700"
+        fill="#FFFFFF"
+        filter="url(#tomatoTextShadow)"
+        style={{ fontVariantNumeric: 'tabular-nums', letterSpacing: '-1px' }}
+      >
         {formatClock(secondsLeft)}
       </text>
-      <text x="130" y="192" textAnchor="middle" fontSize="13" fill="rgba(255,255,255,0.88)">
+      <text x="150" y="222" textAnchor="middle" fontSize="14" fill="rgba(255,255,255,0.9)" filter="url(#tomatoTextShadow)">
         {phaseLabel}中
       </text>
     </svg>

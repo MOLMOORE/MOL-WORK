@@ -293,7 +293,7 @@ export function TasksPage(): JSX.Element {
 
           <div className="text-right">
             <p className="text-[10px] uppercase tracking-widest text-muted-foreground">当前时间</p>
-            <p className="mt-1 flex items-baseline justify-end text-4xl font-bold leading-tight tabular-nums tracking-tight text-foreground">
+            <p className="mt-1 flex items-baseline justify-end text-6xl font-bold leading-tight tabular-nums tracking-tight text-foreground">
               {clockText(now)
                 .split('')
                 .map((char, index) => (
