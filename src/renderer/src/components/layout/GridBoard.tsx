@@ -57,9 +57,12 @@ interface Cell {
   h: number
 }
 
+/** move=整块拖动；n/s/e/w/ne/nw/se/sw=八向缩放（四边 + 四角） */
+type DragMode = 'move' | 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw'
+
 interface DragState {
   id: string
-  mode: 'move' | 'resize'
+  mode: DragMode
   startX: number
   startY: number
   base: Cell
@@ -70,6 +73,8 @@ interface DragState {
   el: HTMLElement
   minW: number
   minH: number
+  /** 允许落位的最大 y（拖动开始时按其余方块计算，避免越拖越远） */
+  maxY: number
   lastGX: number
   lastGY: number
   lastGW: number
@@ -149,6 +154,34 @@ function readStoredLayout(storageKey: string): Cell[] | null {
   }
 }
 
+const EDGES: { mode: DragMode; cls: string }[] = [
+  { mode: 'n', cls: 'left-3 right-3 top-0 h-1.5 cursor-ns-resize' },
+  { mode: 's', cls: 'bottom-0 left-3 right-3 h-1.5 cursor-ns-resize' },
+  { mode: 'w', cls: 'bottom-3 left-0 top-3 w-1.5 cursor-ew-resize' },
+  { mode: 'e', cls: 'bottom-3 right-0 top-3 w-1.5 cursor-ew-resize' },
+  { mode: 'nw', cls: 'left-0 top-0 h-2.5 w-2.5 cursor-nwse-resize' },
+  { mode: 'ne', cls: 'right-0 top-0 h-2.5 w-2.5 cursor-nesw-resize' },
+  { mode: 'sw', cls: 'bottom-0 left-0 h-2.5 w-2.5 cursor-nesw-resize' },
+  { mode: 'se', cls: 'bottom-0 right-0 h-3 w-3 cursor-nwse-resize' }
+]
+
+function ResizeHandles(props: { id: string; title: string; onStart: (e: ReactPointerEvent, id: string, mode: DragMode) => void }): JSX.Element {
+  return (
+    <>
+      {EDGES.map((edge) => (
+        <div
+          key={edge.mode}
+          role="button"
+          tabIndex={-1}
+          aria-label={`调整 ${props.title} 大小`}
+          onPointerDown={(event) => props.onStart(event, props.id, edge.mode)}
+          className={cn('absolute rounded-full opacity-0 transition-opacity group-hover/grid-item:opacity-100', edge.cls)}
+        />
+      ))}
+    </>
+  )
+}
+
 interface GridItemProps {
   id: string
   title: string
@@ -159,7 +192,7 @@ interface GridItemProps {
   top: number
   width: number
   height: number
-  onStart: (event: ReactPointerEvent, id: string, mode: 'move' | 'resize') => void
+  onStart: (event: ReactPointerEvent, id: string, mode: DragMode) => void
   children: ReactNode
 }
 
@@ -211,23 +244,18 @@ const GridItem = memo(function GridItem({
               拖动
             </span>
           </div>
-          {/* 缩放手柄：右下角内边距空白处 */}
-          <div
-            role="button"
-            tabIndex={-1}
-            aria-label={`调整 ${title} 大小`}
-            onPointerDown={(event) => onStart(event, id, 'resize')}
+          <ResizeHandles id={id} title={title} onStart={onStart} />
+          {/* 右下角圆滑缩放提示 */}
+          <svg
+            viewBox="0 0 14 14"
             className={cn(
-              'absolute bottom-1 right-1 z-20 flex h-4 w-4 cursor-se-resize touch-none items-end justify-end rounded-sm transition-opacity',
+              'pointer-events-none absolute bottom-1.5 right-1.5 z-10 h-3.5 w-3.5 text-muted-foreground/80 transition-opacity',
               active ? 'opacity-100' : 'opacity-0 group-hover/grid-item:opacity-100'
             )}
           >
-            <svg viewBox="0 0 12 12" className="h-3.5 w-3.5 text-muted-foreground">
-              <path d="M11 1v10H1" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-              <path d="M11 5L5 11" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-              <path d="M11 8.5L8.5 11" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-            </svg>
-          </div>
+            <path d="M13 1.5A11.5 11.5 0 0 1 1.5 13" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+            <path d="M13 5.5A7.5 7.5 0 0 1 5.5 13" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+          </svg>
         </>
       ) : null}
     </div>
@@ -373,7 +401,7 @@ export function GridBoard({ entries, storageKey, className, toolbar = true }: Gr
 
         if (current.mode === 'move') {
           const gx = clamp(current.base.x + Math.round(dx / sx), 0, COLS - current.base.w)
-          const gy = Math.max(0, current.base.y + Math.round(dy / sy))
+          const gy = clamp(current.base.y + Math.round(dy / sy), 0, Math.max(0, current.maxY))
           if (gx !== current.lastGX || gy !== current.lastGY) {
             current.lastGX = gx
             current.lastGY = gy
@@ -384,28 +412,42 @@ export function GridBoard({ entries, storageKey, className, toolbar = true }: Gr
             paintCells(current.cells, current.id)
           }
           // 被拖方块始终跟随指针，不做任何吸附延迟
-          current.el.style.transform = `translate3d(${current.base.x * sx + dx}px, ${current.base.y * sy + dy}px, 0)`
+          const rx = clamp(dx - (gx - current.base.x) * sx, -sx / 2, sx / 2)
+          const ry = clamp(dy - (gy - current.base.y) * sy, -sy / 2, sy / 2)
+          current.el.style.transform = `translate3d(${gx * sx + rx}px, ${gy * sy + ry}px, 0)`
           return
         }
 
         const minWpx = current.minW * sx - GAP
         const minHpx = current.minH * sy - GAP
         const maxWpx = (COLS - current.base.x) * sx - GAP
-        const widthPx = clamp(current.baseWidth + dx, minWpx, maxWpx)
-        const heightPx = Math.max(minHpx, current.baseHeight + dy)
+        const growX = current.mode.includes('e') ? dx : current.mode.includes('w') ? -dx : 0
+        const growY = current.mode.includes('s') ? dy : current.mode.includes('n') ? -dy : 0
+        const widthPx = clamp(current.baseWidth + growX, minWpx, maxWpx)
+        const heightPx = Math.max(minHpx, current.baseHeight + growY)
         const gw = clamp(Math.round((widthPx + GAP) / sx), current.minW, COLS - current.base.x)
         const gh = Math.max(current.minH, Math.round((heightPx + GAP) / sy))
-        if (gw !== current.lastGW || gh !== current.lastGH) {
+        const gx = current.mode.includes('w') ? clamp(current.base.x + current.base.w - gw, 0, COLS - gw) : current.base.x
+        const gy = current.mode.includes('n') ? Math.max(0, current.base.y + current.base.h - gh) : current.base.y
+        if (gw !== current.lastGW || gh !== current.lastGH || gx !== current.lastGX || gy !== current.lastGY) {
           current.lastGW = gw
           current.lastGH = gh
+          current.lastGX = gx
+          current.lastGY = gy
           current.cells = resolveLayout(
-            current.cells.map((cell) => (cell.id === current.id ? { ...cell, w: gw, h: gh } : cell)),
+            current.cells.map((cell) => (cell.id === current.id ? { ...cell, x: gx, y: gy, w: gw, h: gh } : cell)),
             current.id
           )
           paintCells(current.cells, current.id)
         }
+        const bc = current.base
         current.el.style.width = `${widthPx}px`
         current.el.style.height = `${heightPx}px`
+        const right = bc.x * sx + bc.w * sx - GAP
+        const bottom = bc.y * sy + bc.h * ROW_HEIGHT + (bc.h - 1) * GAP
+        const left = current.mode.includes('w') ? right - widthPx : bc.x * sx
+        const top = current.mode.includes('n') ? bottom - heightPx : bc.y * sy
+        current.el.style.transform = `translate3d(${left}px, ${top}px, 0)`
       })
     }
     const onUp = (): void => {
@@ -427,7 +469,7 @@ export function GridBoard({ entries, storageKey, className, toolbar = true }: Gr
   }, [paintCells, stopInteraction])
 
   const startInteraction = useCallback(
-    (event: ReactPointerEvent, id: string, mode: 'move' | 'resize'): void => {
+    (event: ReactPointerEvent, id: string, mode: DragMode): void => {
       if (stacked) return
       const entry = entriesRef.current.find((item) => item.id === id)
       const base = layoutRef.current.find((cell) => cell.id === id)
@@ -462,6 +504,11 @@ export function GridBoard({ entries, storageKey, className, toolbar = true }: Gr
         el: element,
         minW: entry?.minW ?? 2,
         minH: entry?.minH ?? 2,
+        maxY: Math.max(
+          0,
+          layoutRef.current.reduce((m, cell) => (cell.id === base.id ? m : Math.max(m, cell.y + cell.h)), base.y + base.h) -
+            base.h
+        ),
         lastGX: base.x,
         lastGY: base.y,
         lastGW: base.w,
@@ -514,7 +561,7 @@ export function GridBoard({ entries, storageKey, className, toolbar = true }: Gr
         <div className="mb-2 flex flex-wrap items-center justify-end gap-2">
           <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
             <LayoutDashboard className="h-3.5 w-3.5" />
-            拖动卡片顶部可自由摆放 · 按住右下角可拉伸大小 · 其他卡片会自动补齐缺口
+            拖动卡片顶部可自由摆放 · 四边与四角均可拉伸大小 · 其他卡片会自动补齐缺口
           </span>
           <Button size="sm" variant="ghost" onClick={resetLayout} title="恢复默认布局">
             <RotateCcw className="h-3.5 w-3.5" />

@@ -26,7 +26,6 @@ import { Input, Select } from '../components/ui/Field'
 import { Tabs } from '../components/ui/Tabs'
 import { ConfirmDialog } from '../components/ui/Overlay'
 import { GridBoard, type GridEntry } from '../components/layout/GridBoard'
-import { ClockTile } from '../components/layout/ClockTile'
 import { TaskForm } from '../components/task/TaskForm'
 import { TaskDetailDrawer } from '../components/task/TaskDetailDrawer'
 import { ScheduleBoard, type BoardView, type DueChangeRequest } from '../components/task/ScheduleBoard'
@@ -510,15 +509,14 @@ export function TasksPage(): JSX.Element {
   )
 
   const entries: GridEntry[] = [
-    { id: 'clock', title: '时间显示', x: 4, y: 0, w: 4, h: 3, minW: 3, minH: 2, node: <ClockTile /> },
-    { id: 'header', title: '任务工具头', x: 0, y: 3, w: 12, h: 4, minW: 6, minH: 3, node: headerNode },
+    { id: 'header', title: '任务工具头', x: 0, y: 0, w: 12, h: 4, minW: 6, minH: 3, node: headerNode },
     ...(view === 'list'
       ? [
           {
             id: 'list',
             title: '任务清单',
             x: 0,
-            y: 7,
+            y: 4,
             w: 12,
             h: 12,
             minW: 6,
@@ -531,7 +529,7 @@ export function TasksPage(): JSX.Element {
             id: 'board',
             title: '日程看板',
             x: 0,
-            y: 7,
+            y: 4,
             w: 12,
             h: 15,
             minW: 8,
@@ -544,7 +542,7 @@ export function TasksPage(): JSX.Element {
                   id: 'day-review',
                   title: '当日到期复习',
                   x: 0,
-                  y: 22,
+                  y: 19,
                   w: 12,
                   h: 4,
                   minW: 6,
