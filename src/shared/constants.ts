@@ -1,5 +1,7 @@
 import type {
   AppSettings,
+  ClockLayout,
+  ClockStyle,
   DependencyId,
   FontSize,
   NoteKind,
@@ -100,8 +102,27 @@ export const DEFAULT_SETTINGS: AppSettings = {
   recycleBinDays: 7,
   dialogSound: true,
   clockStyle: 'flip',
+  clockLayout: 'date-bottom',
+  debugMode: false,
   closeAction: 'ask',
   dataDir: ''
+}
+
+/**
+ * 归一化时钟设置（兼容 1.1.15 及更早版本的 stacked 旧值）：
+ * stacked 等价于「翻页」风格 + 「日期在上」摆放；其余情况风格与摆放相互独立。
+ */
+export function resolveClockSettings(
+  style: ClockStyle | undefined,
+  layout: ClockLayout | undefined
+): { style: Exclude<ClockStyle, 'stacked'>; layout: ClockLayout } {
+  const safeLayout: ClockLayout = layout ?? 'date-bottom'
+  if (style === undefined || style === 'stacked') {
+    // 旧值 stacked：摆放保持默认「日期在下」时按原本的「日期在上」呈现，用户改过摆放则尊重其选择
+    const layoutForLegacy: ClockLayout = style === 'stacked' && safeLayout === 'date-bottom' ? 'date-top' : safeLayout
+    return { style: 'flip', layout: layoutForLegacy }
+  }
+  return { style, layout: safeLayout }
 }
 
 export const SEARCH_MIN_TRIGRAM_LENGTH = 3

@@ -194,8 +194,8 @@ export function ScheduleBoard({
     const week = buildWeekDays(anchor)
     const showUnscheduled = unscheduled.length > 0
     return (
-      <div className={cn('grid grid-cols-1 gap-4', showUnscheduled && 'xl:grid-cols-[1fr_280px]')}>
-        <div className="flex flex-col gap-3">
+      <div className={cn('grid h-full grid-cols-1 gap-4', showUnscheduled && 'xl:grid-cols-[1fr_280px]')}>
+        <div className="flex min-h-0 flex-col gap-3">
           <div className="grid grid-cols-7 gap-2">
             {week.map((date) => {
               const key = dateKey(date)
@@ -232,7 +232,7 @@ export function ScheduleBoard({
           <div
             {...dayDropProps(dayKey)}
             className={cn(
-              'flex min-h-[320px] flex-col gap-2 rounded-2xl border p-3 transition-colors',
+              'flex min-h-[320px] flex-1 flex-col gap-2 overflow-y-auto rounded-2xl border p-3 transition-colors',
               overDay === dayKey ? 'border-primary/60 bg-primary/5' : 'border-border/70 bg-muted/10'
             )}
           >

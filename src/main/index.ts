@@ -142,10 +142,18 @@ function interceptWindowClose(window: BrowserWindow): void {
   window.on('close', (event) => {
     if (forceQuit) return
     let action: 'ask' | 'background' | 'exit' = 'ask'
+    let debugMode = false
     try {
-      action = readSettings().closeAction
+      const settings = readSettings()
+      action = settings.closeAction
+      debugMode = settings.debugMode === true
     } catch {
       /* 设置不可用时按默认询问 */
+    }
+    // 调试模式：关闭窗口时直接退出，不弹任何确认（避免调试期间无法关闭软件）
+    if (debugMode) {
+      logger.info('调试模式：跳过关闭确认，直接退出')
+      return
     }
     if (action === 'exit') return
     event.preventDefault()

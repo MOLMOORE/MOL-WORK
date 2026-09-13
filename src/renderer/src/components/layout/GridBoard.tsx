@@ -126,6 +126,42 @@ function resolveLayout(cells: Cell[], lockedId: string): Cell[] {
   return cells.map((cell) => placed.find((item) => item.id === cell.id) ?? cell)
 }
 
+/**
+ * 从期望落点开始向外螺旋搜索最近的「不与其他卡片重叠」的合法落点。
+ * 找不到时回退到 fallback（通常是被拖卡片原位），确保任何情况下都不会产生边界侵入。
+ */
+function findFreeSpot(
+  cells: Cell[],
+  id: string,
+  w: number,
+  h: number,
+  px: number,
+  py: number,
+  fallback: { x: number; y: number }
+): { x: number; y: number } {
+  const others = cells.filter((cell) => cell.id !== id)
+  const fits = (x: number, y: number): boolean =>
+    x >= 0 &&
+    x + w <= COLS &&
+    y >= 0 &&
+    !others.some((cell) => x < cell.x + cell.w && x + w > cell.x && y < cell.y + cell.h && y + h > cell.y)
+  const maxX = Math.max(0, COLS - w)
+  const start = { x: clamp(px, 0, maxX), y: Math.max(0, py) }
+  if (fits(start.x, start.y)) return start
+  const maxRadius = COLS + 80
+  for (let radius = 1; radius <= maxRadius; radius += 1) {
+    for (let dx = -radius; dx <= radius; dx += 1) {
+      for (let dy = -radius; dy <= radius; dy += 1) {
+        if (Math.max(Math.abs(dx), Math.abs(dy)) !== radius) continue
+        const x = clamp(start.x + dx, 0, maxX)
+        const y = Math.max(0, start.y + dy)
+        if (fits(x, y)) return { x, y }
+      }
+    }
+  }
+  return { x: clamp(fallback.x, 0, maxX), y: Math.max(0, fallback.y) }
+}
+
 function defaultLayout(entries: GridEntry[]): Cell[] {
   return entries.map((entry) => ({ id: entry.id, x: entry.x, y: entry.y, w: entry.w, h: entry.h }))
 }
@@ -137,16 +173,23 @@ function mergeLayout(entries: GridEntry[], stored: Cell[] | null): Cell[] {
   const needsAdd = fallback.some((cell) => !stored.some((item) => item.id === cell.id))
   const needsDrop = stored.some((cell) => !fallback.some((item) => item.id === cell.id))
   if (!needsAdd && !needsDrop) return stored
-  return fallback.map((cell) => {
+  const merged = fallback.map((cell) => {
     const saved = stored.find((item) => item.id === cell.id)
     if (!saved) return cell
-    const entry = entries.find((item) => item.id === cell.id)
-    const minW = entry?.minW ?? 2
-    const minH = entry?.minH ?? 2
-    const w = clamp(saved.w, minW, COLS)
-    const h = Math.max(minH, saved.h)
+    // 只保证不超过整行/高度为正：互换后的尺寸可能与默认最小尺寸不同，恢复时必须原样保留
+    const w = clamp(Math.round(saved.w), 1, COLS)
+    const h = Math.max(1, Math.round(saved.h))
     return { id: cell.id, x: clamp(saved.x, 0, COLS - w), y: Math.max(0, saved.y), w, h }
   })
+
+  // 模块集合发生变化（切换视图 / 新增模块）时消解冲突：
+  // 与已落位模块重叠的一方自动弹到最近的空闲位置，避免卡片互相压住造成边界侵入
+  const placed: Cell[] = []
+  for (const cell of merged) {
+    const spot = findFreeSpot(placed, cell.id, cell.w, cell.h, cell.x, cell.y, { x: cell.x, y: cell.y })
+    placed.push(spot.x === cell.x && spot.y === cell.y ? cell : { ...cell, x: spot.x, y: spot.y })
+  }
+  return placed
 }
 
 function readStoredLayout(storageKey: string): Cell[] | null {
@@ -160,15 +203,16 @@ function readStoredLayout(storageKey: string): Cell[] | null {
   }
 }
 
+/** 八向缩放手柄：加宽命中区域 + 悬停时高亮显示，保证贴边也能抓得住 */
 const EDGES: { mode: DragMode; cls: string }[] = [
-  { mode: 'n', cls: 'left-3 right-3 top-0 h-1.5 cursor-ns-resize' },
-  { mode: 's', cls: 'bottom-0 left-3 right-3 h-1.5 cursor-ns-resize' },
-  { mode: 'w', cls: 'bottom-3 left-0 top-3 w-1.5 cursor-ew-resize' },
-  { mode: 'e', cls: 'bottom-3 right-0 top-3 w-1.5 cursor-ew-resize' },
-  { mode: 'nw', cls: 'left-0 top-0 h-2.5 w-2.5 cursor-nwse-resize' },
-  { mode: 'ne', cls: 'right-0 top-0 h-2.5 w-2.5 cursor-nesw-resize' },
-  { mode: 'sw', cls: 'bottom-0 left-0 h-2.5 w-2.5 cursor-nesw-resize' },
-  { mode: 'se', cls: 'bottom-0 right-0 h-3 w-3 cursor-nwse-resize' }
+  { mode: 'n', cls: 'left-3 right-3 top-0 h-2.5 cursor-ns-resize' },
+  { mode: 's', cls: 'bottom-0 left-3 right-3 h-2.5 cursor-ns-resize' },
+  { mode: 'w', cls: 'bottom-3 left-0 top-3 w-2.5 cursor-ew-resize' },
+  { mode: 'e', cls: 'bottom-3 right-0 top-3 w-2.5 cursor-ew-resize' },
+  { mode: 'nw', cls: 'left-0 top-0 h-3 w-3 cursor-nwse-resize' },
+  { mode: 'ne', cls: 'right-0 top-0 h-3 w-3 cursor-nesw-resize' },
+  { mode: 'sw', cls: 'bottom-0 left-0 h-3 w-3 cursor-nesw-resize' },
+  { mode: 'se', cls: 'bottom-0 right-0 h-3.5 w-3.5 cursor-nwse-resize' }
 ]
 
 function ResizeHandles(props: { id: string; title: string; onStart: (e: ReactPointerEvent, id: string, mode: DragMode) => void }): JSX.Element {
@@ -181,7 +225,11 @@ function ResizeHandles(props: { id: string; title: string; onStart: (e: ReactPoi
           tabIndex={-1}
           aria-label={`调整 ${props.title} 大小`}
           onPointerDown={(event) => props.onStart(event, props.id, edge.mode)}
-          className={cn('absolute rounded-full opacity-0 transition-opacity group-hover/grid-item:opacity-100', edge.cls)}
+          // z-20 必须高于卡片内容自身可能设置的层级，否则会被带 z-index 的卡片内容挡住而无法缩放
+          className={cn(
+            'absolute z-20 rounded-full bg-primary/45 opacity-0 transition-opacity group-hover/grid-item:opacity-100',
+            edge.cls
+          )}
         />
       ))}
     </>
@@ -230,7 +278,8 @@ const GridItem = memo(function GridItem({
         transition: !ready || active ? undefined : TRANSITION
       }}
     >
-      <div className="h-full">{children}</div>
+      {/* 内容裁剪在卡片边界内：互换后尺寸变小也不会溢出到相邻卡片，避免边界侵入 */}
+      <div className="h-full overflow-hidden rounded-2xl">{children}</div>
 
       {!locked ? (
         <>
@@ -241,7 +290,7 @@ const GridItem = memo(function GridItem({
             aria-label={`拖动 ${title}`}
             onPointerDown={(event) => onStart(event, id, 'move')}
             className={cn(
-              'absolute inset-x-0 top-0 z-20 flex h-5 cursor-move touch-none items-center justify-center transition-opacity',
+              'absolute inset-x-0 top-0 z-30 flex h-5 cursor-move touch-none items-center justify-center transition-opacity',
               active ? 'opacity-100' : 'opacity-0 group-hover/grid-item:opacity-100'
             )}
           >
@@ -373,28 +422,23 @@ export function GridBoard({
         // 让落点带过渡吸附到网格位置，随后交还给 React 托管
         element.style.transition = TRANSITION
         const { stepX: sx, stepY: sy } = metricsRef.current
-        // 优先与悬停目标互换位置（双方大小互换）；无目标时自由落位
+        // 优先与悬停目标完全互换（位置与宽高严格对调，双方各占对方原区域，天然不重叠）
         const target = drag.swapId ? drag.cells.find((item) => item.id === drag.swapId) : undefined
         const nextCells = target
           ? drag.cells.map((cell) => {
-              if (cell.id === drag.id) {
-                const w = Math.max(target.w, drag.minW)
-                return { ...cell, x: Math.min(target.x, COLS - w), y: target.y, w, h: Math.max(target.h, drag.minH) }
-              }
-              if (cell.id === target.id) {
-                const entry = entriesRef.current.find((item) => item.id === target.id)
-                const w = Math.max(drag.base.w, entry?.minW ?? 2)
-                return {
-                  ...cell,
-                  x: Math.min(drag.base.x, COLS - w),
-                  y: drag.base.y,
-                  w,
-                  h: Math.max(drag.base.h, entry?.minH ?? 2)
-                }
-              }
+              if (cell.id === drag.id) return { ...cell, x: target.x, y: target.y, w: target.w, h: target.h }
+              if (cell.id === target.id) return { ...cell, x: drag.base.x, y: drag.base.y, w: drag.base.w, h: drag.base.h }
               return cell
             })
-          : drag.cells.map((cell) => (cell.id === drag.id ? { ...cell, x: drag.lastGX, y: drag.lastGY } : cell))
+          : drag.cells.map((cell) => {
+              if (cell.id !== drag.id) return cell
+              // 自由落位：若落点与其它卡片重叠（未达到互换阈值），自动弹到最近的空闲位置
+              const spot = findFreeSpot(drag.cells, drag.id, drag.base.w, drag.base.h, drag.lastGX, drag.lastGY, {
+                x: drag.base.x,
+                y: drag.base.y
+              })
+              return { ...cell, x: spot.x, y: spot.y }
+            })
         for (const other of nextCells) {
           if (other.id === drag.id) continue
           const oel = drag.els.get(other.id)
@@ -494,17 +538,21 @@ export function GridBoard({
           return
         }
 
+        const west = current.mode.includes('w')
+        const north = current.mode.includes('n')
         const minWpx = current.minW * sx - GAP
         const minHpx = current.minH * sy - GAP
-        const maxWpx = (COLS - current.base.x) * sx - GAP
-        const growX = current.mode.includes('e') ? dx : current.mode.includes('w') ? -dx : 0
-        const growY = current.mode.includes('s') ? dy : current.mode.includes('n') ? -dy : 0
+        // 西侧缩放：右边缘让位，允许一直向左扩展（最多占满整行）；东侧缩放仍受页面右边界限制
+        const maxWpx = (west ? COLS : COLS - current.base.x) * sx - GAP
+        const gwMax = west ? COLS : COLS - current.base.x
+        const growX = current.mode.includes('e') ? dx : west ? -dx : 0
+        const growY = current.mode.includes('s') ? dy : north ? -dy : 0
         const widthPx = clamp(current.baseWidth + growX, minWpx, maxWpx)
         const heightPx = Math.max(minHpx, current.baseHeight + growY)
-        const gw = clamp(Math.round((widthPx + GAP) / sx), current.minW, COLS - current.base.x)
+        const gw = clamp(Math.round((widthPx + GAP) / sx), current.minW, gwMax)
         const gh = Math.max(current.minH, Math.round((heightPx + GAP) / sy))
-        const gx = current.mode.includes('w') ? clamp(current.base.x + current.base.w - gw, 0, COLS - gw) : current.base.x
-        const gy = current.mode.includes('n') ? Math.max(0, current.base.y + current.base.h - gh) : current.base.y
+        const gx = west ? clamp(current.base.x + current.base.w - gw, 0, COLS - gw) : current.base.x
+        const gy = north ? Math.max(0, current.base.y + current.base.h - gh) : current.base.y
         if (gw !== current.lastGW || gh !== current.lastGH || gx !== current.lastGX || gy !== current.lastGY) {
           current.lastGW = gw
           current.lastGH = gh
@@ -521,8 +569,8 @@ export function GridBoard({
         current.el.style.height = `${heightPx}px`
         const right = bc.x * sx + bc.w * sx - GAP
         const bottom = bc.y * sy + bc.h * ROW_HEIGHT + (bc.h - 1) * GAP
-        const left = current.mode.includes('w') ? right - widthPx : bc.x * sx
-        const top = current.mode.includes('n') ? bottom - heightPx : bc.y * sy
+        const left = west ? Math.max(0, right - widthPx) : bc.x * sx
+        const top = north ? Math.max(0, bottom - heightPx) : bc.y * sy
         current.el.style.transform = `translate3d(${left}px, ${top}px, 0)`
       })
     }
@@ -578,8 +626,9 @@ export function GridBoard({
         els,
         cells: layoutRef.current.map((cell) => ({ ...cell })),
         el: element,
-        minW: entry?.minW ?? 2,
-        minH: entry?.minH ?? 2,
+        // 互换后的尺寸可能小于条目的默认最小值：以「当前尺寸」为实际下限，避免一拖就跳变
+        minW: Math.min(entry?.minW ?? 2, base.w),
+        minH: Math.min(entry?.minH ?? 2, base.h),
         maxY: Math.max(
           0,
           layoutRef.current.reduce((m, cell) => (cell.id === base.id ? m : Math.max(m, cell.y + cell.h)), base.y + base.h) -

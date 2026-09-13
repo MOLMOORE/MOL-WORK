@@ -12,8 +12,13 @@ export type DependencyId = 'pandoc' | 'ffmpeg' | 'yt-dlp' | 'playwright'
 export type ThemeMode = 'dark' | 'light' | 'system'
 export type FontSize = 'sm' | 'md' | 'lg' | 'xl'
 export type PomodoroPhase = 'focus' | 'shortBreak' | 'longBreak'
-/** 时钟样式：flip=翻页大字，minimal=极简纯数字，ring=秒环，mono=终端等宽，stacked=日期在上 */
+/**
+ * 时钟风格（只描述“时间怎么显示”）：flip=翻页大字，minimal=极简纯数字，ring=秒环，mono=终端等宽。
+ * stacked 为 1.1.15 及更早的遗留值（等价于 flip + 日期在上），读取时自动归一化，不再作为可选项。
+ */
 export type ClockStyle = 'flip' | 'minimal' | 'ring' | 'mono' | 'stacked'
+/** 时钟摆放（只描述“日期相对时间的位置”）：可与任意风格自由组合 */
+export type ClockLayout = 'date-top' | 'date-bottom' | 'date-left' | 'date-right'
 
 export interface Project {
   id: number
@@ -449,8 +454,12 @@ export interface AppSettings {
   recycleBinDays: number
   /** 弹窗出现时是否播放提示音 */
   dialogSound: boolean
-  /** 页面时钟样式 */
+  /** 页面时钟风格（时间显示方式） */
   clockStyle: ClockStyle
+  /** 页面时钟摆放（日期相对时间的位置），与风格相互独立 */
+  clockLayout: ClockLayout
+  /** 调试模式：开启后关闭窗口直接退出，不弹出「进入后台 / 真正关闭」确认 */
+  debugMode: boolean
   /** 点击窗口关闭按钮的行为：ask=每次询问 background=进入后台 exit=直接退出 */
   closeAction: 'ask' | 'background' | 'exit'
   dataDir: string

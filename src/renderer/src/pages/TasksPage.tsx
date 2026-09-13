@@ -263,7 +263,7 @@ export function TasksPage(): JSX.Element {
   ]
 
   const headerNode = (
-      <Card className="relative z-20">
+      <Card className="relative z-10 flex h-full flex-col">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <p className="text-[10px] uppercase tracking-widest text-muted-foreground">今日</p>
@@ -277,7 +277,6 @@ export function TasksPage(): JSX.Element {
               共 {tasks.length} 项事项 · 优先事项 {priorityCount} 项 · 已完成 {doneCount} 项
             </p>
           </div>
-
         </div>
 
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
@@ -417,8 +416,9 @@ export function TasksPage(): JSX.Element {
   )
 
   const listNode = (
-      <Card padded={false}>
-          {tasks.length === 0 ? (
+    <Card padded={false} className="flex h-full flex-col overflow-hidden">
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        {tasks.length === 0 ? (
             <EmptyState
               icon={<ListChecks className="h-5 w-5" />}
               title="没有符合条件的任务"
@@ -458,12 +458,13 @@ export function TasksPage(): JSX.Element {
               ))}
             </div>
           )}
-      </Card>
+      </div>
+    </Card>
   )
 
   const boardNode = (
-      <Card>
-        <SectionHeader
+    <Card className="flex h-full flex-col">
+      <SectionHeader
               title={
                 view === 'day'
                   ? `${formatDateCN(selectedDay)} · ${weekdayCN(selectedDay)}`
@@ -492,21 +493,23 @@ export function TasksPage(): JSX.Element {
                 </div>
               }
             />
-            <ScheduleBoard
-              view={view as BoardView}
-              anchor={anchor}
-              selectedDay={selectedDay}
-              tasks={tasks}
-              onMove={handleMove}
-              onReorder={handleReorder}
-              onOpen={(task) => void openDetail(task.id)}
-              onToggleTask={(task) => handleQuickToggle(task)}
-              onRemoveTask={(task) => handleQuickRemove(task)}
-              onNeedDueChange={(request) => setDueChangeAsk(request)}
-              onSelectDay={pickDay}
-              onCreateAt={(dayKey) => openCreate(dayKey)}
-            />
-          </Card>
+      <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+        <ScheduleBoard
+          view={view as BoardView}
+          anchor={anchor}
+          selectedDay={selectedDay}
+          tasks={tasks}
+          onMove={handleMove}
+          onReorder={handleReorder}
+          onOpen={(task) => void openDetail(task.id)}
+          onToggleTask={(task) => handleQuickToggle(task)}
+          onRemoveTask={(task) => handleQuickRemove(task)}
+          onNeedDueChange={(request) => setDueChangeAsk(request)}
+          onSelectDay={pickDay}
+          onCreateAt={(dayKey) => openCreate(dayKey)}
+        />
+      </div>
+    </Card>
   )
 
   const entries: GridEntry[] = [
@@ -517,7 +520,7 @@ export function TasksPage(): JSX.Element {
             id: 'list',
             title: '任务清单',
             x: 0,
-            y: 4,
+            y: 3,
             w: 12,
             h: 12,
             minW: 6,
@@ -530,9 +533,9 @@ export function TasksPage(): JSX.Element {
             id: 'board',
             title: '日程看板',
             x: 0,
-            y: 4,
+            y: 3,
             w: 12,
-            h: 15,
+            h: 9,
             minW: 8,
             minH: 6,
             node: boardNode
@@ -543,7 +546,7 @@ export function TasksPage(): JSX.Element {
                   id: 'day-review',
                   title: '当日到期复习',
                   x: 0,
-                  y: 19,
+                  y: 12,
                   w: 12,
                   h: 4,
                   minW: 6,
@@ -564,7 +567,7 @@ export function TasksPage(): JSX.Element {
           ))}
         </div>
       ) : (
-        <PageGrid pageKey="tasks" entries={entries} storageKey="workstation.grid.tasks.v3" reserved={false} />
+        <PageGrid pageKey="tasks" entries={entries} storageKey="workstation.grid.tasks.v4" reserved={false} />
       )}
 
       <TaskForm
@@ -648,15 +651,17 @@ function DayReviewCard({ day }: { day: string }): JSX.Element {
   }
 
   return (
-    <Card>
-      <SectionHeader title="当日到期复习" description={`${due.length} 条内容按遗忘曲线到期`} />
-      <ReviewQueue
-        items={due}
-        onGrade={handleGrade}
-        onPlanTomorrow={handlePlan}
-        compact
-        emptyHint="该日期没有到期的复习内容"
-      />
+    <Card className="flex h-full flex-col">
+      <SectionHeader className="mb-3" title="当日到期复习" description={`${due.length} 条内容按遗忘曲线到期`} />
+      <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+        <ReviewQueue
+          items={due}
+          onGrade={handleGrade}
+          onPlanTomorrow={handlePlan}
+          compact
+          emptyHint="该日期没有到期的复习内容"
+        />
+      </div>
     </Card>
   )
 }

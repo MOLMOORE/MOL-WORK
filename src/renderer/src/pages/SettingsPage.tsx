@@ -15,8 +15,8 @@ import {
   Timer,
   Trash2
 } from 'lucide-react'
-import type { AppSettings } from '@shared/types/domain'
-import { FONT_SIZE_META } from '@shared/constants'
+import type { AppSettings, ClockLayout } from '@shared/types/domain'
+import { FONT_SIZE_META, resolveClockSettings } from '@shared/constants'
 import { Card, SectionHeader } from '../components/ui/Card'
 import { Badge, Spinner } from '../components/ui/Feedback'
 import { Button } from '../components/ui/Button'
@@ -39,17 +39,36 @@ const SECTIONS: { key: string; title: string; description: string; icon: typeof 
   { key: 'about', title: '关于与版本', description: '当前版本与本版较于上一版本的更新内容', icon: Info }
 ]
 
-/** 可选时钟样式 */
+/** 可选时钟风格（只描述时间怎么显示） */
 const CLOCK_STYLES: { key: ClockStyle; label: string; hint: string }[] = [
   { key: 'flip', label: '翻页', hint: '大号时分秒配合翻页动画，最贴合本站默认气质。' },
-  { key: 'minimal', label: '极简', hint: '细体数字 + 小号秒与日期，留白充足、观感安静。' },
-  { key: 'ring', label: '秒环', hint: '左侧秒环随秒针走一圈，右侧显示时分与日期。' },
-  { key: 'mono', label: '终端', hint: '等宽字体与括号包裹，终端 / 极客风格。' },
-  { key: 'stacked', label: '日期在上', hint: '日期置顶、时间在下居中，适合宽而矮的方形。' }
+  { key: 'minimal', label: '极简', hint: '细体数字 + 小号秒，留白充足、观感安静。' },
+  { key: 'ring', label: '秒环', hint: '秒环随秒针走一圈，旁边显示时分。' },
+  { key: 'mono', label: '终端', hint: '等宽字体与括号包裹，终端 / 极客风格。' }
+]
+
+/** 可选时钟摆放（只描述日期相对时间的位置，与风格自由组合） */
+const CLOCK_LAYOUTS: { key: ClockLayout; label: string; hint: string }[] = [
+  { key: 'date-bottom', label: '日期在下', hint: '时间在上、日期在下' },
+  { key: 'date-top', label: '日期在上', hint: '日期在上、时间在下' },
+  { key: 'date-left', label: '日期在左', hint: '日期在左、时间在右' },
+  { key: 'date-right', label: '日期在右', hint: '时间在左、日期在右' }
 ]
 
 /** 版本更新日志（新版本发布时在最上方追加一条） */
 const CHANGELOG: { version: string; date: string; items: string[] }[] = [
+  {
+    version: '1.1.16',
+    date: '2026-09-13',
+    items: [
+      '拖拽互换改为完全交换：位置与宽高严格对调，不再出现互换后大小不一致的边界侵入',
+      '落位与视图切换自动消解重叠：重叠的一方弹到最近空闲位置（小幅重叠也不会压住相邻模块）',
+      '模块靠页面右侧时也能拖左侧手柄向左扩展加宽；缩放手柄加宽高亮、层级提升不再被卡片内容遮挡',
+      '任务页重排：工具头与日程看板紧邻无空行、看板高度贴合内容、卡片内容区自适应滚动',
+      '时钟「风格」（翻页/极简/秒环/终端）与「摆放」（日期上/下/左/右）拆成两个维度，可自由组合实时预览',
+      '新增「调试模式」：开启后关闭窗口直接退出，不再弹出关闭行为确认，便于调试期间关闭软件'
+    ]
+  },
   {
     version: '1.1.15',
     date: '2026-09-13',
@@ -256,6 +275,10 @@ export function SettingsPage(): JSX.Element {
   }
 
   const activeSection = SECTIONS.find((section) => section.key === active) ?? null
+  // 归一化时钟设置（兼容旧版 stacked 值）：风格与摆放两个维度相互独立
+  const clockSettings = resolveClockSettings(draft.clockStyle, draft.clockLayout)
+  const clockStyle = clockSettings.style
+  const clockLayout = clockSettings.layout
 
   /** 各分区详情内容 */
   const renderSectionContent = (): JSX.Element | null => {
@@ -288,19 +311,27 @@ export function SettingsPage(): JSX.Element {
               </p>
             </div>
             <div className="grid gap-3 rounded-xl border border-border/70 bg-muted/25 p-3">
-              <p className="text-xs font-medium text-muted-foreground">时钟样式</p>
+              <p className="text-xs font-medium text-muted-foreground">时钟风格（时间的显示方式）</p>
               <Tabs
                 size="sm"
-                value={draft.clockStyle ?? 'flip'}
-                onChange={(key) => void patch({ clockStyle: key as ClockStyle })}
+                value={clockStyle}
+                onChange={(key) => void patch({ clockStyle: key as ClockStyle, clockLayout })}
                 items={CLOCK_STYLES.map((item) => ({ key: item.key, label: item.label }))}
               />
+              <p className="text-xs font-medium text-muted-foreground">时钟摆放（日期相对时间的位置）</p>
+              <Tabs
+                size="sm"
+                value={clockLayout}
+                onChange={(key) => void patch({ clockLayout: key as ClockLayout, clockStyle })}
+                items={CLOCK_LAYOUTS.map((item) => ({ key: item.key, label: item.label }))}
+              />
               <div className="h-[150px] overflow-hidden rounded-xl border border-border/70 bg-background/40">
-                <ClockTile style={draft.clockStyle ?? 'flip'} />
+                <ClockTile style={clockStyle} layout={clockLayout} />
               </div>
               <p className="text-[11px] text-muted-foreground/80">
-                {CLOCK_STYLES.find((item) => item.key === (draft.clockStyle ?? 'flip'))?.hint ?? ''}
-                时钟方块默认只在仪表盘显示，其余页面可用看板右上角的「添加时钟」按钮随时加入。
+                {CLOCK_STYLES.find((item) => item.key === clockStyle)?.hint ?? ''}
+                {CLOCK_LAYOUTS.find((item) => item.key === clockLayout)?.hint ?? ''}。
+                每种风格都能自由搭配任意摆放；时钟方块默认只在仪表盘显示，其余页面可用看板右上角的「添加时钟」按钮随时加入。
               </p>
             </div>
             <div className="grid grid-cols-2 gap-4">
@@ -324,6 +355,16 @@ export function SettingsPage(): JSX.Element {
                   <option value="exit">直接退出软件</option>
                 </Select>
               </Field>
+            </div>
+            <div className="rounded-xl border border-border/70 bg-muted/25 p-3">
+              <Switch
+                checked={draft.debugMode ?? false}
+                onChange={(checked) => void patch({ debugMode: checked })}
+                label="调试模式（关闭窗口时直接退出，不弹出确认）"
+              />
+              <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground/80">
+                用于开发与排查：开启后点击右上角 X 会直接关闭软件，不再询问「进入后台 / 真正关闭」；调试结束请关闭本项，恢复原来的关闭行为。
+              </p>
             </div>
           </div>
         )
