@@ -21,8 +21,8 @@ import { Button, IconButton } from '../components/ui/Button'
 import { Input, Switch } from '../components/ui/Field'
 import { Tabs } from '../components/ui/Tabs'
 import { ConfirmDialog } from '../components/ui/Overlay'
-import { GridBoard, type GridEntry } from '../components/layout/GridBoard'
-import { ClockTile } from '../components/layout/ClockTile'
+import { PageGrid } from '../components/layout/PageGrid'
+import type { GridEntry } from '../components/layout/GridBoard'
 import { ToolIcon } from '../components/tool/ToolIcon'
 import { ToolDetailDrawer } from '../components/tool/ToolDetailDrawer'
 import { useToolStore } from '../stores/toolStore'
@@ -147,7 +147,6 @@ export function ToolsPage(): JSX.Element {
   )
 
   const entries: GridEntry[] = [
-    { id: 'clock', title: '时间显示', x: 0, y: 0, w: 12, h: 3, minW: 4, minH: 2, node: <ClockTile /> },
     { id: 'header', title: '工具集说明', x: 0, y: 3, w: 12, h: 2, minW: 6, minH: 2, node: headerNode },
     {
       id: 'metric-tools',
@@ -483,7 +482,7 @@ export function ToolsPage(): JSX.Element {
 
   return (
     <div className="grid gap-5">
-      <GridBoard entries={entries} storageKey="workstation.grid.tools.v2" />
+      <PageGrid pageKey="tools" entries={entries} storageKey="workstation.grid.tools.v3" />
 
       <ToolDetailDrawer manifest={selected} open={selected !== null} onClose={() => select(null)} />
 

@@ -12,6 +12,8 @@ export type DependencyId = 'pandoc' | 'ffmpeg' | 'yt-dlp' | 'playwright'
 export type ThemeMode = 'dark' | 'light' | 'system'
 export type FontSize = 'sm' | 'md' | 'lg' | 'xl'
 export type PomodoroPhase = 'focus' | 'shortBreak' | 'longBreak'
+/** 时钟样式：flip=翻页大字，minimal=极简纯数字，ring=秒环，mono=终端等宽，stacked=日期在上 */
+export type ClockStyle = 'flip' | 'minimal' | 'ring' | 'mono' | 'stacked'
 
 export interface Project {
   id: number
@@ -447,6 +449,8 @@ export interface AppSettings {
   recycleBinDays: number
   /** 弹窗出现时是否播放提示音 */
   dialogSound: boolean
+  /** 页面时钟样式 */
+  clockStyle: ClockStyle
   /** 点击窗口关闭按钮的行为：ask=每次询问 background=进入后台 exit=直接退出 */
   closeAction: 'ask' | 'background' | 'exit'
   dataDir: string

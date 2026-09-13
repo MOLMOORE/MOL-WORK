@@ -20,8 +20,8 @@ import { Badge } from '../components/ui/Feedback'
 import { Button } from '../components/ui/Button'
 import { Field, Input, Select, Switch } from '../components/ui/Field'
 import { Modal } from '../components/ui/Overlay'
-import { GridBoard, type GridEntry } from '../components/layout/GridBoard'
-import { ClockTile } from '../components/layout/ClockTile'
+import { PageGrid } from '../components/layout/PageGrid'
+import type { GridEntry } from '../components/layout/GridBoard'
 import { usePomodoroStore, PHASE_META } from '../stores/pomodoroStore'
 import { useAppStore } from '../stores/appStore'
 import { useTaskStore } from '../stores/taskStore'
@@ -216,7 +216,6 @@ export function PomodoroPage(): JSX.Element {
   const patch = config.roundsPerLong
 
   const entries: GridEntry[] = [
-    { id: 'clock', title: '时间显示', x: 0, y: 0, w: 12, h: 3, minW: 4, minH: 2, node: <ClockTile /> },
     {
       id: 'metric-phase',
       title: '当前阶段',
@@ -460,7 +459,7 @@ export function PomodoroPage(): JSX.Element {
 
   return (
     <div className="grid gap-5">
-      <GridBoard entries={entries} storageKey="workstation.grid.pomodoro.v2" />
+      <PageGrid pageKey="pomodoro" entries={entries} storageKey="workstation.grid.pomodoro.v3" />
       <PomodoroStatsDialog chart={chart} config={config} onClose={() => setChart(null)} />
     </div>
   )

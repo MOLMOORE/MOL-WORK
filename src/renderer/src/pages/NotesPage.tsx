@@ -10,8 +10,8 @@ import { Button, IconButton } from '../components/ui/Button'
 import { Field, Input, Select, Switch, Textarea } from '../components/ui/Field'
 import { ConfirmDialog } from '../components/ui/Overlay'
 import { Tabs } from '../components/ui/Tabs'
-import { GridBoard, type GridEntry } from '../components/layout/GridBoard'
-import { ClockTile } from '../components/layout/ClockTile'
+import { PageGrid } from '../components/layout/PageGrid'
+import type { GridEntry } from '../components/layout/GridBoard'
 import { ReviewQueue } from '../components/review/ReviewQueue'
 import { useNoteStore } from '../stores/noteStore'
 import { useTaskStore } from '../stores/taskStore'
@@ -364,7 +364,6 @@ export function NotesPage(): JSX.Element {
       ]
 
   const entries: GridEntry[] = [
-    { id: 'clock', title: '时间显示', x: 0, y: 0, w: 12, h: 3, minW: 4, minH: 2, node: <ClockTile /> },
     { id: 'tasks', title: '归属任务', x: 0, y: 3, w: 3, h: 12, minW: 2, minH: 5, node: tasksNode },
     { id: 'list', title: '笔记列表', x: 3, y: 3, w: 4, h: 12, minW: 3, minH: 5, node: listNode },
     ...detailNodes
@@ -372,7 +371,7 @@ export function NotesPage(): JSX.Element {
 
   return (
     <div className="grid gap-5">
-      <GridBoard entries={entries} storageKey="workstation.grid.notes.v2" />
+      <PageGrid pageKey="notes" entries={entries} storageKey="workstation.grid.notes.v3" />
 
       {createOpen ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-6">

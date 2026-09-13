@@ -99,6 +99,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   pomodoroSound: true,
   recycleBinDays: 7,
   dialogSound: true,
+  clockStyle: 'flip',
   closeAction: 'ask',
   dataDir: ''
 }

@@ -19,8 +19,8 @@ import { Badge, EmptyState, Progress, Skeleton } from '../components/ui/Feedback
 import { Button } from '../components/ui/Button'
 import { ConfirmDialog } from '../components/ui/Overlay'
 import { ReviewQueue } from '../components/review/ReviewQueue'
-import { GridBoard, type GridEntry } from '../components/layout/GridBoard'
-import { ClockTile } from '../components/layout/ClockTile'
+import { PageGrid } from '../components/layout/PageGrid'
+import type { GridEntry } from '../components/layout/GridBoard'
 import { useAppStore } from '../stores/appStore'
 import { useTaskStore } from '../stores/taskStore'
 import { useScheduleStore } from '../stores/scheduleStore'
@@ -155,8 +155,6 @@ export function DashboardPage(): JSX.Element {
   }, [enqueueReviews, refreshOverview, pushToast, tomorrowKey])
 
   const ready = Boolean(overview && report)
-
-  const clockNode = useMemo(() => <ClockTile />, [])
 
   const metricNodes = useMemo(
     () => [
@@ -413,7 +411,6 @@ export function DashboardPage(): JSX.Element {
 
   const entries = useMemo<GridEntry[]>(
     () => [
-      { id: 'clock', title: '时间显示', x: 0, y: 0, w: 12, h: 3, minW: 4, minH: 2, node: clockNode },
       { id: 'metric-todo', title: '今日待办', x: 0, y: 3, w: 3, h: 2, minW: 2, minH: 2, node: metricNodes[0] },
       { id: 'metric-review', title: '到期复习', x: 3, y: 3, w: 3, h: 2, minW: 2, minH: 2, node: metricNodes[1] },
       { id: 'metric-estimate', title: '预计专注', x: 6, y: 3, w: 3, h: 2, minW: 2, minH: 2, node: metricNodes[2] },
@@ -423,13 +420,13 @@ export function DashboardPage(): JSX.Element {
       { id: 'report', title: '日报摘要', x: 8, y: 10, w: 4, h: 5, minW: 3, minH: 4, node: reportNode },
       { id: 'notes', title: '最近笔记与资料', x: 0, y: 15, w: 12, h: 6, minW: 5, minH: 4, node: notesNode }
     ],
-    [clockNode, metricNodes, tasksNode, reviewsNode, reportNode, notesNode]
+    [metricNodes, tasksNode, reviewsNode, reportNode, notesNode]
   )
 
   return (
     <div className="grid gap-5">
       {ready ? (
-        <GridBoard entries={entries} storageKey="workstation.grid.dashboard.v2" />
+        <PageGrid pageKey="dashboard" entries={entries} storageKey="workstation.grid.dashboard.v3" defaultClock />
       ) : (
         <div className="grid gap-4">
           <div className="grid grid-cols-4 gap-4">

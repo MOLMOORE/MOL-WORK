@@ -22,6 +22,8 @@ import { Badge, Spinner } from '../components/ui/Feedback'
 import { Button } from '../components/ui/Button'
 import { Field, Input, Select, Switch } from '../components/ui/Field'
 import { Tabs } from '../components/ui/Tabs'
+import { ClockTile } from '../components/layout/ClockTile'
+import type { ClockStyle } from '@shared/types/domain'
 import { useAppStore } from '../stores/appStore'
 import { api } from '../lib/ipc'
 import { cn, todayKey } from '../lib/utils'
@@ -32,14 +34,32 @@ const SECTIONS: { key: string; title: string; description: string; icon: typeof 
   { key: 'review', title: '复习与计划', description: '复习算法、每日上限、工作时段与自动排程', icon: Repeat },
   { key: 'notify', title: '提醒与通知', description: '提醒提前量与截止提醒提示音', icon: Bell },
   { key: 'pomodoro', title: '番茄钟', description: '专注时长、休息节奏与阶段提示音', icon: Timer },
-  { key: 'task', title: '任务与回收站', description: '回收站保留时长与关闭窗口行为', icon: Trash2 },
   { key: 'deps', title: '外部工具依赖', description: 'Pandoc、FFmpeg、yt-dlp、Playwright 检测与排查', icon: Terminal },
   { key: 'data', title: '数据与维护', description: '数据目录、日报导出与示例数据', icon: Database },
   { key: 'about', title: '关于与版本', description: '当前版本与本版较于上一版本的更新内容', icon: Info }
 ]
 
+/** 可选时钟样式 */
+const CLOCK_STYLES: { key: ClockStyle; label: string; hint: string }[] = [
+  { key: 'flip', label: '翻页', hint: '大号时分秒配合翻页动画，最贴合本站默认气质。' },
+  { key: 'minimal', label: '极简', hint: '细体数字 + 小号秒与日期，留白充足、观感安静。' },
+  { key: 'ring', label: '秒环', hint: '左侧秒环随秒针走一圈，右侧显示时分与日期。' },
+  { key: 'mono', label: '终端', hint: '等宽字体与括号包裹，终端 / 极客风格。' },
+  { key: 'stacked', label: '日期在上', hint: '日期置顶、时间在下居中，适合宽而矮的方形。' }
+]
+
 /** 版本更新日志（新版本发布时在最上方追加一条） */
 const CHANGELOG: { version: string; date: string; items: string[] }[] = [
+  {
+    version: '1.1.15',
+    date: '2026-09-13',
+    items: [
+      '修复互换只能「小换大」：改为按较小面积判定，大卡片同样可换到小卡片并受最小尺寸保护',
+      '新增 5 种时钟样式（翻页 / 极简 / 秒环 / 终端 / 日期在上），设置页可实时预览切换',
+      '「任务与回收站」并入「外观与通用」；统计页顶部工具条锁定不可拖动缩放',
+      '时钟默认只在仪表盘显示，其余页面可点「添加时钟」自行加入或移除'
+    ]
+  },
   {
     version: '1.1.14',
     date: '2026-09-12',
@@ -266,6 +286,44 @@ export function SettingsPage(): JSX.Element {
               <p className="text-[11px] text-muted-foreground/80">
                 当前字号 {FONT_SIZE_META[draft.fontSize]?.label ?? '标准'}（根字号 {FONT_SIZE_META[draft.fontSize]?.root ?? '16px'}），界面会立即缩放。
               </p>
+            </div>
+            <div className="grid gap-3 rounded-xl border border-border/70 bg-muted/25 p-3">
+              <p className="text-xs font-medium text-muted-foreground">时钟样式</p>
+              <Tabs
+                size="sm"
+                value={draft.clockStyle ?? 'flip'}
+                onChange={(key) => void patch({ clockStyle: key as ClockStyle })}
+                items={CLOCK_STYLES.map((item) => ({ key: item.key, label: item.label }))}
+              />
+              <div className="h-[150px] overflow-hidden rounded-xl border border-border/70 bg-background/40">
+                <ClockTile style={draft.clockStyle ?? 'flip'} />
+              </div>
+              <p className="text-[11px] text-muted-foreground/80">
+                {CLOCK_STYLES.find((item) => item.key === (draft.clockStyle ?? 'flip'))?.hint ?? ''}
+                时钟方块默认只在仪表盘显示，其余页面可用看板右上角的「添加时钟」按钮随时加入。
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <Field label="回收站保留时长" hint="删除的任务在回收站保留的时间，到期自动彻底删除">
+                <Select
+                  value={String(draft.recycleBinDays ?? 7)}
+                  onChange={(event) => void patch({ recycleBinDays: Number(event.target.value) })}
+                >
+                  <option value="1">一天</option>
+                  <option value="7">一周</option>
+                  <option value="30">一个月</option>
+                </Select>
+              </Field>
+              <Field label="关闭窗口行为" hint="点击右上角 X 后的动作">
+                <Select
+                  value={draft.closeAction ?? 'ask'}
+                  onChange={(event) => void patch({ closeAction: event.target.value as AppSettings['closeAction'] })}
+                >
+                  <option value="ask">每次询问（进入后台或退出）</option>
+                  <option value="background">直接进入后台（托盘运行）</option>
+                  <option value="exit">直接退出软件</option>
+                </Select>
+              </Field>
             </div>
           </div>
         )

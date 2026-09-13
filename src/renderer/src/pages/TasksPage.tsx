@@ -25,7 +25,8 @@ import { Button, IconButton } from '../components/ui/Button'
 import { Input, Select } from '../components/ui/Field'
 import { Tabs } from '../components/ui/Tabs'
 import { ConfirmDialog } from '../components/ui/Overlay'
-import { GridBoard, type GridEntry } from '../components/layout/GridBoard'
+import { PageGrid } from '../components/layout/PageGrid'
+import type { GridEntry } from '../components/layout/GridBoard'
 import { TaskForm } from '../components/task/TaskForm'
 import { TaskDetailDrawer } from '../components/task/TaskDetailDrawer'
 import { ScheduleBoard, type BoardView, type DueChangeRequest } from '../components/task/ScheduleBoard'
@@ -563,7 +564,7 @@ export function TasksPage(): JSX.Element {
           ))}
         </div>
       ) : (
-        <GridBoard entries={entries} storageKey="workstation.grid.tasks.v2" />
+        <PageGrid pageKey="tasks" entries={entries} storageKey="workstation.grid.tasks.v3" reserved={false} />
       )}
 
       <TaskForm

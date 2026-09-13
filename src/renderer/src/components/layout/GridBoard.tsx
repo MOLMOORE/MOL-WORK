@@ -47,6 +47,10 @@ export interface GridBoardProps {
   className?: string
   /** 是否显示顶部操作提示与「重置布局」按钮 */
   toolbar?: boolean
+  /** 暂时隐藏的方块（保留其布局数据，仅不参与排版） */
+  hiddenIds?: string[]
+  /** 追加到工具栏的自定义按钮 */
+  extraToolbar?: ReactNode
 }
 
 interface Cell {
@@ -272,7 +276,14 @@ const GridItem = memo(function GridItem({
  * - 松手时才把最终布局写回 React 状态并持久化到 localStorage
  * - 窗口过窄时自动退化为纵向单列，保证内容不被压扁
  */
-export function GridBoard({ entries, storageKey, className, toolbar = true }: GridBoardProps): JSX.Element {
+export function GridBoard({
+  entries,
+  storageKey,
+  className,
+  toolbar = true,
+  hiddenIds,
+  extraToolbar
+}: GridBoardProps): JSX.Element {
   const [layout, setLayout] = useState<Cell[]>(() => mergeLayout(entries, readStoredLayout(storageKey)))
   const [activeId, setActiveId] = useState<string | null>(null)
   const [width, setWidth] = useState(0)
@@ -366,9 +377,21 @@ export function GridBoard({ entries, storageKey, className, toolbar = true }: Gr
         const target = drag.swapId ? drag.cells.find((item) => item.id === drag.swapId) : undefined
         const nextCells = target
           ? drag.cells.map((cell) => {
-              if (cell.id === drag.id) return { ...cell, x: target.x, y: target.y, w: target.w, h: target.h }
-              if (cell.id === target.id)
-                return { ...cell, x: drag.base.x, y: drag.base.y, w: drag.base.w, h: drag.base.h }
+              if (cell.id === drag.id) {
+                const w = Math.max(target.w, drag.minW)
+                return { ...cell, x: Math.min(target.x, COLS - w), y: target.y, w, h: Math.max(target.h, drag.minH) }
+              }
+              if (cell.id === target.id) {
+                const entry = entriesRef.current.find((item) => item.id === target.id)
+                const w = Math.max(drag.base.w, entry?.minW ?? 2)
+                return {
+                  ...cell,
+                  x: Math.min(drag.base.x, COLS - w),
+                  y: drag.base.y,
+                  w,
+                  h: Math.max(drag.base.h, entry?.minH ?? 2)
+                }
+              }
               return cell
             })
           : drag.cells.map((cell) => (cell.id === drag.id ? { ...cell, x: drag.lastGX, y: drag.lastGY } : cell))
@@ -443,7 +466,8 @@ export function GridBoard({ entries, storageKey, className, toolbar = true }: Gr
               const ox = Math.min(rect.x + rect.w, cell.x + cell.w) - Math.max(rect.x, cell.x)
               const oy = Math.min(rect.y + rect.h, cell.y + cell.h) - Math.max(rect.y, cell.y)
               const ov = ox > 0 && oy > 0 ? ox * oy : 0
-              if (ov > bestArea && ov > area * 0.3) {
+              const need = Math.min(area, cell.w * cell.h) * 0.35
+              if (ov > bestArea && ov > need) {
                 bestArea = ov
                 best = cell
               }
@@ -585,9 +609,10 @@ export function GridBoard({ entries, storageKey, className, toolbar = true }: Gr
     }
   }, [storageKey])
 
+  const hidden = useMemo(() => new Set(hiddenIds ?? []), [hiddenIds])
   const ordered = useMemo(
-    () => layout.filter((cell) => entries.some((entry) => entry.id === cell.id)),
-    [layout, entries]
+    () => layout.filter((cell) => entries.some((entry) => entry.id === cell.id) && !hidden.has(cell.id)),
+    [layout, entries, hidden]
   )
 
   if (stacked) {
@@ -616,6 +641,7 @@ export function GridBoard({ entries, storageKey, className, toolbar = true }: Gr
             <LayoutDashboard className="h-3.5 w-3.5" />
             拖动卡片顶部可自由摆放 · 四边与四角均可拉伸大小 · 其他卡片会自动补齐缺口
           </span>
+          {extraToolbar}
           <Button size="sm" variant="ghost" onClick={resetLayout} title="恢复默认布局">
             <RotateCcw className="h-3.5 w-3.5" />
             重置布局

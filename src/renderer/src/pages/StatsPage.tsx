@@ -10,8 +10,8 @@ import { ProjectDonut, ToolUsageDonut } from '../components/stats/DistributionPa
 import { ReportPanel } from '../components/stats/ReportPanel'
 import { ProcrastinationPanel } from '../components/stats/ProcrastinationPanel'
 import { MetricDetailDialog, type MetricDetailKind } from '../components/stats/MetricDetailDialog'
-import { GridBoard, type GridEntry } from '../components/layout/GridBoard'
-import { ClockTile } from '../components/layout/ClockTile'
+import { PageGrid } from '../components/layout/PageGrid'
+import type { GridEntry } from '../components/layout/GridBoard'
 import { TREND_RANGES, trendWindow, useStatsStore, type TrendDays } from '../stores/statsStore'
 import { useAppStore } from '../stores/appStore'
 import { api } from '../lib/ipc'
@@ -125,8 +125,6 @@ export function StatsPage(): JSX.Element {
   }, [procrastinationReport, pushToast])
 
   // 各模块 JSX 单独记忆化：拖动/缩放时数据未变则引用不变，避免图表被反复重绘
-  const clockNode = useMemo(() => <ClockTile />, [])
-
   const metricNodes = useMemo(
     () => [
       <StatCard
@@ -206,7 +204,6 @@ export function StatsPage(): JSX.Element {
 
   const entries = useMemo<GridEntry[]>(
     () => [
-      { id: 'clock', title: '时间显示', x: 0, y: 0, w: 12, h: 3, minW: 4, minH: 2, node: clockNode },
       { id: 'metric-focus', title: '区间专注总时长', x: 0, y: 3, w: 3, h: 2, minW: 2, minH: 2, node: metricNodes[0] },
       { id: 'metric-completed', title: '区间完成任务', x: 3, y: 3, w: 3, h: 2, minW: 2, minH: 2, node: metricNodes[1] },
       { id: 'metric-tools', title: '区间工具调用', x: 6, y: 3, w: 3, h: 2, minW: 2, minH: 2, node: metricNodes[2] },
@@ -219,11 +216,10 @@ export function StatsPage(): JSX.Element {
       { id: 'procrastination', title: '拖延识别', x: 0, y: 23, w: 12, h: 11, minW: 6, minH: 7, node: procrastinationNode },
       { id: 'report', title: '日报复盘', x: 0, y: 34, w: 12, h: 9, minW: 6, minH: 5, node: reportNode }
     ],
-    [clockNode, metricNodes, trendNodes, hourlyNode, donutNodes, procrastinationNode, reportNode]
+    [metricNodes, trendNodes, hourlyNode, donutNodes, procrastinationNode, reportNode]
   )
 
-  return (
-    <div className="grid gap-5">
+  const headerNode = (
       <Card className="relative overflow-hidden">
         <div className="pointer-events-none absolute -left-12 -top-16 h-52 w-52 rounded-full bg-info/20 blur-3xl" />
         <div className="relative flex flex-wrap items-center justify-between gap-4">
@@ -257,7 +253,15 @@ export function StatsPage(): JSX.Element {
           当前区间：{range.from} ~ {range.to} · 共 {trendDays} 天 · 活跃 {totals.activeDays} 天
         </p>
       </Card>
+  )
 
+  const allEntries: GridEntry[] = [
+    { id: 'stats-header', title: '统计区间工具条', x: 0, y: 3, w: 12, h: 2, minW: 12, minH: 2, locked: true, node: headerNode },
+    ...entries
+  ]
+
+  return (
+    <div className="grid gap-5">
       {loading && trendData.length === 0 ? (
         <div className="flex h-48 items-center justify-center gap-2 text-muted-foreground">
           <Spinner />
@@ -265,7 +269,7 @@ export function StatsPage(): JSX.Element {
         </div>
       ) : null}
 
-      <GridBoard entries={entries} storageKey={STATS_LAYOUT_KEY} />
+      <PageGrid pageKey="stats" entries={allEntries} storageKey="workstation.grid.stats.v3" defaultClock />
 
       <MetricDetailDialog
         kind={detail}
