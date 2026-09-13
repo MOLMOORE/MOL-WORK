@@ -20,7 +20,7 @@ import { Badge, EmptyState, Spinner } from '../components/ui/Feedback'
 import { Button, IconButton } from '../components/ui/Button'
 import { Input, Switch } from '../components/ui/Field'
 import { Tabs } from '../components/ui/Tabs'
-import { ConfirmDialog } from '../components/ui/Overlay'
+import { ConfirmDialog, Modal } from '../components/ui/Overlay'
 import { PageGrid } from '../components/layout/PageGrid'
 import type { GridEntry } from '../components/layout/GridBoard'
 import { ToolIcon } from '../components/tool/ToolIcon'
@@ -52,6 +52,8 @@ export function ToolsPage(): JSX.Element {
   const [keyword, setKeyword] = useState('')
   const [outputsPath, setOutputsPath] = useState('')
   const [pendingRemove, setPendingRemove] = useState<ToolManifest | null>(null)
+  /** 顶部四个指标卡点击后弹出的明细类型 */
+  const [statDetail, setStatDetail] = useState<'tools' | 'deps' | 'today' | 'cost' | null>(null)
 
   useEffect(() => {
     void load()
@@ -101,6 +103,93 @@ export function ToolsPage(): JSX.Element {
     await remove(pendingRemove.id)
     pushToast({ title: '工具已移除', description: '可通过「恢复内置工具」重新启用', tone: 'info' })
     setPendingRemove(null)
+  }
+
+  /** 顶部四个指标卡的点击明细 */
+  const renderStatDetail = (): JSX.Element => {
+    if (statDetail === 'tools') {
+      return (
+        <div className="flex max-h-[58vh] flex-col gap-2 overflow-y-auto pr-1">
+          {tools.map((tool) => (
+            <button
+              key={tool.id}
+              type="button"
+              onClick={() => {
+                setStatDetail(null)
+                select(tool.id)
+              }}
+              className="flex items-center gap-3 rounded-xl border border-border/70 bg-muted/25 p-3 text-left transition-colors hover:border-primary/40 hover:bg-muted/40"
+            >
+              <ToolIcon name={tool.icon} size="sm" color={TOOL_CATEGORY_META[tool.category]?.color} />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-xs font-medium text-foreground">{tool.name}</span>
+                <span className="mt-0.5 block truncate text-[11px] text-muted-foreground">{tool.description}</span>
+              </span>
+              <Badge tone={tool.enabled ? 'success' : 'default'}>{tool.enabled ? '已启用' : '已停用'}</Badge>
+            </button>
+          ))}
+        </div>
+      )
+    }
+    if (statDetail === 'deps') {
+      return (
+        <div className="flex max-h-[58vh] flex-col gap-2 overflow-y-auto pr-1">
+          {dependencies.map((dependency) => (
+            <div key={dependency.id} className="rounded-xl border border-border/70 bg-muted/25 p-3">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-medium text-foreground">{dependency.label}</span>
+                <Badge tone={dependency.available ? 'success' : 'warning'} dot>
+                  {dependency.available ? '可用' : '未安装'}
+                </Badge>
+              </div>
+              <p className="mt-1 break-all text-[11px] text-muted-foreground">{dependency.version ?? dependency.installHint}</p>
+              {dependency.resolvedPath ? (
+                <button
+                  type="button"
+                  className="mt-1 block max-w-full truncate text-left text-[10px] text-muted-foreground/80 hover:text-foreground"
+                  onClick={() => void api.app.showItemInFolder(dependency.resolvedPath as string)}
+                >
+                  {dependency.resolvedPath}
+                </button>
+              ) : null}
+            </div>
+          ))}
+        </div>
+      )
+    }
+    const list = statDetail === 'today' ? todayRuns : history
+    if (list.length === 0) {
+      return <EmptyState icon={<Clock4 className="h-5 w-5" />} title="暂无记录" description="执行任意工具后，这里会列出每次调用的耗时与结果" />
+    }
+    return (
+      <div className="flex max-h-[58vh] flex-col gap-2 overflow-y-auto pr-1">
+        {list.slice(0, 40).map((run) => (
+          <div key={run.id} className="rounded-xl border border-border/70 bg-muted/25 p-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="flex items-center gap-2 text-xs font-medium text-foreground">
+                  {run.toolName}
+                  <Badge tone={run.status === 'success' ? 'success' : 'danger'}>
+                    {run.status === 'success' ? '成功' : '失败'}
+                  </Badge>
+                </p>
+                <p className="mt-1 truncate text-[11px] text-muted-foreground">
+                  {run.resultSummary ?? run.error ?? run.inputSummary}
+                </p>
+                <p className="mt-0.5 text-[10px] text-muted-foreground/80">
+                  {formatDateTime(run.createdAt)} · 耗时 {formatDurationMs(run.durationMs)}
+                </p>
+              </div>
+              {run.resultPath ? (
+                <Button size="xs" variant="secondary" onClick={() => void api.app.openPath(run.resultPath as string)}>
+                  打开
+                </Button>
+              ) : null}
+            </div>
+          </div>
+        ))}
+      </div>
+    )
   }
 
   const headerNode = (
@@ -163,6 +252,7 @@ export function ToolsPage(): JSX.Element {
           value={`${tools.length} 个`}
           hint={`启用 ${tools.filter((t) => t.enabled).length} 个`}
           icon={<Boxes className="h-4 w-4" />}
+          onClick={() => setStatDetail('tools')}
         />
       )
     },
@@ -182,6 +272,7 @@ export function ToolsPage(): JSX.Element {
           hint={missingDependencies.length === 0 ? '全部就绪' : `缺失 ${missingDependencies.length} 项`}
           tone={missingDependencies.length === 0 ? 'success' : 'warning'}
           icon={<Terminal className="h-4 w-4" />}
+          onClick={() => setStatDetail('deps')}
         />
       )
     },
@@ -195,7 +286,7 @@ export function ToolsPage(): JSX.Element {
       minW: 2,
       minH: 2,
       node: (
-        <StatCard label="今日调用" value={`${todayRuns.length} 次`} hint={`累计记录 ${history.length} 条`} tone="info" icon={<Play className="h-4 w-4" />} />
+        <StatCard label="今日调用" value={`${todayRuns.length} 次`} hint={`累计记录 ${history.length} 条`} tone="info" icon={<Play className="h-4 w-4" />} onClick={() => setStatDetail('today')} />
       )
     },
     {
@@ -207,10 +298,11 @@ export function ToolsPage(): JSX.Element {
       h: 2,
       minW: 2,
       minH: 2,
-      node: <StatCard label="累计工具耗时" value={formatMinutes(totalToolMinutes)} tone="primary" icon={<Clock4 className="h-4 w-4" />} />
+      node: <StatCard label="累计工具耗时" value={formatMinutes(totalToolMinutes)} tone="primary" icon={<Clock4 className="h-4 w-4" />} onClick={() => setStatDetail('cost')} />
     },
     {
       id: 'deps',
+      group: 'runtime',
       title: '外部依赖状态',
       x: 0,
       y: 19,
@@ -413,6 +505,7 @@ export function ToolsPage(): JSX.Element {
       },
       {
         id: 'runs',
+        group: 'runtime',
         title: '运行记录',
         x: 6,
         y: 19,
@@ -485,6 +578,32 @@ export function ToolsPage(): JSX.Element {
       <PageGrid pageKey="tools" entries={entries} storageKey="workstation.grid.tools.v4" />
 
       <ToolDetailDrawer manifest={selected} open={selected !== null} onClose={() => select(null)} />
+
+      <Modal
+        open={statDetail !== null}
+        onClose={() => setStatDetail(null)}
+        title={
+          statDetail === 'tools'
+            ? '已注册工具'
+            : statDetail === 'deps'
+              ? '外部依赖'
+              : statDetail === 'today'
+                ? '今日调用'
+                : '累计工具耗时'
+        }
+        description={
+          statDetail === 'tools'
+            ? `共 ${tools.length} 个工具，其中 ${tools.filter((tool) => tool.enabled).length} 个已启用`
+            : statDetail === 'deps'
+              ? `${dependencies.length - missingDependencies.length} / ${dependencies.length} 项可用`
+              : statDetail === 'today'
+                ? `今日执行 ${todayRuns.length} 次 · 累计记录 ${history.length} 条`
+                : `累计 ${formatMinutes(totalToolMinutes)} · 共 ${history.length} 条记录`
+        }
+        width="max-w-2xl"
+      >
+        {renderStatDetail()}
+      </Modal>
 
       <ConfirmDialog
         open={pendingRemove !== null}

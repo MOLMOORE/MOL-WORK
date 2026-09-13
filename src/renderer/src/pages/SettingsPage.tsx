@@ -58,6 +58,15 @@ const CLOCK_LAYOUTS: { key: ClockLayout; label: string; hint: string }[] = [
 /** 版本更新日志（新版本发布时在最上方追加一条） */
 const CHANGELOG: { version: string; date: string; items: string[] }[] = [
   {
+    version: '1.2.0',
+    date: '2026-09-14',
+    items: [
+      '「一键排列」重做：同组模块聚在一起、按行紧凑铺满，行内按比例分配宽度并统一行高，模块为贴合四边自动调整大小',
+      '缩放弹开判定重做：只挪开真正重叠的模块，未被影响的模块保持原位',
+      '工具页四个指标卡支持点击，弹出对应明细（工具清单 / 依赖状态 / 今日调用 / 累计耗时）'
+    ]
+  },
+  {
     version: '1.1.19',
     date: '2026-09-13',
     items: [

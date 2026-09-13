@@ -211,8 +211,8 @@ export function StatsPage(): JSX.Element {
       { id: 'trend-focus', title: '投入趋势', x: 0, y: 7, w: 6, h: 6, minW: 4, minH: 4, node: trendNodes[0] },
       { id: 'trend-output', title: '产出趋势', x: 6, y: 7, w: 6, h: 6, minW: 4, minH: 4, node: trendNodes[1] },
       { id: 'hourly', title: '单日时段分布', x: 0, y: 13, w: 12, h: 5, minW: 6, minH: 4, node: hourlyNode },
-      { id: 'project-donut', title: '项目投入分布', x: 0, y: 18, w: 6, h: 7, minW: 5, minH: 5, node: donutNodes[0] },
-      { id: 'tool-donut', title: '工具调用分布', x: 6, y: 18, w: 6, h: 7, minW: 5, minH: 5, node: donutNodes[1] },
+      { id: 'project-donut', title: '项目投入分布', x: 0, y: 18, w: 6, h: 7, minW: 5, minH: 5, group: 'donut', node: donutNodes[0] },
+      { id: 'tool-donut', title: '工具调用分布', x: 6, y: 18, w: 6, h: 7, minW: 5, minH: 5, group: 'donut', node: donutNodes[1] },
       { id: 'procrastination', title: '拖延识别', x: 0, y: 25, w: 12, h: 11, minW: 6, minH: 7, node: procrastinationNode },
       { id: 'report', title: '日报复盘', x: 0, y: 36, w: 12, h: 9, minW: 6, minH: 5, node: reportNode }
     ],

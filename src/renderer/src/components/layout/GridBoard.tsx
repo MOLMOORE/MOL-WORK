@@ -38,6 +38,8 @@ export interface GridEntry {
   minH?: number
   /** 是否禁用拖拽与缩放 */
   locked?: boolean
+  /** 功能/样式分组标识：「一键排列」时同组模块会摆在一起（缺省按 id 前缀推断） */
+  group?: string
   node: ReactNode
 }
 
@@ -161,6 +163,23 @@ function findFreeSpot(
     }
   }
   return { x: clamp(fallback.x, 0, maxX), y: Math.max(0, fallback.y) }
+}
+
+/**
+ * 缩放专用：只把「与目标矩形真正重叠」的模块挪到附近空闲位置，其余模块保持原位不动。
+ * （此前用整体重排会导致没有受影响的模块也被挪走，看起来像「莫名弹开」）
+ */
+function pushOverlapping(cells: Cell[], self: Cell): Cell[] {
+  const result = cells.map((cell) => (cell.id === self.id ? { ...self } : { ...cell }))
+  for (const cell of result) {
+    if (cell.id === self.id || !overlaps(cell, self)) continue
+    const others = result.filter((item) => item.id !== cell.id)
+    const beneath = Math.max(cell.y, self.y + self.h)
+    const spot = findFreeSpot(others, cell.id, cell.w, cell.h, cell.x, beneath, { x: cell.x, y: beneath })
+    cell.x = spot.x
+    cell.y = spot.y
+  }
+  return result
 }
 
 function defaultLayout(entries: GridEntry[]): Cell[] {
@@ -639,9 +658,10 @@ export function GridBoard({
           current.lastGH = gh
           current.lastGX = gx
           current.lastGY = gy
-          current.cells = resolveLayout(
+          // 只推开与当前模块真正重叠的模块，未被影响的模块保持原位
+          current.cells = pushOverlapping(
             current.cells.map((cell) => (cell.id === current.id ? { ...cell, x: gx, y: gy, w: gw, h: gh } : cell)),
-            current.id
+            { id: current.id, x: gx, y: gy, w: gw, h: gh }
           )
           paintCells(current.cells, current.id)
         }
@@ -752,37 +772,61 @@ export function GridBoard({
   }, [applyLayout])
 
   /**
-   * 一键排列：先随机打乱模块顺序，再按「从左上到右下、优先填满已有空隙」的方式紧凑落位，
-   * 因此每次排列结果都不同，但所有模块依然彼此相邻、不会散落得到处都是。
+   * 一键排列：同组（功能/样式相近，按 group 或 id 前缀划分）的模块先聚在一起，
+   * 再按行紧凑铺满——行内按比例重新分配宽度填满整行、统一行高，模块因此紧贴四边、几乎不留空隙；
+   * 组内顺序随机，保证每次排列结果都不同。
    */
   const arrangeRandom = useCallback(() => {
-    const cells = [...layoutRef.current]
-    // Fisher-Yates 打乱处理顺序，保证每次排列结果都不同
-    for (let index = cells.length - 1; index > 0; index -= 1) {
-      const swap = Math.floor(Math.random() * (index + 1))
-      const temp = cells[index]
-      cells[index] = cells[swap]
-      cells[swap] = temp
-    }
-    const placed: Cell[] = []
-    for (const cell of cells) {
-      const w = clamp(cell.w, 1, COLS)
-      const h = Math.max(1, cell.h)
-      const bottom = placed.reduce((max, item) => Math.max(max, item.y + item.h), 0)
-      let spot: { x: number; y: number } | null = null
-      // 自上而下、自左而右扫描第一个能放下的位置（首次适应），得到紧凑且相邻的排布
-      for (let y = 0; y <= bottom && !spot; y += 1) {
-        for (let x = 0; x <= COLS - w; x += 1) {
-          if (!placed.some((item) => overlaps(item, { id: cell.id, x, y, w, h }))) {
-            spot = { x, y }
-            break
-          }
-        }
+    const entryMap = new Map(entriesRef.current.map((entry) => [entry.id, entry]))
+    const groupOf = (cell: Cell): string => entryMap.get(cell.id)?.group ?? cell.id.split('-')[0]
+    const cells = layoutRef.current.map((cell) => ({ ...cell }))
+    const groupRank = new Map<string, number>()
+    ;[...cells]
+      .sort((a, b) => a.y - b.y || a.x - b.x)
+      .forEach((cell) => {
+        const key = groupOf(cell)
+        if (!groupRank.has(key)) groupRank.set(key, groupRank.size)
+      })
+    const ordered = [...cells].sort((a, b) => {
+      const rankA = groupRank.get(groupOf(a)) ?? 0
+      const rankB = groupRank.get(groupOf(b)) ?? 0
+      if (rankA !== rankB) return rankA - rankB
+      return Math.random() - 0.5
+    })
+
+    // 逐行填充：整行装不下就换行
+    const rows: Cell[][] = []
+    let row: Cell[] = []
+    let rowWidth = 0
+    for (const cell of ordered) {
+      const w = Math.max(2, Math.min(COLS, Math.round(cell.w)))
+      if (row.length > 0 && rowWidth + w > COLS) {
+        rows.push(row)
+        row = []
+        rowWidth = 0
       }
-      placed.push({ ...cell, w, h, x: spot ? spot.x : 0, y: spot ? spot.y : bottom })
+      row.push({ ...cell, w })
+      rowWidth += w
+    }
+    if (row.length > 0) rows.push(row)
+
+    // 行内按比例重新分配宽度填满整行、统一行高 → 模块紧贴四边
+    const placed: Cell[] = []
+    let y = 0
+    for (const rowCells of rows) {
+      const rowHeight = Math.max(...rowCells.map((cell) => cell.h))
+      const totalWidth = rowCells.reduce((sum, cell) => sum + cell.w, 0)
+      let x = 0
+      rowCells.forEach((cell, index) => {
+        const target = index === rowCells.length - 1 ? COLS - x : Math.max(2, Math.round((cell.w / totalWidth) * COLS))
+        const width = Math.max(1, Math.min(target, COLS - x))
+        placed.push({ ...cell, x, y, w: width, h: rowHeight })
+        x += width
+      })
+      y += rowHeight
     }
     applyLayout(placed)
-    setHint('已随机紧凑重排本页模块：彼此相邻，可继续拖动微调')
+    setHint('已按「功能相近 + 紧贴四边」重排本页模块，可继续拖动微调')
   }, [applyLayout])
 
   /** 把当前布局存为「我的默认布局」，重置布局时都会回到它 */
