@@ -224,16 +224,19 @@ function readStoredLayout(storageKey: string): Cell[] | null {
   }
 }
 
-/** 八向缩放手柄：细白色条纹（命中区比视觉稍宽），保证贴边也能抓得住 */
-const EDGES: { mode: DragMode; cls: string }[] = [
-  { mode: 'n', cls: 'left-4 right-4 top-0 h-1 cursor-ns-resize' },
-  { mode: 's', cls: 'bottom-0 left-4 right-4 h-1 cursor-ns-resize' },
-  { mode: 'w', cls: 'bottom-4 left-0 top-4 w-1 cursor-ew-resize' },
-  { mode: 'e', cls: 'bottom-4 right-0 top-4 w-1 cursor-ew-resize' },
-  { mode: 'nw', cls: 'left-0 top-0 h-2 w-2 cursor-nwse-resize' },
-  { mode: 'ne', cls: 'right-0 top-0 h-2 w-2 cursor-nesw-resize' },
-  { mode: 'sw', cls: 'bottom-0 left-0 h-2 w-2 cursor-nesw-resize' },
-  { mode: 'se', cls: 'bottom-0 right-0 h-2.5 w-2.5 cursor-nwse-resize' }
+/**
+ * 八向缩放手柄：视觉上是一条紧贴模块边缘的细白线（2px、直角、贴合边框），
+ * 外层再包一圈更大的透明命中区，保证「线够细」的同时依然抓得住。
+ */
+const EDGES: { mode: DragMode; hit: string; bar: string }[] = [
+  { mode: 'n', hit: 'left-1.5 right-1.5 top-0 h-3 cursor-ns-resize', bar: 'inset-x-0 top-0 h-[2px]' },
+  { mode: 's', hit: 'bottom-0 left-1.5 right-1.5 h-3 cursor-ns-resize', bar: 'inset-x-0 bottom-0 h-[2px]' },
+  { mode: 'w', hit: 'bottom-1.5 left-0 top-1.5 w-3 cursor-ew-resize', bar: 'inset-y-0 left-0 w-[2px]' },
+  { mode: 'e', hit: 'bottom-1.5 right-0 top-1.5 w-3 cursor-ew-resize', bar: 'inset-y-0 right-0 w-[2px]' },
+  { mode: 'nw', hit: 'left-0 top-0 h-2.5 w-2.5 cursor-nwse-resize', bar: 'left-0 top-0 h-1 w-1' },
+  { mode: 'ne', hit: 'right-0 top-0 h-2.5 w-2.5 cursor-nesw-resize', bar: 'right-0 top-0 h-1 w-1' },
+  { mode: 'sw', hit: 'bottom-0 left-0 h-2.5 w-2.5 cursor-nesw-resize', bar: 'bottom-0 left-0 h-1 w-1' },
+  { mode: 'se', hit: 'bottom-0 right-0 h-2.5 w-2.5 cursor-nwse-resize', bar: 'bottom-0 right-0 h-1 w-1' }
 ]
 
 function ResizeHandles(props: {
@@ -252,13 +255,11 @@ function ResizeHandles(props: {
           aria-label={`调整 ${props.title} 大小`}
           onPointerDown={(event) => props.onStart(event, props.id, edge.mode)}
           // z-20 必须高于卡片内容自身可能设置的层级，否则会被带 z-index 的卡片内容挡住而无法缩放
-          className={cn(
-            'absolute z-20 rounded-full bg-white/75 transition-opacity',
-            // 编辑模式下常显（提示可拉伸）；常规模式彻底隐藏，改用悬停时的磨砂蒙层做提示
-            props.editing ? 'opacity-100' : 'opacity-0',
-            edge.cls
-          )}
-        />
+          className={cn('absolute z-20 transition-opacity', props.editing ? 'opacity-100' : 'opacity-0', edge.hit)}
+        >
+          {/* 紧贴模块边缘的细白线（直角、2px），只在悬停/编辑时显现 */}
+          <span className={cn('absolute rounded-[1px] bg-white/80', edge.bar)} />
+        </div>
       ))}
     </>
   )
@@ -331,9 +332,9 @@ const GridItem = memo(function GridItem({
         {children}
       </div>
 
-      {/* 悬停提示：覆盖一层淡淡的白色磨砂蒙层（替代原来的边框线条），悬停时才出现 */}
+      {/* 悬停提示：覆盖一层淡淡的白色柔光（不做模糊处理，模块内文字与图片依然清晰锐利） */}
       {!editable && !locked ? (
-        <div className="pointer-events-none absolute inset-0 z-20 rounded-2xl bg-white/[0.06] opacity-0 backdrop-blur-[2px] transition-opacity duration-200 group-hover/grid-item:opacity-100" />
+        <div className="pointer-events-none absolute inset-0 z-20 rounded-2xl bg-white/[0.05] opacity-0 transition-opacity duration-200 group-hover/grid-item:opacity-100" />
       ) : null}
 
       {!locked ? (
@@ -750,7 +751,10 @@ export function GridBoard({
     setHint(custom && custom.length > 0 ? '已回到「我的默认布局」' : '已回到系统默认布局')
   }, [applyLayout])
 
-  /** 一键排列：把本页所有模块随机重新摆放（互不重叠、全部留在页面内） */
+  /**
+   * 一键排列：先随机打乱模块顺序，再按「从左上到右下、优先填满已有空隙」的方式紧凑落位，
+   * 因此每次排列结果都不同，但所有模块依然彼此相邻、不会散落得到处都是。
+   */
   const arrangeRandom = useCallback(() => {
     const cells = [...layoutRef.current]
     // Fisher-Yates 打乱处理顺序，保证每次排列结果都不同
@@ -763,25 +767,22 @@ export function GridBoard({
     const placed: Cell[] = []
     for (const cell of cells) {
       const w = clamp(cell.w, 1, COLS)
-      const maxX = Math.max(0, COLS - w)
-      const limitY = placed.reduce((max, item) => Math.max(max, item.y + item.h), 0) + 4
+      const h = Math.max(1, cell.h)
+      const bottom = placed.reduce((max, item) => Math.max(max, item.y + item.h), 0)
       let spot: { x: number; y: number } | null = null
-      for (let attempt = 0; attempt < 90; attempt += 1) {
-        const x = Math.floor(Math.random() * (maxX + 1))
-        const y = Math.floor(Math.random() * (limitY + 1))
-        if (!placed.some((item) => overlaps(item, { id: cell.id, x, y, w, h: cell.h }))) {
-          spot = { x, y }
-          break
+      // 自上而下、自左而右扫描第一个能放下的位置（首次适应），得到紧凑且相邻的排布
+      for (let y = 0; y <= bottom && !spot; y += 1) {
+        for (let x = 0; x <= COLS - w; x += 1) {
+          if (!placed.some((item) => overlaps(item, { id: cell.id, x, y, w, h }))) {
+            spot = { x, y }
+            break
+          }
         }
       }
-      if (!spot) {
-        const fallbackY = placed.reduce((max, item) => Math.max(max, item.y + item.h), 0)
-        spot = findFreeSpot(placed, cell.id, w, cell.h, 0, fallbackY, { x: 0, y: fallbackY })
-      }
-      placed.push({ ...cell, w, x: spot.x, y: spot.y })
+      placed.push({ ...cell, w, h, x: spot ? spot.x : 0, y: spot ? spot.y : bottom })
     }
     applyLayout(placed)
-    setHint('已随机重新排列本页模块，可继续拖动微调')
+    setHint('已随机紧凑重排本页模块：彼此相邻，可继续拖动微调')
   }, [applyLayout])
 
   /** 把当前布局存为「我的默认布局」，重置布局时都会回到它 */

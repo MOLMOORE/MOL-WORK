@@ -274,7 +274,7 @@ runner.run()     ──►  执行并返回 outputs / preview / resultPath
 
 ```powershell
 npm run dist
-# 产物：release\PersonalWorkstation-Setup-1.1.18.exe（约 94 MB，NSIS 可选安装目录）
+# 产物：release\PersonalWorkstation-Setup-1.1.19.exe（约 94 MB，NSIS 可选安装目录）
 ```
 
 若打包时无法访问 GitHub（electron-builder 需要下载 Electron 与 NSIS 二进制），可切换到国内镜像：
@@ -306,8 +306,9 @@ npm run dist
 | 模块网格回归（v1.1.16） | CDP 驱动真实窗口模拟拖拽 / 缩放 / 视图切换与时钟组合 | ✅ 22 / 22 通过（交换完全对调、落位无重叠、左侧可扩展、4×4 时钟组合、调试模式关闭） |
 | 编辑布局回归（v1.1.17） | CDP 驱动真实窗口验证编辑模式 / 清空 / 自定义默认 / 页面默认布局 | ✅ 20 / 20 通过（长按与按钮进入编辑、整块可拖、内容不可点、颤动、清空左排、重置回自定义默认、恢复系统默认） |
 | 交互细节回归（v1.1.18） | CDP 驱动真实窗口验证悬停蒙层 / 长按 / 统计工具条拖拽缩放 / 空白退出 / 一键排列 | ✅ 15 / 15 通过 |
+| 悬停与排布回归（v1.1.19） | CDP 驱动真实窗口验证悬停柔光不模糊、白条贴边 2px、紧凑排列 | ✅ 10 / 10 通过 |
 | 日报导出 | 界面点击「导出日报」→ 落盘 + 定位文件 | ✅ 生成 `reports\日报-YYYY-MM-DD.md` |
-| Windows 分发 | `npm run dist` | ✅ `release\PersonalWorkstation-Setup-1.1.18.exe`（约 94 MB） |
+| Windows 分发 | `npm run dist` | ✅ `release\PersonalWorkstation-Setup-1.1.19.exe`（约 94 MB） |
 
 自检覆盖的 9 个用例：Markdown → DOCX（Pandoc）、DOCX → Markdown（Pandoc）、WAV → MP3（FFmpeg）、
 单位换算、电路计算、学习卡片（联动复习计划）、网页正文提取（Playwright）、整页截图（Playwright）、网络资源下载（yt-dlp）。

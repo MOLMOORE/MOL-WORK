@@ -58,6 +58,15 @@ const CLOCK_LAYOUTS: { key: ClockLayout; label: string; hint: string }[] = [
 /** 版本更新日志（新版本发布时在最上方追加一条） */
 const CHANGELOG: { version: string; date: string; items: string[] }[] = [
   {
+    version: '1.1.19',
+    date: '2026-09-13',
+    items: [
+      '悬停白光改为纯半透明柔光（去掉模糊滤镜），模块内文字与图片保持清晰不虚',
+      '缩放手柄白条重做：改为紧贴模块边缘的 2px 直角细白线，更细更有贴合感',
+      '「一键排列」改为紧凑重排：随机打乱顺序后自上而下紧凑落位，模块彼此相邻不再散落'
+    ]
+  },
+  {
     version: '1.1.18',
     date: '2026-09-13',
     items: [
