@@ -10,7 +10,7 @@ import {
   type PointerEvent as ReactPointerEvent,
   type ReactNode
 } from 'react'
-import { Check, Eraser, GripVertical, History, LayoutDashboard, Pencil, RotateCcw, Save } from 'lucide-react'
+import { Check, GripVertical, History, LayoutDashboard, Pencil, RotateCcw, Save, Shuffle } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { Button } from '../ui/Button'
 
@@ -254,7 +254,8 @@ function ResizeHandles(props: {
           // z-20 必须高于卡片内容自身可能设置的层级，否则会被带 z-index 的卡片内容挡住而无法缩放
           className={cn(
             'absolute z-20 rounded-full bg-white/75 transition-opacity',
-            props.editing ? 'opacity-100' : 'opacity-0 group-hover/grid-item:opacity-100',
+            // 编辑模式下常显（提示可拉伸）；常规模式彻底隐藏，改用悬停时的磨砂蒙层做提示
+            props.editing ? 'opacity-100' : 'opacity-0',
             edge.cls
           )}
         />
@@ -330,6 +331,11 @@ const GridItem = memo(function GridItem({
         {children}
       </div>
 
+      {/* 悬停提示：覆盖一层淡淡的白色磨砂蒙层（替代原来的边框线条），悬停时才出现 */}
+      {!editable && !locked ? (
+        <div className="pointer-events-none absolute inset-0 z-20 rounded-2xl bg-white/[0.06] opacity-0 backdrop-blur-[2px] transition-opacity duration-200 group-hover/grid-item:opacity-100" />
+      ) : null}
+
       {!locked ? (
         <>
           {editable ? (
@@ -360,19 +366,6 @@ const GridItem = memo(function GridItem({
             </div>
           )}
           <ResizeHandles id={id} title={title} editing={editable} onStart={onStart} />
-          {!editable ? (
-            /* 右下角圆滑缩放提示 */
-            <svg
-              viewBox="0 0 14 14"
-              className={cn(
-                'pointer-events-none absolute bottom-1.5 right-1.5 z-10 h-3.5 w-3.5 text-muted-foreground/80 transition-opacity',
-                active ? 'opacity-100' : 'opacity-0 group-hover/grid-item:opacity-100'
-              )}
-            >
-              <path d="M13 1.5A11.5 11.5 0 0 1 1.5 13" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-              <path d="M13 5.5A7.5 7.5 0 0 1 5.5 13" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-            </svg>
-          ) : null}
         </>
       ) : null}
     </div>
@@ -757,17 +750,38 @@ export function GridBoard({
     setHint(custom && custom.length > 0 ? '已回到「我的默认布局」' : '已回到系统默认布局')
   }, [applyLayout])
 
-  /** 一键清空：所有模块保持尺寸排列到页面左侧一列，等待用户重新摆放 */
-  const clearLayout = useCallback(() => {
-    const sorted = [...layoutRef.current].sort((a, b) => a.y - b.y || a.x - b.x)
-    let cursor = 0
-    const next = sorted.map((cell) => {
-      const item = { ...cell, x: 0, y: cursor }
-      cursor += cell.h
-      return item
-    })
-    applyLayout(next)
-    setHint('已清空并排列到左侧：把模块拖到想要的位置即可')
+  /** 一键排列：把本页所有模块随机重新摆放（互不重叠、全部留在页面内） */
+  const arrangeRandom = useCallback(() => {
+    const cells = [...layoutRef.current]
+    // Fisher-Yates 打乱处理顺序，保证每次排列结果都不同
+    for (let index = cells.length - 1; index > 0; index -= 1) {
+      const swap = Math.floor(Math.random() * (index + 1))
+      const temp = cells[index]
+      cells[index] = cells[swap]
+      cells[swap] = temp
+    }
+    const placed: Cell[] = []
+    for (const cell of cells) {
+      const w = clamp(cell.w, 1, COLS)
+      const maxX = Math.max(0, COLS - w)
+      const limitY = placed.reduce((max, item) => Math.max(max, item.y + item.h), 0) + 4
+      let spot: { x: number; y: number } | null = null
+      for (let attempt = 0; attempt < 90; attempt += 1) {
+        const x = Math.floor(Math.random() * (maxX + 1))
+        const y = Math.floor(Math.random() * (limitY + 1))
+        if (!placed.some((item) => overlaps(item, { id: cell.id, x, y, w, h: cell.h }))) {
+          spot = { x, y }
+          break
+        }
+      }
+      if (!spot) {
+        const fallbackY = placed.reduce((max, item) => Math.max(max, item.y + item.h), 0)
+        spot = findFreeSpot(placed, cell.id, w, cell.h, 0, fallbackY, { x: 0, y: fallbackY })
+      }
+      placed.push({ ...cell, w, x: spot.x, y: spot.y })
+    }
+    applyLayout(placed)
+    setHint('已随机重新排列本页模块，可继续拖动微调')
   }, [applyLayout])
 
   /** 把当前布局存为「我的默认布局」，重置布局时都会回到它 */
@@ -818,9 +832,10 @@ export function GridBoard({
       if (editingRef.current || stackedRef.current) return
       const entry = entriesRef.current.find((item) => item.id === id)
       if (entry?.locked) return
-      // 落在按钮、输入框等交互元素上时不触发长按，避免误进编辑模式
+      // 只跳过真正需要输入的元素：卡片本身就是按钮时（如指标卡 StatCard）也应能长按进入编辑，
+      // 因此不排除 button / [role="button"]，长按触发后会拦截随后的 click，避免误触卡片交互
       const target = event.target as HTMLElement | null
-      if (target?.closest('button, input, select, textarea, a, [role="button"], [role="switch"]')) return
+      if (target?.closest('input, select, textarea, a, [role="switch"]')) return
       cancelLongPress()
       const x = event.clientX
       const y = event.clientY
@@ -868,6 +883,20 @@ export function GridBoard({
     }
   }, [cancelLongPress])
 
+  // 编辑模式下点击页面空白处即退出编辑（本次调整自动保留）
+  useEffect(() => {
+    if (!editing) return undefined
+    const onPointerDown = (event: PointerEvent): void => {
+      const target = event.target as HTMLElement | null
+      if (!target) return
+      if (target.closest('[data-grid-item]') || target.closest('[data-grid-toolbar]')) return
+      setEditing(false)
+      setHint('已退出编辑模式，本次调整已保留')
+    }
+    window.addEventListener('pointerdown', onPointerDown, true)
+    return () => window.removeEventListener('pointerdown', onPointerDown, true)
+  }, [editing])
+
   const hidden = useMemo(() => new Set(hiddenIds ?? []), [hiddenIds])
   const ordered = useMemo(
     () => layout.filter((cell) => entries.some((entry) => entry.id === cell.id) && !hidden.has(cell.id)),
@@ -895,7 +924,7 @@ export function GridBoard({
   return (
     <div className={cn('relative', className)} ref={containerRef}>
       {toolbar ? (
-        <div className="mb-2 flex flex-wrap items-center justify-end gap-2">
+        <div className="mb-2 flex flex-wrap items-center justify-end gap-2" data-grid-toolbar>
           {hint ? (
             <span className="mr-auto text-[11px] text-[#A5B4FC]">{hint}</span>
           ) : (
@@ -908,9 +937,9 @@ export function GridBoard({
           )}
           {editing ? (
             <>
-              <Button size="sm" variant="ghost" onClick={clearLayout} title="清空页面：所有模块排列到左侧，等待重新摆放">
-                <Eraser className="h-3.5 w-3.5" />
-                一键清空
+              <Button size="sm" variant="ghost" onClick={arrangeRandom} title="随机重新排列本页所有模块">
+                <Shuffle className="h-3.5 w-3.5" />
+                一键排列
               </Button>
               <Button size="sm" variant="ghost" onClick={saveAsDefault} title="把当前布局保存为自己的默认布局">
                 <Save className="h-3.5 w-3.5" />

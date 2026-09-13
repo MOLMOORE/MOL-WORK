@@ -220,7 +220,7 @@ export function StatsPage(): JSX.Element {
   )
 
   const headerNode = (
-      <Card className="relative overflow-hidden">
+      <Card className="relative flex h-full flex-col overflow-hidden">
         <div className="pointer-events-none absolute -left-12 -top-16 h-52 w-52 rounded-full bg-info/20 blur-3xl" />
         <div className="relative flex flex-wrap items-center justify-between gap-4">
           <h2 className="text-lg font-semibold tracking-tight text-foreground">统计与复盘</h2>
@@ -256,7 +256,7 @@ export function StatsPage(): JSX.Element {
   )
 
   const allEntries: GridEntry[] = [
-    { id: 'stats-header', title: '统计区间工具条', x: 0, y: 3, w: 12, h: 2, minW: 12, minH: 2, locked: true, node: headerNode },
+    { id: 'stats-header', title: '统计区间工具条', x: 0, y: 3, w: 12, h: 2, minW: 6, minH: 2, node: headerNode },
     ...entries
   ]
 

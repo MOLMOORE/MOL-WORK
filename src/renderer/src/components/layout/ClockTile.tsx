@@ -124,7 +124,8 @@ export function ClockTile({ style, layout }: ClockTileProps): JSX.Element {
   return (
     <div
       className={cn(
-        'flex h-full w-full select-none items-center justify-center gap-3 overflow-hidden rounded-2xl border border-transparent px-3 py-2 transition-colors hover:border-border/70 hover:bg-muted/10',
+        // 悬停反馈统一由看板的磨砂蒙层提供，卡片自身不再显示边框线条
+        'flex h-full w-full select-none items-center justify-center gap-3 overflow-hidden rounded-2xl px-3 py-2',
         vertical ? 'flex-col' : 'flex-row'
       )}
       style={{ containerType: 'size' }}

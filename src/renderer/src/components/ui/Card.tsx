@@ -63,8 +63,9 @@ export function StatCard({ label, value, hint, tone = 'primary', icon, onClick, 
       onClick={onClick}
       className={cn(
         'glass-card group relative flex h-full w-full flex-col justify-center overflow-hidden p-4 text-left transition-all duration-200',
+        // 悬停不再描边（线条）：反馈统一交给看板模块的磨砂蒙层
         interactive
-          ? 'hover:-translate-y-0.5 hover:border-primary/50 hover:shadow-glow'
+          ? 'hover:-translate-y-0.5 hover:shadow-glow'
           : 'cursor-default hover:translate-y-0 hover:shadow-card',
         className
       )}
