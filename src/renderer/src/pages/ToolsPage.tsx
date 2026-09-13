@@ -152,7 +152,7 @@ export function ToolsPage(): JSX.Element {
       id: 'metric-tools',
       title: '已注册工具',
       x: 0,
-      y: 6,
+      y: 5,
       w: 3,
       h: 2,
       minW: 2,
@@ -170,7 +170,7 @@ export function ToolsPage(): JSX.Element {
       id: 'metric-deps',
       title: '外部依赖',
       x: 3,
-      y: 6,
+      y: 5,
       w: 3,
       h: 2,
       minW: 2,
@@ -189,7 +189,7 @@ export function ToolsPage(): JSX.Element {
       id: 'metric-today',
       title: '今日调用',
       x: 6,
-      y: 6,
+      y: 5,
       w: 3,
       h: 2,
       minW: 2,
@@ -202,7 +202,7 @@ export function ToolsPage(): JSX.Element {
       id: 'metric-cost',
       title: '累计工具耗时',
       x: 9,
-      y: 6,
+      y: 5,
       w: 3,
       h: 2,
       minW: 2,
@@ -213,7 +213,7 @@ export function ToolsPage(): JSX.Element {
       id: 'deps',
       title: '外部依赖状态',
       x: 0,
-      y: 8,
+      y: 19,
       w: 6,
       h: 7,
       minW: 4,
@@ -281,9 +281,9 @@ export function ToolsPage(): JSX.Element {
       {
         id: 'market',
         title: '工具集市',
-        x: 6,
-        y: 8,
-        w: 6,
+        x: 0,
+        y: 7,
+        w: 12,
         h: 12,
         minW: 5,
         minH: 6,
@@ -414,10 +414,10 @@ export function ToolsPage(): JSX.Element {
       {
         id: 'runs',
         title: '运行记录',
-        x: 0,
-        y: 15,
-        w: 12,
-        h: 8,
+        x: 6,
+        y: 19,
+        w: 6,
+        h: 7,
         minW: 6,
         minH: 5,
         node: (
@@ -482,7 +482,7 @@ export function ToolsPage(): JSX.Element {
 
   return (
     <div className="grid gap-5">
-      <PageGrid pageKey="tools" entries={entries} storageKey="workstation.grid.tools.v3" />
+      <PageGrid pageKey="tools" entries={entries} storageKey="workstation.grid.tools.v4" />
 
       <ToolDetailDrawer manifest={selected} open={selected !== null} onClose={() => select(null)} />
 

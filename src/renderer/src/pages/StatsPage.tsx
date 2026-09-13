@@ -204,17 +204,17 @@ export function StatsPage(): JSX.Element {
 
   const entries = useMemo<GridEntry[]>(
     () => [
-      { id: 'metric-focus', title: '区间专注总时长', x: 0, y: 3, w: 3, h: 2, minW: 2, minH: 2, node: metricNodes[0] },
-      { id: 'metric-completed', title: '区间完成任务', x: 3, y: 3, w: 3, h: 2, minW: 2, minH: 2, node: metricNodes[1] },
-      { id: 'metric-tools', title: '区间工具调用', x: 6, y: 3, w: 3, h: 2, minW: 2, minH: 2, node: metricNodes[2] },
-      { id: 'metric-today', title: '今日快照', x: 9, y: 3, w: 3, h: 2, minW: 2, minH: 2, node: metricNodes[3] },
-      { id: 'trend-focus', title: '投入趋势', x: 0, y: 5, w: 6, h: 6, minW: 4, minH: 4, node: trendNodes[0] },
-      { id: 'trend-output', title: '产出趋势', x: 6, y: 5, w: 6, h: 6, minW: 4, minH: 4, node: trendNodes[1] },
-      { id: 'hourly', title: '单日时段分布', x: 0, y: 11, w: 12, h: 5, minW: 6, minH: 4, node: hourlyNode },
-      { id: 'project-donut', title: '项目投入分布', x: 0, y: 16, w: 6, h: 7, minW: 5, minH: 5, node: donutNodes[0] },
-      { id: 'tool-donut', title: '工具调用分布', x: 6, y: 16, w: 6, h: 7, minW: 5, minH: 5, node: donutNodes[1] },
-      { id: 'procrastination', title: '拖延识别', x: 0, y: 23, w: 12, h: 11, minW: 6, minH: 7, node: procrastinationNode },
-      { id: 'report', title: '日报复盘', x: 0, y: 34, w: 12, h: 9, minW: 6, minH: 5, node: reportNode }
+      { id: 'metric-focus', title: '区间专注总时长', x: 0, y: 5, w: 3, h: 2, minW: 2, minH: 2, node: metricNodes[0] },
+      { id: 'metric-completed', title: '区间完成任务', x: 3, y: 5, w: 3, h: 2, minW: 2, minH: 2, node: metricNodes[1] },
+      { id: 'metric-tools', title: '区间工具调用', x: 6, y: 5, w: 3, h: 2, minW: 2, minH: 2, node: metricNodes[2] },
+      { id: 'metric-today', title: '今日快照', x: 9, y: 5, w: 3, h: 2, minW: 2, minH: 2, node: metricNodes[3] },
+      { id: 'trend-focus', title: '投入趋势', x: 0, y: 7, w: 6, h: 6, minW: 4, minH: 4, node: trendNodes[0] },
+      { id: 'trend-output', title: '产出趋势', x: 6, y: 7, w: 6, h: 6, minW: 4, minH: 4, node: trendNodes[1] },
+      { id: 'hourly', title: '单日时段分布', x: 0, y: 13, w: 12, h: 5, minW: 6, minH: 4, node: hourlyNode },
+      { id: 'project-donut', title: '项目投入分布', x: 0, y: 18, w: 6, h: 7, minW: 5, minH: 5, node: donutNodes[0] },
+      { id: 'tool-donut', title: '工具调用分布', x: 6, y: 18, w: 6, h: 7, minW: 5, minH: 5, node: donutNodes[1] },
+      { id: 'procrastination', title: '拖延识别', x: 0, y: 25, w: 12, h: 11, minW: 6, minH: 7, node: procrastinationNode },
+      { id: 'report', title: '日报复盘', x: 0, y: 36, w: 12, h: 9, minW: 6, minH: 5, node: reportNode }
     ],
     [metricNodes, trendNodes, hourlyNode, donutNodes, procrastinationNode, reportNode]
   )
@@ -269,7 +269,7 @@ export function StatsPage(): JSX.Element {
         </div>
       ) : null}
 
-      <PageGrid pageKey="stats" entries={allEntries} storageKey="workstation.grid.stats.v3" defaultClock />
+      <PageGrid pageKey="stats" entries={allEntries} storageKey="workstation.grid.stats.v4" defaultClock />
 
       <MetricDetailDialog
         kind={detail}

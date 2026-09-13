@@ -60,13 +60,19 @@ module.exports = {
           '45%': { opacity: '1', transform: 'rotateX(-16deg) translateY(3%) scale(1.02)', filter: 'brightness(1.3) blur(0px)' },
           '75%': { transform: 'rotateX(6deg) translateY(-1%) scale(0.995)', filter: 'brightness(0.95)' },
           '100%': { opacity: '1', transform: 'rotateX(0deg) translateY(0) scale(1)', filter: 'brightness(1) blur(0px)' }
+        },
+        // 编辑模式：模块微微颤动，提示「可以拖动」
+        jiggle: {
+          '0%, 100%': { transform: 'rotate(-0.55deg) scale(1)' },
+          '50%': { transform: 'rotate(0.55deg) scale(1.004)' }
         }
       },
       animation: {
         'fade-in': 'fade-in 220ms ease-out',
         'scale-in': 'scale-in 160ms ease-out',
         shimmer: 'shimmer 1.4s linear infinite',
-        'flip-in': 'flip-in 460ms cubic-bezier(0.22, 0.9, 0.32, 1.04)'
+        'flip-in': 'flip-in 460ms cubic-bezier(0.22, 0.9, 0.32, 1.04)',
+        jiggle: 'jiggle 620ms ease-in-out infinite'
       }
     }
   },

@@ -6,10 +6,11 @@ import {
   useMemo,
   useRef,
   useState,
+  type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
   type ReactNode
 } from 'react'
-import { GripVertical, LayoutDashboard, RotateCcw } from 'lucide-react'
+import { Check, Eraser, GripVertical, History, LayoutDashboard, Pencil, RotateCcw, Save } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { Button } from '../ui/Button'
 
@@ -166,9 +167,29 @@ function defaultLayout(entries: GridEntry[]): Cell[] {
   return entries.map((entry) => ({ id: entry.id, x: entry.x, y: entry.y, w: entry.w, h: entry.h }))
 }
 
-/** 合并持久化布局与当前条目：保留已有位置，新增模块回落到默认位置，移除已不存在的模块 */
-function mergeLayout(entries: GridEntry[], stored: Cell[] | null): Cell[] {
-  const fallback = defaultLayout(entries)
+/** 系统默认布局叠加「用户自定义默认布局」：用户保存过的模块优先使用自定义位置 */
+function withCustomDefaults(entries: GridEntry[], custom: Cell[] | null): Cell[] {
+  const base = defaultLayout(entries)
+  if (!custom || custom.length === 0) return base
+  return base.map((cell) => {
+    const saved = custom.find((item) => item.id === cell.id)
+    if (!saved) return cell
+    const w = clamp(Math.round(saved.w), 1, COLS)
+    const h = Math.max(1, Math.round(saved.h))
+    return { id: cell.id, x: clamp(saved.x, 0, COLS - w), y: Math.max(0, saved.y), w, h }
+  })
+}
+
+/** 文字稳定散列：给每块卡片一个固定的颤动相位，避免所有卡片同步抖动 */
+function jigglePhase(id: string): number {
+  let hash = 0
+  for (let index = 0; index < id.length; index += 1) hash = (hash * 31 + id.charCodeAt(index)) % 997
+  return (hash % 5) * 90
+}
+
+/** 合并持久化布局与当前条目：保留已有位置，新增模块回落到（自定义/系统）默认位置，移除已不存在的模块 */
+function mergeLayout(entries: GridEntry[], stored: Cell[] | null, custom: Cell[] | null = null): Cell[] {
+  const fallback = withCustomDefaults(entries, custom)
   if (!stored || stored.length === 0) return fallback
   const needsAdd = fallback.some((cell) => !stored.some((item) => item.id === cell.id))
   const needsDrop = stored.some((cell) => !fallback.some((item) => item.id === cell.id))
@@ -203,19 +224,24 @@ function readStoredLayout(storageKey: string): Cell[] | null {
   }
 }
 
-/** 八向缩放手柄：加宽命中区域 + 悬停时高亮显示，保证贴边也能抓得住 */
+/** 八向缩放手柄：细白色条纹（命中区比视觉稍宽），保证贴边也能抓得住 */
 const EDGES: { mode: DragMode; cls: string }[] = [
-  { mode: 'n', cls: 'left-3 right-3 top-0 h-2.5 cursor-ns-resize' },
-  { mode: 's', cls: 'bottom-0 left-3 right-3 h-2.5 cursor-ns-resize' },
-  { mode: 'w', cls: 'bottom-3 left-0 top-3 w-2.5 cursor-ew-resize' },
-  { mode: 'e', cls: 'bottom-3 right-0 top-3 w-2.5 cursor-ew-resize' },
-  { mode: 'nw', cls: 'left-0 top-0 h-3 w-3 cursor-nwse-resize' },
-  { mode: 'ne', cls: 'right-0 top-0 h-3 w-3 cursor-nesw-resize' },
-  { mode: 'sw', cls: 'bottom-0 left-0 h-3 w-3 cursor-nesw-resize' },
-  { mode: 'se', cls: 'bottom-0 right-0 h-3.5 w-3.5 cursor-nwse-resize' }
+  { mode: 'n', cls: 'left-4 right-4 top-0 h-1 cursor-ns-resize' },
+  { mode: 's', cls: 'bottom-0 left-4 right-4 h-1 cursor-ns-resize' },
+  { mode: 'w', cls: 'bottom-4 left-0 top-4 w-1 cursor-ew-resize' },
+  { mode: 'e', cls: 'bottom-4 right-0 top-4 w-1 cursor-ew-resize' },
+  { mode: 'nw', cls: 'left-0 top-0 h-2 w-2 cursor-nwse-resize' },
+  { mode: 'ne', cls: 'right-0 top-0 h-2 w-2 cursor-nesw-resize' },
+  { mode: 'sw', cls: 'bottom-0 left-0 h-2 w-2 cursor-nesw-resize' },
+  { mode: 'se', cls: 'bottom-0 right-0 h-2.5 w-2.5 cursor-nwse-resize' }
 ]
 
-function ResizeHandles(props: { id: string; title: string; onStart: (e: ReactPointerEvent, id: string, mode: DragMode) => void }): JSX.Element {
+function ResizeHandles(props: {
+  id: string
+  title: string
+  editing: boolean
+  onStart: (e: ReactPointerEvent, id: string, mode: DragMode) => void
+}): JSX.Element {
   return (
     <>
       {EDGES.map((edge) => (
@@ -227,7 +253,8 @@ function ResizeHandles(props: { id: string; title: string; onStart: (e: ReactPoi
           onPointerDown={(event) => props.onStart(event, props.id, edge.mode)}
           // z-20 必须高于卡片内容自身可能设置的层级，否则会被带 z-index 的卡片内容挡住而无法缩放
           className={cn(
-            'absolute z-20 rounded-full bg-primary/45 opacity-0 transition-opacity group-hover/grid-item:opacity-100',
+            'absolute z-20 rounded-full bg-white/75 transition-opacity',
+            props.editing ? 'opacity-100' : 'opacity-0 group-hover/grid-item:opacity-100',
             edge.cls
           )}
         />
@@ -242,11 +269,17 @@ interface GridItemProps {
   locked: boolean
   active: boolean
   ready: boolean
+  /** 编辑模式：整块可拖动、内容不可点击、轻微颤动 */
+  editing: boolean
   left: number
   top: number
   width: number
   height: number
   onStart: (event: ReactPointerEvent, id: string, mode: DragMode) => void
+  /** 非编辑模式下用于识别「长按进入编辑模式」 */
+  onSurfaceDown: (event: ReactPointerEvent, id: string) => void
+  /** 长按刚结束时拦截一次 click，避免误触发卡片内交互 */
+  onClickCapture: (event: ReactMouseEvent) => void
   children: ReactNode
 }
 
@@ -260,17 +293,23 @@ const GridItem = memo(function GridItem({
   locked,
   active,
   ready,
+  editing,
   left,
   top,
   width,
   height,
   onStart,
+  onSurfaceDown,
+  onClickCapture,
   children
 }: GridItemProps): JSX.Element {
+  const editable = editing && !locked
   return (
     <div
       data-grid-item={id}
-      className={cn('group/grid-item absolute left-0 top-0', active && 'z-30')}
+      onPointerDown={editable ? undefined : (event) => onSurfaceDown(event, id)}
+      onClickCapture={onClickCapture}
+      className={cn('group/grid-item absolute left-0 top-0', (active || editable) && 'z-30')}
       style={{
         width,
         height,
@@ -279,38 +318,61 @@ const GridItem = memo(function GridItem({
       }}
     >
       {/* 内容裁剪在卡片边界内：互换后尺寸变小也不会溢出到相邻卡片，避免边界侵入 */}
-      <div className="h-full overflow-hidden rounded-2xl">{children}</div>
+      <div
+        className={cn(
+          'h-full overflow-hidden rounded-2xl',
+          // 编辑模式：内容不可点击（只能拖拽/缩放），并以轻微颤动提示「可动」
+          editable && 'pointer-events-none ring-1 ring-white/25',
+          editable && !active && 'animate-jiggle'
+        )}
+        style={editable && !active ? { animationDelay: `${jigglePhase(id)}ms` } : undefined}
+      >
+        {children}
+      </div>
 
       {!locked ? (
         <>
-          {/* 拖拽把手：位于卡片顶部内边距空白处，hover 时显现 */}
-          <div
-            role="button"
-            tabIndex={-1}
-            aria-label={`拖动 ${title}`}
-            onPointerDown={(event) => onStart(event, id, 'move')}
-            className={cn(
-              'absolute inset-x-0 top-0 z-30 flex h-5 cursor-move touch-none items-center justify-center transition-opacity',
-              active ? 'opacity-100' : 'opacity-0 group-hover/grid-item:opacity-100'
-            )}
-          >
-            <span className="flex items-center gap-1 rounded-full border border-border/60 bg-background/80 px-2 py-0.5 text-[10px] text-muted-foreground backdrop-blur">
-              <GripVertical className="h-3 w-3" />
-              拖动
-            </span>
-          </div>
-          <ResizeHandles id={id} title={title} onStart={onStart} />
-          {/* 右下角圆滑缩放提示 */}
-          <svg
-            viewBox="0 0 14 14"
-            className={cn(
-              'pointer-events-none absolute bottom-1.5 right-1.5 z-10 h-3.5 w-3.5 text-muted-foreground/80 transition-opacity',
-              active ? 'opacity-100' : 'opacity-0 group-hover/grid-item:opacity-100'
-            )}
-          >
-            <path d="M13 1.5A11.5 11.5 0 0 1 1.5 13" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-            <path d="M13 5.5A7.5 7.5 0 0 1 5.5 13" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-          </svg>
+          {editable ? (
+            /* 编辑模式：无需「拖动键」，整块直接拖 */
+            <div
+              role="button"
+              tabIndex={-1}
+              aria-label={`拖动 ${title}`}
+              onPointerDown={(event) => onStart(event, id, 'move')}
+              className="absolute inset-0 z-10 cursor-move touch-none"
+            />
+          ) : (
+            /* 常规模式：拖动把手位于卡片顶部内边距空白处，hover 时显现 */
+            <div
+              role="button"
+              tabIndex={-1}
+              aria-label={`拖动 ${title}`}
+              onPointerDown={(event) => onStart(event, id, 'move')}
+              className={cn(
+                'absolute inset-x-0 top-0 z-30 flex h-5 cursor-move touch-none items-center justify-center transition-opacity',
+                active ? 'opacity-100' : 'opacity-0 group-hover/grid-item:opacity-100'
+              )}
+            >
+              <span className="flex items-center gap-1 rounded-full border border-border/60 bg-background/80 px-2 py-0.5 text-[10px] text-muted-foreground backdrop-blur">
+                <GripVertical className="h-3 w-3" />
+                拖动
+              </span>
+            </div>
+          )}
+          <ResizeHandles id={id} title={title} editing={editable} onStart={onStart} />
+          {!editable ? (
+            /* 右下角圆滑缩放提示 */
+            <svg
+              viewBox="0 0 14 14"
+              className={cn(
+                'pointer-events-none absolute bottom-1.5 right-1.5 z-10 h-3.5 w-3.5 text-muted-foreground/80 transition-opacity',
+                active ? 'opacity-100' : 'opacity-0 group-hover/grid-item:opacity-100'
+              )}
+            >
+              <path d="M13 1.5A11.5 11.5 0 0 1 1.5 13" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+              <path d="M13 5.5A7.5 7.5 0 0 1 5.5 13" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+            </svg>
+          ) : null}
         </>
       ) : null}
     </div>
@@ -333,19 +395,36 @@ export function GridBoard({
   hiddenIds,
   extraToolbar
 }: GridBoardProps): JSX.Element {
-  const [layout, setLayout] = useState<Cell[]>(() => mergeLayout(entries, readStoredLayout(storageKey)))
+  /** 用户自定义默认布局的存储键：为「重置布局」提供用户自己的基准 */
+  const defaultKey = `${storageKey}.default`
+  const [customDefault, setCustomDefault] = useState<Cell[] | null>(() => readStoredLayout(defaultKey))
+  const [layout, setLayout] = useState<Cell[]>(() =>
+    mergeLayout(entries, readStoredLayout(storageKey), readStoredLayout(defaultKey))
+  )
   const [activeId, setActiveId] = useState<string | null>(null)
   const [width, setWidth] = useState(0)
   const [ready, setReady] = useState(false)
+  /** 编辑模式：整块可拖、内容不可点、轻微颤动 */
+  const [editing, setEditing] = useState(false)
+  /** 工具栏的一次性提示文案 */
+  const [hint, setHint] = useState<string | null>(null)
 
   const containerRef = useRef<HTMLDivElement>(null)
   const layoutRef = useRef(layout)
   const entriesRef = useRef(entries)
   const dragRef = useRef<DragState | null>(null)
   const metricsRef = useRef({ stepX: 76, stepY: ROW_HEIGHT + GAP })
+  const customDefaultRef = useRef(customDefault)
+  const editingRef = useRef(editing)
+  const stackedRef = useRef(false)
+  /** 长按刚触发时拦截一次 click，避免进入编辑模式同时误触卡片按钮 */
+  const suppressClickRef = useRef(false)
+  const longPressRef = useRef<{ timer: number; x: number; y: number } | null>(null)
 
   layoutRef.current = layout
   entriesRef.current = entries
+  customDefaultRef.current = customDefault
+  editingRef.current = editing
 
   const entrySignature = entries.map((entry) => entry.id).join('|')
 
@@ -372,9 +451,16 @@ export function GridBoard({
 
   // 模块集合变化时补齐布局
   useEffect(() => {
-    setLayout((current) => mergeLayout(entriesRef.current, current))
+    setLayout((current) => mergeLayout(entriesRef.current, current, customDefaultRef.current))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entrySignature])
+
+  // 工具栏提示 3 秒后自动淡出
+  useEffect(() => {
+    if (!hint) return undefined
+    const timer = window.setTimeout(() => setHint(null), 3400)
+    return () => window.clearTimeout(timer)
+  }, [hint])
 
   // 持久化布局
   useEffect(() => {
@@ -386,6 +472,7 @@ export function GridBoard({
   }, [layout, storageKey])
 
   const stacked = width > 0 && width < STACK_BREAKPOINT
+  stackedRef.current = stacked
   const stepX = useMemo(() => Math.max(40, (width - GAP * (COLS - 1)) / COLS) + GAP, [width])
   const stepY = ROW_HEIGHT + GAP
   metricsRef.current = { stepX, stepY }
@@ -649,14 +736,137 @@ export function GridBoard({
     [stacked]
   )
 
+  /** 直接落定一整套布局（状态 + 持久化） */
+  const applyLayout = useCallback(
+    (cells: Cell[]) => {
+      layoutRef.current = cells
+      setLayout(cells)
+      try {
+        window.localStorage.setItem(storageKey, JSON.stringify(cells))
+      } catch {
+        /* 静默忽略 */
+      }
+    },
+    [storageKey]
+  )
+
+  /** 重置：优先回到「我的默认布局」，没有自定义默认时回到系统默认 */
   const resetLayout = useCallback(() => {
-    setLayout(defaultLayout(entriesRef.current))
+    const custom = customDefaultRef.current
+    applyLayout(withCustomDefaults(entriesRef.current, custom))
+    setHint(custom && custom.length > 0 ? '已回到「我的默认布局」' : '已回到系统默认布局')
+  }, [applyLayout])
+
+  /** 一键清空：所有模块保持尺寸排列到页面左侧一列，等待用户重新摆放 */
+  const clearLayout = useCallback(() => {
+    const sorted = [...layoutRef.current].sort((a, b) => a.y - b.y || a.x - b.x)
+    let cursor = 0
+    const next = sorted.map((cell) => {
+      const item = { ...cell, x: 0, y: cursor }
+      cursor += cell.h
+      return item
+    })
+    applyLayout(next)
+    setHint('已清空并排列到左侧：把模块拖到想要的位置即可')
+  }, [applyLayout])
+
+  /** 把当前布局存为「我的默认布局」，重置布局时都会回到它 */
+  const saveAsDefault = useCallback(() => {
+    const map = new Map<string, Cell>()
+    for (const cell of customDefaultRef.current ?? []) map.set(cell.id, cell)
+    for (const cell of layoutRef.current) map.set(cell.id, { ...cell })
+    const next = [...map.values()]
     try {
-      window.localStorage.removeItem(storageKey)
+      window.localStorage.setItem(defaultKey, JSON.stringify(next))
     } catch {
       /* 静默忽略 */
     }
-  }, [storageKey])
+    customDefaultRef.current = next
+    setCustomDefault(next)
+    setHint('已保存为「我的默认布局」：以后点重置就回到这里')
+  }, [defaultKey])
+
+  /** 恢复系统默认：清除自定义默认并回到各页面出厂的布局 */
+  const restoreSystemDefault = useCallback(() => {
+    try {
+      window.localStorage.removeItem(defaultKey)
+    } catch {
+      /* 静默忽略 */
+    }
+    customDefaultRef.current = null
+    setCustomDefault(null)
+    applyLayout(defaultLayout(entriesRef.current))
+    setHint('已恢复系统默认布局')
+  }, [applyLayout, defaultKey])
+
+  /** 进入编辑模式 */
+  const enterEditing = useCallback(() => {
+    setEditing(true)
+    setHint('编辑模式：直接拖动模块或拉边改变大小，模块内容暂不可点击')
+  }, [])
+
+  const cancelLongPress = useCallback(() => {
+    if (longPressRef.current) {
+      window.clearTimeout(longPressRef.current.timer)
+      longPressRef.current = null
+    }
+  }, [])
+
+  /** 长按任意模块（约 0.55 秒）即进入编辑模式 */
+  const handleSurfaceDown = useCallback(
+    (event: ReactPointerEvent, id: string) => {
+      if (editingRef.current || stackedRef.current) return
+      const entry = entriesRef.current.find((item) => item.id === id)
+      if (entry?.locked) return
+      // 落在按钮、输入框等交互元素上时不触发长按，避免误进编辑模式
+      const target = event.target as HTMLElement | null
+      if (target?.closest('button, input, select, textarea, a, [role="button"], [role="switch"]')) return
+      cancelLongPress()
+      const x = event.clientX
+      const y = event.clientY
+      longPressRef.current = {
+        x,
+        y,
+        timer: window.setTimeout(() => {
+          longPressRef.current = null
+          suppressClickRef.current = true
+          setEditing(true)
+          setHint('已通过长按进入编辑模式：拖动或拉边调整布局')
+          window.setTimeout(() => {
+            suppressClickRef.current = false
+          }, 600)
+        }, 550)
+      }
+    },
+    [cancelLongPress]
+  )
+
+  /** 长按刚结束时拦截一次 click，避免进入编辑模式的同时触发卡片内按钮 */
+  const handleClickCapture = useCallback((event: ReactMouseEvent) => {
+    if (!suppressClickRef.current) return
+    event.preventDefault()
+    event.stopPropagation()
+  }, [])
+
+  // 指针移动或抬起即取消长按
+  useEffect(() => {
+    const onMove = (event: PointerEvent): void => {
+      const press = longPressRef.current
+      if (!press) return
+      if (Math.abs(event.clientX - press.x) > 6 || Math.abs(event.clientY - press.y) > 6) cancelLongPress()
+    }
+    const onUp = (): void => cancelLongPress()
+    window.addEventListener('pointermove', onMove, { passive: true })
+    window.addEventListener('pointerup', onUp)
+    window.addEventListener('pointercancel', onUp)
+    window.addEventListener('blur', onUp)
+    return () => {
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+      window.removeEventListener('pointercancel', onUp)
+      window.removeEventListener('blur', onUp)
+    }
+  }, [cancelLongPress])
 
   const hidden = useMemo(() => new Set(hiddenIds ?? []), [hiddenIds])
   const ordered = useMemo(
@@ -686,15 +896,52 @@ export function GridBoard({
     <div className={cn('relative', className)} ref={containerRef}>
       {toolbar ? (
         <div className="mb-2 flex flex-wrap items-center justify-end gap-2">
-          <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
-            <LayoutDashboard className="h-3.5 w-3.5" />
-            拖动卡片顶部可自由摆放 · 四边与四角均可拉伸大小 · 其他卡片会自动补齐缺口
-          </span>
-          {extraToolbar}
-          <Button size="sm" variant="ghost" onClick={resetLayout} title="恢复默认布局">
-            <RotateCcw className="h-3.5 w-3.5" />
-            重置布局
-          </Button>
+          {hint ? (
+            <span className="mr-auto text-[11px] text-[#A5B4FC]">{hint}</span>
+          ) : (
+            <span className="mr-auto flex items-center gap-1 text-[11px] text-muted-foreground">
+              <LayoutDashboard className="h-3.5 w-3.5" />
+              {editing
+                ? '编辑模式：整块拖动即可摆放 · 四边与四角拉伸大小 · 模块内容暂不可点击'
+                : '拖动卡片顶部可自由摆放 · 长按任意模块进入编辑 · 四边与四角可拉伸大小'}
+            </span>
+          )}
+          {editing ? (
+            <>
+              <Button size="sm" variant="ghost" onClick={clearLayout} title="清空页面：所有模块排列到左侧，等待重新摆放">
+                <Eraser className="h-3.5 w-3.5" />
+                一键清空
+              </Button>
+              <Button size="sm" variant="ghost" onClick={saveAsDefault} title="把当前布局保存为自己的默认布局">
+                <Save className="h-3.5 w-3.5" />
+                保存为我的默认
+              </Button>
+              <Button size="sm" variant="ghost" onClick={restoreSystemDefault} title="删除自定义默认布局，回到系统出厂布局">
+                <History className="h-3.5 w-3.5" />
+                恢复系统默认
+              </Button>
+              <Button size="sm" variant="secondary" onClick={resetLayout} title="回到我的默认布局（未设置时回到系统默认）">
+                <RotateCcw className="h-3.5 w-3.5" />
+                重置
+              </Button>
+              <Button size="sm" variant="primary" onClick={() => setEditing(false)}>
+                <Check className="h-3.5 w-3.5" />
+                完成
+              </Button>
+            </>
+          ) : (
+            <>
+              {extraToolbar}
+              <Button size="sm" variant="ghost" onClick={resetLayout} title="回到默认布局">
+                <RotateCcw className="h-3.5 w-3.5" />
+                重置布局
+              </Button>
+              <Button size="sm" variant="secondary" onClick={enterEditing} title="进入编辑模式，自由调整模块位置与大小">
+                <Pencil className="h-3.5 w-3.5" />
+                编辑布局
+              </Button>
+            </>
+          )}
         </div>
       ) : null}
 
@@ -710,11 +957,14 @@ export function GridBoard({
               locked={Boolean(entry.locked)}
               active={activeId === cell.id}
               ready={ready}
+              editing={editing}
               left={cell.x * stepX}
               top={cell.y * stepY}
               width={cell.w * stepX - GAP}
               height={cell.h * ROW_HEIGHT + (cell.h - 1) * GAP}
               onStart={startInteraction}
+              onSurfaceDown={handleSurfaceDown}
+              onClickCapture={handleClickCapture}
             >
               {entry.node}
             </GridItem>

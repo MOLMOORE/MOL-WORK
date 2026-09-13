@@ -358,7 +358,7 @@ export function PomodoroPage(): JSX.Element {
       x: 7,
       y: 5,
       w: 5,
-      h: 8,
+      h: 7,
       minW: 4,
       minH: 5,
       node: (
@@ -437,7 +437,7 @@ export function PomodoroPage(): JSX.Element {
       id: 'help',
       title: '使用说明',
       x: 7,
-      y: 13,
+      y: 12,
       w: 5,
       h: 4,
       minW: 4,
@@ -459,7 +459,7 @@ export function PomodoroPage(): JSX.Element {
 
   return (
     <div className="grid gap-5">
-      <PageGrid pageKey="pomodoro" entries={entries} storageKey="workstation.grid.pomodoro.v3" />
+      <PageGrid pageKey="pomodoro" entries={entries} storageKey="workstation.grid.pomodoro.v4" />
       <PomodoroStatsDialog chart={chart} config={config} onClose={() => setChart(null)} />
     </div>
   )
