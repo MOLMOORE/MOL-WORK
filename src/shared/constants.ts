@@ -103,6 +103,11 @@ export const DEFAULT_SETTINGS: AppSettings = {
   dialogSound: true,
   clockStyle: 'flip',
   clockLayout: 'date-bottom',
+  clockFontSize: 0,
+  clockFontWeight: 700,
+  clockWidthScale: 100,
+  clockHeightScale: 100,
+  clockLetterSpacing: 0,
   debugMode: false,
   closeAction: 'ask',
   dataDir: ''

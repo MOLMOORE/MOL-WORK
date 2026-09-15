@@ -16,7 +16,15 @@ export type PomodoroPhase = 'focus' | 'shortBreak' | 'longBreak'
  * 时钟风格（只描述“时间怎么显示”）：flip=翻页大字，minimal=极简纯数字，ring=秒环，mono=终端等宽。
  * stacked 为 1.1.15 及更早的遗留值（等价于 flip + 日期在上），读取时自动归一化，不再作为可选项。
  */
-export type ClockStyle = 'flip' | 'minimal' | 'ring' | 'mono' | 'stacked'
+export type ClockStyle =
+  | 'flip'
+  | 'minimal'
+  | 'ring'
+  | 'mono'
+  | 'analog'
+  | 'dot'
+  | 'stack'
+  | 'stacked'
 /** 时钟摆放（只描述“日期相对时间的位置”）：可与任意风格自由组合 */
 export type ClockLayout = 'date-top' | 'date-bottom' | 'date-left' | 'date-right'
 
@@ -458,6 +466,16 @@ export interface AppSettings {
   clockStyle: ClockStyle
   /** 页面时钟摆放（日期相对时间的位置），与风格相互独立 */
   clockLayout: ClockLayout
+  /** 时钟字号（px）；0 = 随时块尺寸自适应，>0 时按该值但仍不超出方块（永不裁切） */
+  clockFontSize: number
+  /** 时钟字重（100-900，步进 100） */
+  clockFontWeight: number
+  /** 时钟横向拉伸（%）：把数字沿水平方向压扁或拉长 */
+  clockWidthScale: number
+  /** 时钟纵向拉伸（%）：把数字沿垂直方向压扁或拉长 */
+  clockHeightScale: number
+  /** 时钟字距（0.01em，可为负值收紧） */
+  clockLetterSpacing: number
   /** 调试模式：开启后关闭窗口直接退出，不弹出「进入后台 / 真正关闭」确认 */
   debugMode: boolean
   /** 点击窗口关闭按钮的行为：ask=每次询问 background=进入后台 exit=直接退出 */

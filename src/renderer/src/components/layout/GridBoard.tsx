@@ -351,11 +351,7 @@ const GridItem = memo(function GridItem({
         {children}
       </div>
 
-      {/* 悬停提示：覆盖一层淡淡的白色柔光（不做模糊处理，模块内文字与图片依然清晰锐利） */}
-      {!editable && !locked ? (
-        <div className="pointer-events-none absolute inset-0 z-20 rounded-2xl bg-white/[0.05] opacity-0 transition-opacity duration-200 group-hover/grid-item:opacity-100" />
-      ) : null}
-
+      {/* 悬停不再叠加柔光/模糊层：模块内容始终按原样显示 */}
       {!locked ? (
         <>
           {editable ? (
@@ -379,7 +375,7 @@ const GridItem = memo(function GridItem({
                 active ? 'opacity-100' : 'opacity-0 group-hover/grid-item:opacity-100'
               )}
             >
-              <span className="flex items-center gap-1 rounded-full border border-border/60 bg-background/80 px-2 py-0.5 text-[10px] text-muted-foreground backdrop-blur">
+              <span className="flex items-center gap-1 rounded-full border border-border/60 bg-background px-2 py-0.5 text-[10px] text-muted-foreground shadow-sm">
                 <GripVertical className="h-3 w-3" />
                 拖动
               </span>
@@ -772,62 +768,88 @@ export function GridBoard({
   }, [applyLayout])
 
   /**
-   * 一键排列：同组（功能/样式相近，按 group 或 id 前缀划分）的模块先聚在一起，
-   * 再按行紧凑铺满——行内按比例重新分配宽度填满整行、统一行高，模块因此紧贴四边、几乎不留空隙；
-   * 组内顺序随机，保证每次排列结果都不同。
+   * 一键排列：顺序随机 + 宽高随机 + 整页紧贴铺满。
+   * - 先按功能分组（group，缺省用 id 前缀）聚拢，组间与组内顺序都随机，所以每次点都不一样；
+   * - 每个模块抽一个随机权重，行内按权重分配宽度，每一行必定占满 12 列；
+   * - 每行的行高在「该行最低要求」之上再随机加 0-3 格，于是宽高都随机；
+   * - 行与行自上而下紧密堆叠，页面不会出现大块空白。
    */
   const arrangeRandom = useCallback(() => {
     const entryMap = new Map(entriesRef.current.map((entry) => [entry.id, entry]))
     const groupOf = (cell: Cell): string => entryMap.get(cell.id)?.group ?? cell.id.split('-')[0]
-    const cells = layoutRef.current.map((cell) => ({ ...cell }))
-    const groupRank = new Map<string, number>()
-    ;[...cells]
-      .sort((a, b) => a.y - b.y || a.x - b.x)
-      .forEach((cell) => {
-        const key = groupOf(cell)
-        if (!groupRank.has(key)) groupRank.set(key, groupRank.size)
-      })
-    const ordered = [...cells].sort((a, b) => {
-      const rankA = groupRank.get(groupOf(a)) ?? 0
-      const rankB = groupRank.get(groupOf(b)) ?? 0
-      if (rankA !== rankB) return rankA - rankB
-      return Math.random() - 0.5
-    })
+    const minHOf = (id: string): number => Math.max(2, entryMap.get(id)?.minH ?? 2)
+    const minWOf = (id: string): number => Math.max(2, entryMap.get(id)?.minW ?? 2)
 
-    // 逐行填充：整行装不下就换行
+    // 同组排在一起，组间与组内顺序随机
+    const groups = new Map<string, Cell[]>()
+    for (const cell of layoutRef.current) {
+      const key = groupOf(cell)
+      const bucket = groups.get(key)
+      if (bucket) bucket.push(cell)
+      else groups.set(key, [cell])
+    }
+    const ordered: Cell[] = []
+    for (const bucket of [...groups.values()].sort(() => Math.random() - 0.5)) {
+      ordered.push(...bucket.sort(() => Math.random() - 0.5))
+    }
+
+    // 随机权重决定每块占多宽；一行最多 4 块，保证每块都够宽
+    const weight = new Map(ordered.map((cell) => [cell.id, 0.55 + Math.random() * 2.1]))
     const rows: Cell[][] = []
     let row: Cell[] = []
-    let rowWidth = 0
-    for (const cell of ordered) {
-      const w = Math.max(2, Math.min(COLS, Math.round(cell.w)))
-      if (row.length > 0 && rowWidth + w > COLS) {
+    let acc = 0
+    let minWidths = 0
+    const flush = (): void => {
+      if (row.length > 0) {
         rows.push(row)
         row = []
-        rowWidth = 0
+        acc = 0
+        minWidths = 0
       }
-      row.push({ ...cell, w })
-      rowWidth += w
     }
-    if (row.length > 0) rows.push(row)
+    for (const cell of ordered) {
+      const need = minWOf(cell.id)
+      if (row.length > 0 && (acc + (weight.get(cell.id) ?? 1) > 3.4 || row.length >= 4 || minWidths + need > COLS)) flush()
+      row.push(cell)
+      acc += weight.get(cell.id) ?? 1
+      minWidths += need
+    }
+    flush()
 
-    // 行内按比例重新分配宽度填满整行、统一行高 → 模块紧贴四边
+    // 行内按权重分宽并强制占满 12 列；行高随机；行与行紧密堆叠
     const placed: Cell[] = []
     let y = 0
     for (const rowCells of rows) {
-      const rowHeight = Math.max(...rowCells.map((cell) => cell.h))
-      const totalWidth = rowCells.reduce((sum, cell) => sum + cell.w, 0)
+      const total = rowCells.reduce((sum, cell) => sum + (weight.get(cell.id) ?? 1), 0)
+      const widths = rowCells.map((cell) =>
+        Math.max(minWOf(cell.id), Math.min(COLS - (rowCells.length - 1), Math.round(((weight.get(cell.id) ?? 1) / total) * COLS)))
+      )
+      // 把行宽精确校正到 12 列：偏窄就加给最宽的一块，偏宽就从最宽且仍高于下限的一块扣掉
+      let diff = COLS - widths.reduce((sum, value) => sum + value, 0)
+      while (diff > 0) {
+        widths[widths.indexOf(Math.max(...widths))] += 1
+        diff -= 1
+      }
+      while (diff < 0) {
+        const widest = Math.max(...widths)
+        const index = widths.findIndex((value, at) => value === widest && value > minWOf(rowCells[at].id))
+        if (index < 0) break
+        widths[index] -= 1
+        diff += 1
+      }
+      const floorH = Math.max(...rowCells.map((cell) => minHOf(cell.id)))
+      const rowHeight = floorH + Math.floor(Math.random() * 4)
       let x = 0
       rowCells.forEach((cell, index) => {
-        const target = index === rowCells.length - 1 ? COLS - x : Math.max(2, Math.round((cell.w / totalWidth) * COLS))
-        const width = Math.max(1, Math.min(target, COLS - x))
-        placed.push({ ...cell, x, y, w: width, h: rowHeight })
-        x += width
+        placed.push({ ...cell, x, y, w: widths[index], h: rowHeight })
+        x += widths[index]
       })
       y += rowHeight
     }
     applyLayout(placed)
-    setHint('已按「功能相近 + 紧贴四边」重排本页模块，可继续拖动微调')
+    setHint('已随机重排：顺序与宽高都随机，同组相邻且整页紧贴铺满，可继续拖动微调')
   }, [applyLayout])
+
 
   /** 把当前布局存为「我的默认布局」，重置布局时都会回到它 */
   const saveAsDefault = useCallback(() => {

@@ -19,6 +19,8 @@ const { chromium } = require('playwright');
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const BUILD = path.join(ROOT, 'build');
+// 侧边栏用的品牌图标也在这里生成，保证界面图标与安装包图标永远同源
+const RENDERER_ASSETS = path.join(ROOT, 'src', 'renderer', 'src', 'assets');
 
 // ---- locked geometry ------------------------------------------------------
 // Glyph space: x 0..200, y 0..100 (y grows downward). One polyline, pen never lifts.
@@ -83,7 +85,7 @@ function buildIco(pngs) {
   return Buffer.concat([header, ...entries, ...ICO_SIZES.map((s) => pngs[s])]);
 }
 
-const sizes = [...ICO_SIZES, 1024];
+const sizes = [...ICO_SIZES, 128, 1024];
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 200, height: 200 } });
 await page.goto('about:blank');
@@ -113,7 +115,10 @@ fs.mkdirSync(BUILD, { recursive: true });
 fs.writeFileSync(path.join(BUILD, 'icon.png'), pngs[1024]);
 fs.writeFileSync(path.join(BUILD, 'icon.ico'), buildIco(pngs));
 fs.writeFileSync(path.join(BUILD, 'tray.png'), tray);
+fs.mkdirSync(RENDERER_ASSETS, { recursive: true });
+fs.writeFileSync(path.join(RENDERER_ASSETS, 'app-icon.png'), pngs[128]);
 
 console.log('build/icon.png  ' + pngs[1024].length + ' bytes (1024, transparent)');
 console.log('build/icon.ico  ' + fs.statSync(path.join(BUILD, 'icon.ico')).size + ' bytes (' + ICO_SIZES.join('/') + ')');
 console.log('build/tray.png  ' + tray.length + ' bytes (32, transparent)');
+console.log('src/renderer/src/assets/app-icon.png  ' + pngs[128].length + ' bytes (128, for the sidebar)');

@@ -44,7 +44,10 @@ const CLOCK_STYLES: { key: ClockStyle; label: string; hint: string }[] = [
   { key: 'flip', label: '翻页', hint: '大号时分秒配合翻页动画，最贴合本站默认气质。' },
   { key: 'minimal', label: '极简', hint: '细体数字 + 小号秒，留白充足、观感安静。' },
   { key: 'ring', label: '秒环', hint: '秒环随秒针走一圈，旁边显示时分。' },
-  { key: 'mono', label: '终端', hint: '等宽字体与括号包裹，终端 / 极客风格。' }
+  { key: 'mono', label: '终端', hint: '等宽字体与括号包裹，终端 / 极客风格。' },
+  { key: 'analog', label: '表盘', hint: '指针表盘 + 时分数字，最安静的传统读法。' },
+  { key: 'dot', label: '圆点', hint: '时 · 分 · 秒用圆点分隔的大号数字。' },
+  { key: 'stack', label: '竖排', hint: '时 / 分 / 秒三行竖排，适合瘦高的小方块。' }
 ]
 
 /** 可选时钟摆放（只描述日期相对时间的位置，与风格自由组合） */
@@ -55,8 +58,65 @@ const CLOCK_LAYOUTS: { key: ClockLayout; label: string; hint: string }[] = [
   { key: 'date-right', label: '日期在右', hint: '时间在左、日期在右' }
 ]
 
+/** 时钟形状微调的默认值（字号 0 = 随方块尺寸自适应） */
+const CLOCK_SHAPE_DEFAULTS = {
+  clockFontSize: 0,
+  clockFontWeight: 700,
+  clockWidthScale: 100,
+  clockHeightScale: 100,
+  clockLetterSpacing: 0
+} satisfies Partial<AppSettings>
+
+/** 单行滑块：左侧名称、右侧当前值，下方一条细轨道 */
+function ClockRange(props: {
+  label: string
+  value: number
+  min: number
+  max: number
+  step: number
+  unit?: string
+  note?: string
+  onChange: (value: number) => void
+}): JSX.Element {
+  const { label, value, min, max, step, unit = '', note, onChange } = props
+  return (
+    <div className="grid gap-1">
+      <div className="flex items-baseline justify-between text-[11px]">
+        <span className="text-muted-foreground">{label}</span>
+        <span className="tabular-nums text-foreground">
+          {value}
+          {unit}
+          {note ? <span className="ml-1 text-muted-foreground/70">{note}</span> : null}
+        </span>
+      </div>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        aria-label={label}
+        onChange={(event) => onChange(Number(event.target.value))}
+        className="w-full cursor-pointer accent-foreground"
+      />
+    </div>
+  )
+}
+
 /** 版本更新日志（新版本发布时在最上方追加一条） */
 const CHANGELOG: { version: string; date: string; items: string[] }[] = [
+  {
+    version: '1.2.2',
+    date: '2026-09-15',
+    items: [
+      '「一键排列」重做为真随机：顺序与宽高都随机，每行占满 12 列、行间紧密堆叠，不再留大块空白，同组模块仍相邻',
+      '侧边栏左上角改用与安装包同源的软件图标，文字换成黑白简约字标（宽字距称呼 + 细线副行）',
+      '移除模块悬停时的柔光与毛玻璃效果，「拖动」标签改为实底',
+      '修复时钟在小方块里显示不全：字号按方块宽高自适应，任何尺寸都完整显示；方块过小时自动隐藏日期',
+      '时钟新增表盘、圆点、竖排三种风格（共 7 种），并新增字号 / 笔画粗细 / 横向纵向拉伸 / 字距的形状微调，可一键恢复默认',
+      'npm run make-icon 同时生成侧边栏图标，界面图标与安装包图标同源'
+    ]
+  },
   {
     version: '1.2.1',
     date: '2026-09-15',
@@ -382,10 +442,71 @@ export function SettingsPage(): JSX.Element {
               <div className="h-[150px] overflow-hidden rounded-xl border border-border/70 bg-background/40">
                 <ClockTile style={clockStyle} layout={clockLayout} />
               </div>
+              <div className="grid gap-2.5 border-t border-border/60 pt-3">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-xs font-medium text-muted-foreground">形状微调（字号 / 粗细 / 长宽 / 字距）</p>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    title="恢复自适应字号与默认形状"
+                    onClick={() => void patch(CLOCK_SHAPE_DEFAULTS)}
+                  >
+                    恢复默认
+                  </Button>
+                </div>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-2.5">
+                  <ClockRange
+                    label="字号"
+                    value={draft.clockFontSize ?? 0}
+                    min={0}
+                    max={160}
+                    step={2}
+                    unit={draft.clockFontSize ? 'px' : ''}
+                    note={draft.clockFontSize ? '' : '自动'}
+                    onChange={(value) => void patch({ clockFontSize: value })}
+                  />
+                  <ClockRange
+                    label="笔画粗细"
+                    value={draft.clockFontWeight ?? 700}
+                    min={100}
+                    max={900}
+                    step={100}
+                    onChange={(value) => void patch({ clockFontWeight: value })}
+                  />
+                  <ClockRange
+                    label="横向拉伸"
+                    value={draft.clockWidthScale ?? 100}
+                    min={40}
+                    max={240}
+                    step={5}
+                    unit="%"
+                    onChange={(value) => void patch({ clockWidthScale: value })}
+                  />
+                  <ClockRange
+                    label="纵向拉伸"
+                    value={draft.clockHeightScale ?? 100}
+                    min={40}
+                    max={240}
+                    step={5}
+                    unit="%"
+                    onChange={(value) => void patch({ clockHeightScale: value })}
+                  />
+                  <ClockRange
+                    label="字距"
+                    value={draft.clockLetterSpacing ?? 0}
+                    min={-8}
+                    max={50}
+                    step={1}
+                    unit="×0.01em"
+                    onChange={(value) => void patch({ clockLetterSpacing: value })}
+                  />
+                </div>
+              </div>
               <p className="text-[11px] text-muted-foreground/80">
                 {CLOCK_STYLES.find((item) => item.key === clockStyle)?.hint ?? ''}
                 {CLOCK_LAYOUTS.find((item) => item.key === clockLayout)?.hint ?? ''}。
-                每种风格都能自由搭配任意摆放；时钟方块默认只在仪表盘显示，其余页面可用看板右上角的「添加时钟」按钮随时加入。
+                每种风格都能自由搭配任意摆放与形状微调；字号为 0 时随时块大小自适应，
+                无论方块多小都会完整显示时间（不再出现只露半截的数字），方块太小时自动隐藏日期行。
               </p>
             </div>
             <div className="grid grid-cols-2 gap-4">

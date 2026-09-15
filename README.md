@@ -275,7 +275,7 @@ runner.run()     ──►  执行并返回 outputs / preview / resultPath
 
 ```powershell
 npm run dist
-# 产物：release\PersonalWorkstation-Setup-1.2.1.exe（约 94 MB，NSIS 可选安装目录）
+# 产物：release\PersonalWorkstation-Setup-1.2.2.exe（约 94 MB，NSIS 可选安装目录）
 ```
 
 若打包时无法访问 GitHub（electron-builder 需要下载 Electron 与 NSIS 二进制），可切换到国内镜像：
@@ -313,7 +313,8 @@ npm run dist
 | 应用图标（v1.2.1） | 矢量 MW 连字 → Chromium 逐尺寸原生栅格化，回读校验 ICO 头/条目数/PNG 签名 | ✅ 7 个尺寸全部有效 |
 | 图标透明与注入（v1.2.1） | 逐条目 alpha 校验 + 在 exe 与安装包内逐字节比对 7 个图标条目 + `builder-debug.yml` 确认 `installer.nsh` 已编译进安装包 | ✅ 角落 alpha=0，7/7 条目一致，钩子已生效 |
 | 日报导出 | 界面点击「导出日报」→ 落盘 + 定位文件 | ✅ 生成 `reports\日报-YYYY-MM-DD.md` |
-| Windows 分发 | `npm run dist` | ✅ `release\PersonalWorkstation-Setup-1.2.1.exe`（约 94 MB） |
+| Windows 分发 | `npm run dist` | ✅ `release\PersonalWorkstation-Setup-1.2.2.exe`（约 94 MB） |
+| 布局与时钟回归（v1.2.2） | 一键排列随机铺满无空隙、小方块时钟完整显示、7 种风格 × 4 种摆放、形状微调实时预览 | ✅ 通过 |
 
 自检覆盖的 9 个用例：Markdown → DOCX（Pandoc）、DOCX → Markdown（Pandoc）、WAV → MP3（FFmpeg）、
 单位换算、电路计算、学习卡片（联动复习计划）、网页正文提取（Playwright）、整页截图（Playwright）、网络资源下载（yt-dlp）。

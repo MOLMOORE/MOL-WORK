@@ -3,7 +3,6 @@ import { NavLink } from 'react-router-dom'
 import {
   BarChart3,
   ChevronLeft,
-  Layers3,
   LayoutDashboard,
   ListChecks,
   Moon,
@@ -13,6 +12,7 @@ import {
   Timer,
   Wrench
 } from 'lucide-react'
+import appIcon from '../../assets/app-icon.png'
 import { useAppStore } from '../../stores/appStore'
 import { cn } from '../../lib/utils'
 
@@ -48,13 +48,17 @@ export function Sidebar(): JSX.Element {
       )}
     >
       <div className="flex items-center gap-2.5 px-4 py-4">
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#6366F1] to-[#7C3AED] shadow-glow">
-          <Layers3 className="h-4.5 w-4.5 text-white" />
-        </div>
+        {/* 与安装包同源的软件图标（由 npm run make-icon 生成） */}
+        <img src={appIcon} alt="个人工作站" draggable={false} className="h-9 w-9 shrink-0 select-none" />
         {!collapsed ? (
-          <div className="min-w-0">
-            <p className="truncate text-sm font-semibold tracking-tight text-foreground">
-              {(settings?.userName ?? 'MOL').trim() || 'MOL'}的工作站
+          /* 黑白简约字标：称呼用宽字距大写感，副行用细线 + 极宽字距压住节奏 */
+          <div className="min-w-0 leading-none">
+            <p className="truncate text-[13px] font-bold uppercase tracking-[0.16em] text-foreground">
+              {(settings?.userName ?? 'MOL').trim() || 'MOL'}
+            </p>
+            <p className="mt-1.5 flex items-center gap-1.5 text-[10px] tracking-[0.3em] text-muted-foreground">
+              <span className="inline-block h-px w-3 shrink-0 bg-current opacity-60" />
+              的工作站
             </p>
           </div>
         ) : null}

@@ -96,12 +96,13 @@
 }
 
 @layer components {
+  /* 模块卡片：实底、无毛玻璃采样，悬停时不做位移与发光（避免出现「模糊」观感） */
   .glass-card {
-    @apply rounded-2xl border border-border/70 bg-card/70 shadow-card backdrop-blur-xl transition-all duration-200;
+    @apply rounded-2xl border border-border/70 bg-card shadow-card transition-colors duration-200;
   }
 
   .glass-card-hover {
-    @apply glass-card hover:-translate-y-0.5 hover:border-primary/50 hover:shadow-glow;
+    @apply glass-card hover:border-primary/50;
   }
 
   .gradient-text {

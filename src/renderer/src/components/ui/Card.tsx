@@ -63,14 +63,14 @@ export function StatCard({ label, value, hint, tone = 'primary', icon, onClick, 
       onClick={onClick}
       className={cn(
         'glass-card group relative flex h-full w-full flex-col justify-center overflow-hidden p-4 text-left transition-all duration-200',
-        // 悬停不再描边（线条）：反馈统一交给看板模块的磨砂蒙层
+        // 悬停只做极轻的高亮：不位移、不发光、不加模糊
         interactive
-          ? 'hover:-translate-y-0.5 hover:shadow-glow'
-          : 'cursor-default hover:translate-y-0 hover:shadow-card',
+          ? 'hover:border-primary/50'
+          : 'cursor-default',
         className
       )}
     >
-      <div className={cn('absolute inset-0 bg-gradient-to-br opacity-70 transition-opacity group-hover:opacity-100', TONES[tone])} />
+      <div className={cn('absolute inset-0 bg-gradient-to-br opacity-70', TONES[tone])} />
       <div className="relative flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">{label}</p>
@@ -78,7 +78,7 @@ export function StatCard({ label, value, hint, tone = 'primary', icon, onClick, 
           {hint ? <p className="mt-1 truncate text-xs text-muted-foreground">{hint}</p> : null}
         </div>
         {icon ? (
-          <div className={cn('shrink-0 rounded-xl bg-background/60 p-2 transition-transform group-hover:scale-105', TONES[tone])}>
+          <div className={cn('shrink-0 rounded-xl bg-background/60 p-2', TONES[tone])}>
             {icon}
           </div>
         ) : null}
