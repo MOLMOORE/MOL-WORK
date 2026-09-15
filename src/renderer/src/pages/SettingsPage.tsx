@@ -58,6 +58,19 @@ const CLOCK_LAYOUTS: { key: ClockLayout; label: string; hint: string }[] = [
 /** 版本更新日志（新版本发布时在最上方追加一条） */
 const CHANGELOG: { version: string; date: string; items: string[] }[] = [
   {
+    version: '1.2.1',
+    date: '2026-09-15',
+    items: [
+      '修复桌面图标仍有白底：白底来自 Windows 图标缓存，安装程序结束时主动刷新图标缓存，升级后无需注销即可看到新图标',
+      '新增 scripts/make-icon.mjs（npm run make-icon）：图标改为可复现的矢量脚本生成，改笔画宽度即可重出全尺寸图标，不依赖在线生图服务',
+      '图标去除后方白色背景，改为透明底（只保留黑色圆角瓦片本体），任务栏与 Alt-Tab 不再出现白边方块',
+      '托盘改用同一枚图标：随包分发 build/tray.png，读取失败时自动回退到内置方块',
+      '新增应用图标：黑色圆角瓦片 + 白色镂空「MW」连写字母（M 的右竖即 W 的左竖，一笔连成），替换此前的 Electron 默认图标',
+      '图标由矢量参数生成并逐尺寸做光学修正：16/24/32/48/64px 分别加粗笔画、放大瓦片，托盘与任务栏小尺寸下不再糊成一团',
+      '新增 build/icon.png（1024）与 build/icon.ico（16/24/32/48/64/128/256 全尺寸集），快捷方式随之显示新图标'
+    ]
+  },
+  {
     version: '1.2.0',
     date: '2026-09-14',
     items: [

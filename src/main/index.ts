@@ -1,4 +1,5 @@
 import { app, BrowserWindow, Menu, nativeImage, Notification, shell, Tray, type NativeImage } from 'electron'
+import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { closeDatabase, initDatabase } from './db/connection'
 import { registerIpcHandlers } from './ipc'
@@ -20,15 +21,27 @@ if (process.env.WORKSTATION_SELFTEST === '1') {
   app.setPath('userData', join(app.getPath('temp'), 'workstation-selftest'))
 }
 
-/** 生成 16x16 的纯色托盘图标（品牌紫） */
+/**
+ * 托盘图标：优先读取随包分发的 build/tray.png（与窗口图标同源、透明底），
+ * 读取失败时回退到程序内生成的纯黑方块，保证托盘永远可用。
+ */
 function createTrayImage(): NativeImage {
+  const inBuild = join(app.getAppPath(), 'build')
+  const trayFile = existsSync(join(inBuild, 'tray.png')) ? join(inBuild, 'tray.png') : join(inBuild, 'icon.png')
+  try {
+    const image = nativeImage.createFromPath(trayFile)
+    if (!image.isEmpty()) return image.resize({ width: 16, height: 16 })
+    logger.warn('托盘图标解析为空，回退到内置方块：' + trayFile)
+  } catch (error) {
+    logger.warn('托盘图标读取失败，回退到内置方块', error)
+  }
   const size = 16
   const buffer = Buffer.alloc(size * size * 4)
   for (let i = 0; i < size * size; i++) {
-    buffer[i * 4] = 0xf1 // B
-    buffer[i * 4 + 1] = 0x66 // G
-    buffer[i * 4 + 2] = 0x63 // R
-    buffer[i * 4 + 3] = 0xff // A
+    buffer[i * 4] = 0x00
+    buffer[i * 4 + 1] = 0x00
+    buffer[i * 4 + 2] = 0x00
+    buffer[i * 4 + 3] = 0xff
   }
   return nativeImage.createFromBuffer(buffer, { width: size, height: size })
 }

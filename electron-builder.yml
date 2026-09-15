@@ -12,6 +12,8 @@ npmRebuild: false
 files:
   - out/**/*
   - package.json
+  # 托盘图标随包分发（主进程用 app.getAppPath() 读取）
+  - build/tray.png
   - '!**/*.map'
 
 # Playwright 需要以真实文件形式存在于磁盘上（asar 内无法定位驱动与浏览器）
@@ -20,7 +22,7 @@ asarUnpack:
   - '**/node_modules/playwright-core/**'
 
 win:
-  # 应用图标：将 1024x1024 的 build/icon.png 放入后即可自动转换为 .ico（当前使用 Electron 默认图标）
+  # 应用图标：build/icon.ico 优先（16/24/32/48/64/128/256 全尺寸），build/icon.png 为 1024 透明底母版
   artifactName: PersonalWorkstation-Setup-${version}.${ext}
   target:
     - target: nsis

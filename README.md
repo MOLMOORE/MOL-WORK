@@ -265,6 +265,7 @@ runner.run()     ──►  执行并返回 outputs / preview / resultPath
 | `npm run build` | 构建主进程 / preload / 渲染层到 `out/` |
 | `npm run check-tools` | 命令行检测外部依赖可用性与版本（与主进程同一套解析逻辑） |
 | `npm run selftest` | 以主进程身份真实执行全部工具，输出结构化自检结果（数据写入系统临时目录） |
+| `npm run make-icon` | 重新生成 `build/icon.png` / `build/icon.ico` / `build/tray.png`（本地 Chromium 渲染，不联网、不计费） |
 | `npm run dist` | 构建并用 electron-builder 打包 Windows NSIS 安装包到 `release/` |
 
 > 说明：本机 `npm` 出于安全策略默认拦截依赖的 install 脚本，首次安装后若 Electron 二进制未下载，
@@ -274,7 +275,7 @@ runner.run()     ──►  执行并返回 outputs / preview / resultPath
 
 ```powershell
 npm run dist
-# 产物：release\PersonalWorkstation-Setup-1.2.0.exe（约 94 MB，NSIS 可选安装目录）
+# 产物：release\PersonalWorkstation-Setup-1.2.1.exe（约 94 MB，NSIS 可选安装目录）
 ```
 
 若打包时无法访问 GitHub（electron-builder 需要下载 Electron 与 NSIS 二进制），可切换到国内镜像：
@@ -289,7 +290,8 @@ npm run dist
 
 - 无原生模块（数据库使用 Electron 内置 `node:sqlite`），已设置 `npmRebuild: false` 跳过依赖重建
 - `playwright` / `playwright-core` 通过 `asarUnpack` 解包到磁盘，打包后网页提取工具仍可正常启动 Chromium
-- 应用图标：把 1024×1024 的 PNG 放到 `build/icon.png`，electron-builder 会自动转换为 `.ico`（缺省时使用 Electron 默认图标）
+- 应用图标：仓库已内置 `build/icon.png`（1024×1024，**透明底**）、`build/icon.ico`（16/24/32/48/64/128/256）与托盘用的 `build/tray.png`（32×32）；electron-builder 直接采用 `.ico`，托盘由主进程读取 `tray.png`（失败时回退内置方块）；微调笔画后执行 `npm run make-icon` 即可重新生成这三个文件
+- 图标缓存：`build/installer.nsh` 在 `customInstall` 里调用 `SHChangeNotify` 与 `ie4uinit -show`，安装/升级后立刻刷新桌面图标，避免继续显示旧版带白底的缓存图标
 - 打包产物可直接用同一套自检验证：`$env:WORKSTATION_SELFTEST='1'; .\release\win-unpacked\个人工作站.exe`
 
 ---
@@ -308,8 +310,10 @@ npm run dist
 | 交互细节回归（v1.1.18） | CDP 驱动真实窗口验证悬停蒙层 / 长按 / 统计工具条拖拽缩放 / 空白退出 / 一键排列 | ✅ 15 / 15 通过 |
 | 悬停与排布回归（v1.1.19） | CDP 驱动真实窗口验证悬停柔光不模糊、白条贴边 2px、紧凑排列 | ✅ 10 / 10 通过 |
 | 排布与交互回归（v1.2.0） | CDP 驱动真实窗口验证分组紧凑排列 / 缩放精准弹开 / 工具页指标卡明细 | ✅ 12 / 12 通过 |
+| 应用图标（v1.2.1） | 矢量 MW 连字 → Chromium 逐尺寸原生栅格化，回读校验 ICO 头/条目数/PNG 签名 | ✅ 7 个尺寸全部有效 |
+| 图标透明与注入（v1.2.1） | 逐条目 alpha 校验 + 在 exe 与安装包内逐字节比对 7 个图标条目 + `builder-debug.yml` 确认 `installer.nsh` 已编译进安装包 | ✅ 角落 alpha=0，7/7 条目一致，钩子已生效 |
 | 日报导出 | 界面点击「导出日报」→ 落盘 + 定位文件 | ✅ 生成 `reports\日报-YYYY-MM-DD.md` |
-| Windows 分发 | `npm run dist` | ✅ `release\PersonalWorkstation-Setup-1.2.0.exe`（约 94 MB） |
+| Windows 分发 | `npm run dist` | ✅ `release\PersonalWorkstation-Setup-1.2.1.exe`（约 94 MB） |
 
 自检覆盖的 9 个用例：Markdown → DOCX（Pandoc）、DOCX → Markdown（Pandoc）、WAV → MP3（FFmpeg）、
 单位换算、电路计算、学习卡片（联动复习计划）、网页正文提取（Playwright）、整页截图（Playwright）、网络资源下载（yt-dlp）。
@@ -317,5 +321,4 @@ npm run dist
 ### 已知边界
 
 - 安装包未做代码签名，Windows SmartScreen 首次运行时可能提示「未知发布者」
-- 应用图标为 Electron 默认图标（放入 `build/icon.png` 后重新打包即可替换）
 - 网络视频下载能力取决于目标站点可达性；GitHub Releases 直连受限的环境请参考第四节改用 PyPI 渠道安装依赖
