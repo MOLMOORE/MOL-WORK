@@ -6,3 +6,5 @@ release
 *.tsbuildinfo
 .DS_Store
 .vite
+
+.dsh-edit-review.json
