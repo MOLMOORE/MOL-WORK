@@ -7,6 +7,6 @@ release
 .DS_Store
 .vite
 
-.dsh-edit-review.json
+.dsh-edit-review*.json
 
 AGENTS.md
