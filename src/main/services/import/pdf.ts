@@ -131,7 +131,11 @@ export interface PdfExtractResult {
   pages: number
 }
 
-export async function extractPdf(buffer: Buffer): Promise<PdfExtractResult> {
+/**
+ * 抽取 PDF 正文（供全局搜索与列表摘要）。
+ * maxPages > 0 时只抽前若干页，超长文档不再卡在文字层；返回的页数仍是真实总页数。
+ */
+export async function extractPdf(buffer: Buffer, maxPages = 0): Promise<PdfExtractResult> {
   const pdfjs = loadPdfJs()
   const doc = await pdfjs
     .getDocument({
@@ -144,8 +148,9 @@ export async function extractPdf(buffer: Buffer): Promise<PdfExtractResult> {
     })
     .promise
   const pages: TextLine[][] = []
+  const limit = maxPages > 0 ? Math.min(maxPages, doc.numPages) : doc.numPages
   try {
-    for (let index = 1; index <= doc.numPages; index += 1) {
+    for (let index = 1; index <= limit; index += 1) {
       const page = await doc.getPage(index)
       const content = await page.getTextContent()
       pages.push(groupLines((content.items ?? []) as PdfTextItem[]))

@@ -104,11 +104,11 @@
     --n-l-surface: 12%;
     --n-l-card: 13%;
     --n-l-input: 16%;
-    --n-l-muted: 17%;
-    --n-l-border: 22%;
+    --n-l-muted: 18%;
+    --n-l-border: 28%;
     --n-fg: 93%;
     --n-fg-muted: 63%;
-    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(0, 0, 0, 0.25);
     --shadow-pop: 0 16px 40px -16px rgba(0, 0, 0, 0.7);
 
     --success: 152 48% 44%;
@@ -162,7 +162,7 @@
   [data-preset='mono'][data-theme='dark'] {
     --p-l: 96%; --p-l-text: 96%; --p-on: 0 0% 9%;
     --n-l-page: 8%; --n-l-surface: 11%; --n-l-card: 12%; --n-l-input: 15%;
-    --n-l-muted: 16%; --n-l-border: 21%;
+    --n-l-muted: 16%; --n-l-border: 26%;
   }
   [data-preset='mono'][data-theme='light'] {
     --p-l: 14%; --p-l-text: 14%; --p-on: 0 0% 100%;
@@ -207,7 +207,7 @@
   [data-preset='graphite'][data-theme='dark'] {
     --p-l: 82%; --p-l-text: 84%; --p-on: 210 8% 10%;
     --n-l-page: 10%; --n-l-surface: 13%; --n-l-card: 14%; --n-l-input: 17%;
-    --n-l-muted: 18%; --n-l-border: 23%;
+    --n-l-muted: 18%; --n-l-border: 28%;
   }
   [data-preset='graphite'][data-theme='light'] { --p-l: 30%; --p-l-text: 26%; }
 
@@ -217,7 +217,7 @@
   }
   [data-preset='midnight'][data-theme='dark'] {
     --n-l-page: 8%; --n-l-surface: 12%; --n-l-card: 14%; --n-l-input: 18%;
-    --n-l-muted: 19%; --n-l-border: 25%;
+    --n-l-muted: 19%; --n-l-border: 28%;
   }
   [data-preset='midnight'][data-theme='light'] { --p-l: 48%; --p-l-text: 42%; }
 
@@ -228,7 +228,7 @@
   [data-preset='plum'][data-theme='dark'] {
     --p-l: 68%; --p-l-text: 76%;
     --n-l-page: 9%; --n-l-surface: 12%; --n-l-card: 14%; --n-l-input: 18%;
-    --n-l-muted: 19%; --n-l-border: 24%;
+    --n-l-muted: 19%; --n-l-border: 28%;
   }
   [data-preset='plum'][data-theme='light'] { --p-l: 46%; --p-l-text: 40%; }
 
@@ -239,7 +239,7 @@
   [data-preset='forest'][data-theme='dark'] {
     --p-l: 58%; --p-l-text: 66%; --p-on: 160 20% 8%;
     --n-l-page: 9%; --n-l-surface: 12%; --n-l-card: 13%; --n-l-input: 17%;
-    --n-l-muted: 18%; --n-l-border: 23%;
+    --n-l-muted: 18%; --n-l-border: 27%;
   }
   [data-preset='forest'][data-theme='light'] { --p-l: 32%; --p-l-text: 26%; }
 
@@ -255,7 +255,7 @@
   [data-preset='nord'][data-theme='dark'] {
     --p-l: 67%; --p-l-text: 74%; --p-on: 217 25% 18%;
     --n-l-page: 22%; --n-l-surface: 25%; --n-l-card: 28%; --n-l-input: 32%;
-    --n-l-muted: 33%; --n-l-border: 36%; --n-fg: 93%; --n-fg-muted: 68%;
+    --n-l-muted: 33%; --n-l-border: 42%; --n-fg: 93%; --n-fg-muted: 68%;
     --shadow-pop: 0 18px 40px -18px rgba(0, 0, 0, 0.5);
   }
   [data-preset='nord'][data-theme='light'] {
@@ -300,7 +300,7 @@
   [data-preset='gruvbox'][data-theme='dark'] {
     --p-l: 58%; --p-l-text: 66%; --p-on: 30 20% 10%;
     --n-l-page: 15%; --n-l-surface: 18%; --n-l-card: 21%; --n-l-input: 24%;
-    --n-l-muted: 25%; --n-l-border: 31%; --n-fg: 87%; --n-fg-muted: 64%;
+    --n-l-muted: 25%; --n-l-border: 35%; --n-fg: 87%; --n-fg-muted: 64%;
     --shadow-card: inset 0 0 0 1px hsl(30 15% 28%);
     --success: 64 66% 44%; --success-text: 64 66% 60%;
     --warning: 28 99% 55%; --warning-text: 28 99% 66%;
@@ -330,7 +330,7 @@
   [data-preset='catppuccin'][data-theme='dark'] {
     --p-l: 78%; --p-l-text: 82%; --p-on: 267 40% 16%;
     --n-l-page: 15%; --n-l-surface: 18%; --n-l-card: 20%; --n-l-input: 24%;
-    --n-l-muted: 25%; --n-l-border: 31%; --n-fg: 88%; --n-fg-muted: 65%;
+    --n-l-muted: 25%; --n-l-border: 34%; --n-fg: 88%; --n-fg-muted: 65%;
     --shadow-card: 0 6px 20px -14px hsl(234 40% 3% / 0.9);
     --shadow-pop: 0 24px 60px -22px hsl(234 40% 3% / 0.95);
   }
@@ -349,7 +349,7 @@
   [data-preset='tokyonight'][data-theme='dark'] {
     --p-l: 73%; --p-l-text: 78%; --p-on: 229 60% 12%;
     --n-l-page: 13%; --n-l-surface: 16%; --n-l-card: 18%; --n-l-input: 22%;
-    --n-l-muted: 23%; --n-l-border: 29%; --n-fg: 86%; --n-fg-muted: 62%;
+    --n-l-muted: 23%; --n-l-border: 32%; --n-fg: 86%; --n-fg-muted: 62%;
     --shadow-card: 0 0 24px -18px hsl(229 89% 73% / 0.9);
     --chart-2: 84 62% 62%;
     --chart-3: 39 68% 64%;
@@ -458,7 +458,7 @@
   [data-preset='terminal'][data-theme='dark'] {
     --p-l: 60%; --p-l-text: 70%; --p-on: 140 80% 6%;
     --n-l-page: 4%; --n-l-surface: 6%; --n-l-card: 7%; --n-l-input: 10%;
-    --n-l-muted: 11%; --n-l-border: 18%; --n-fg: 80%; --n-fg-muted: 52%;
+    --n-l-muted: 11%; --n-l-border: 21%; --n-fg: 80%; --n-fg-muted: 52%;
     --shadow-card: 0 0 0 1px hsl(140 100% 60% / 0.12), 0 0 22px -12px hsl(140 100% 60% / 0.6);
     --success: 140 100% 60%; --success-text: 140 100% 70%;
     --warning: 60 100% 60%; --warning-text: 60 100% 72%;
@@ -516,7 +516,7 @@
   [data-skin='magazine'][data-theme='dark'] {
     --p-l: 62%; --p-l-text: 72%;
     --n-l-page: 10%; --n-l-surface: 12%; --n-l-card: 13%; --n-l-input: 16%;
-    --n-l-muted: 17%; --n-l-border: 24%; --n-fg: 92%; --n-fg-muted: 62%;
+    --n-l-muted: 17%; --n-l-border: 27%; --n-fg: 92%; --n-fg-muted: 62%;
     --page-bg-image: repeating-linear-gradient(90deg, transparent 0 119px, rgba(220, 190, 160, 0.05) 119px 120px);
   }
   html[data-skin='magazine'] .app-sidebar { display: none; }
@@ -627,7 +627,7 @@
   [data-skin='terminal'][data-theme='dark'] {
     --p-l: 62%; --p-l-text: 72%;
     --n-l-page: 3%; --n-l-surface: 5%; --n-l-card: 6%; --n-l-input: 8%;
-    --n-l-muted: 9%; --n-l-border: 18%; --n-fg: 88%; --n-fg-muted: 52%;
+    --n-l-muted: 9%; --n-l-border: 20%; --n-fg: 88%; --n-fg-muted: 52%;
     --clock-glow: 0 0 12px hsl(145 68% 60% / 0.75), 0 0 34px hsl(145 68% 60% / 0.35);
     --page-bg-image: repeating-linear-gradient(0deg, rgba(61, 220, 132, 0.05) 0 1px, transparent 1px 3px);
   }
@@ -707,7 +707,7 @@
   [data-skin='hud'][data-theme='dark'] {
     --p-l: 55%; --p-l-text: 70%;
     --n-l-page: 5%; --n-l-surface: 8%; --n-l-card: 9%; --n-l-input: 12%;
-    --n-l-muted: 13%; --n-l-border: 22%; --n-fg: 92%; --n-fg-muted: 58%;
+    --n-l-muted: 13%; --n-l-border: 23%; --n-fg: 92%; --n-fg-muted: 58%;
     --page-bg-image:
       linear-gradient(hsl(189 94% 55% / 0.055) 0 1px, transparent 1px),
       linear-gradient(90deg, hsl(189 94% 55% / 0.055) 0 1px, transparent 1px);
@@ -754,19 +754,26 @@
     --title-spacing: -0.01em; --title-weight: 650;
   }
   [data-skin='soft'][data-theme='light'] {
-    --n-l-page: 92%; --n-l-surface: 92%; --n-l-card: 92%; --n-l-input: 92%;
-    --n-l-muted: 92%; --n-l-border: 92%; --n-fg: 26%; --n-fg-muted: 46%;
+    --n-l-page: 92%; --n-l-surface: 93%; --n-l-card: 95%; --n-l-input: 96%;
+    --n-l-muted: 90%; --n-l-border: 84%; --n-fg: 26%; --n-fg-muted: 46%;
     --shadow-card: -7px -7px 16px rgba(255, 255, 255, 0.9), 8px 8px 20px rgba(148, 128, 112, 0.28);
     --shadow-pop: -10px -10px 22px rgba(255, 255, 255, 0.95), 16px 16px 34px rgba(148, 128, 112, 0.34);
   }
   [data-skin='soft'][data-theme='dark'] {
     --p-l: 62%; --p-l-text: 72%;
-    --n-l-page: 14%; --n-l-surface: 14%; --n-l-card: 14%; --n-l-input: 14%;
-    --n-l-muted: 14%; --n-l-border: 14%; --n-fg: 90%; --n-fg-muted: 62%;
-    --shadow-card: -7px -7px 16px rgba(255, 255, 255, 0.045), 8px 8px 20px rgba(0, 0, 0, 0.5);
-    --shadow-pop: -10px -10px 22px rgba(255, 255, 255, 0.05), 16px 16px 34px rgba(0, 0, 0, 0.6);
+    --n-l-page: 12%; --n-l-surface: 14%; --n-l-card: 16%; --n-l-input: 19%;
+    --n-l-muted: 20%; --n-l-border: 30%; --n-fg: 90%; --n-fg-muted: 62%;
+    --shadow-card: -7px -7px 16px rgba(255, 255, 255, 0.05), 8px 8px 20px rgba(0, 0, 0, 0.62);
+    --shadow-pop: -10px -10px 22px rgba(255, 255, 255, 0.06), 16px 16px 34px rgba(0, 0, 0, 0.7);
   }
-  html[data-skin='soft'] .glass-card { border: none; box-shadow: var(--shadow-card); }
+  /* 浮雕靠阴影塑形，但深色下阴影几乎看不见，补一圈极细的亮边把模块轮廓立起来 */
+  html[data-skin='soft'] .glass-card {
+    border: none;
+    box-shadow: var(--shadow-card), inset 0 0 0 1px hsl(0 0% 100% / 0.07);
+  }
+  html[data-skin='soft'][data-theme='light'] .glass-card {
+    box-shadow: var(--shadow-card), inset 0 0 0 1px rgba(148, 128, 112, 0.14);
+  }
   html[data-skin='soft'] .glass-card-hover:hover { box-shadow: var(--shadow-pop); }
   html[data-skin='soft'] .app-sidebar { border-right: none; box-shadow: inset -10px 0 22px rgba(148, 128, 112, 0.12); }
   html[data-skin='soft'] .app-topbar { border-bottom: none; box-shadow: 0 10px 22px -14px rgba(148, 128, 112, 0.5); }
@@ -957,6 +964,22 @@
     background-image: var(--card-bg-image);
   }
 
+  /* 深色下再叠一层极淡的内描边 + 外描边：模块之间不会糊成一片，边界一眼看得见 */
+  [data-theme='dark'] .glass-card,
+  [data-theme='dark'] .glass-card-hover {
+    box-shadow: var(--shadow-card), inset 0 0 0 1px hsl(0 0% 100% / 0.05), 0 0 0 1px hsl(0 0% 0% / 0.35);
+  }
+  [data-theme='dark'] .field-base,
+  [data-theme='dark'] .seg-base {
+    box-shadow: inset 0 0 0 1px hsl(0 0% 100% / 0.04);
+  }
+  [data-theme='dark'] .app-sidebar {
+    border-right-width: 1px;
+  }
+  [data-theme='dark'] .app-topbar {
+    border-bottom-width: 1px;
+  }
+
   .glass-card-hover {
     @apply glass-card hover:border-primary/45;
   }
@@ -1017,17 +1040,33 @@
   .reader-page-area,
   .reader-scroll {
     scrollbar-gutter: stable;
+    overscroll-behavior: contain;
+  }
+
+  /* 放大后不再被裁：容器只做 flex，书本用 margin:auto 居中，
+     超出舞台的部分都能靠滚动条滚到（justify-content:center 会把溢出藏掉） */
+  .reader-page-area {
+    display: flex;
+  }
+  .mw-book-frame {
+    margin: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .mw-book {
     position: relative;
-    width: 100%;
-    height: 100%;
     display: flex;
     align-items: center;
     justify-content: center;
     transform-style: preserve-3d;
     perspective: 2400px;
+  }
+  /* 排版模式（iframe）里书本要铺满舞台 */
+  .mw-book-fill {
+    width: 100%;
+    height: 100%;
   }
 
   .mw-layer {
@@ -1036,10 +1075,26 @@
     justify-content: center;
     gap: 2px;
   }
+  .mw-layer-in {
+    position: relative;
+  }
 
-  .mw-book.is-turning .mw-layer {
+  /* 当前页留在文档流里撑住尺寸，翻页残影浮在它上面：动画期间不会塌成 0 高度 */
+  .mw-book.is-turning .mw-layer-out {
     position: absolute;
     inset: 0;
+    will-change: transform, opacity;
+  }
+
+  /* 拖动平移：可拖时光标成抓手，拖拽中禁选文字 */
+  .reader-stage.is-pannable {
+    cursor: grab;
+  }
+  .reader-stage.is-panning {
+    cursor: grabbing;
+  }
+  .reader-stage.is-panning .mw-page {
+    user-select: none;
   }
 
   .mw-page {
@@ -1068,6 +1123,10 @@
   .mw-page-blank {
     background: hsl(var(--n-h) var(--n-s) var(--n-l-card));
     box-shadow: inset 0 0 0 1px hsl(var(--border));
+  }
+
+  .mw-page.is-error {
+    background: hsl(var(--n-h) var(--n-s) var(--n-l-card));
   }
 
   /* 排版模式：这一「页」就是整个舞台，iframe 铺满后由内容侧缩放 */
@@ -1148,32 +1207,61 @@
     from { transform: rotateY(-26deg); filter: brightness(0.78); }
     to { transform: rotateY(0deg); filter: brightness(1); }
   }
+  @keyframes mw-book-shade {
+    from { opacity: 0; }
+    45% { opacity: 1; }
+    to { opacity: 0.25; }
+  }
 
-  [data-flip='fade'] .mw-layer-in { animation: mw-fade-in 380ms ease; }
-  [data-flip='fade'] .mw-layer-out { animation: mw-fade-out 380ms ease forwards; z-index: 3; }
+  /* 系统要求减少动效时直接切页 */
+  @media (prefers-reduced-motion: reduce) {
+    .mw-book.is-turning .mw-layer,
+    .mw-book.is-turning .mw-layer .mw-page,
+    [data-flip] .mw-layer-in,
+    [data-flip] .mw-layer-out,
+    [data-flip] .mw-layer-in .mw-page,
+    [data-flip] .mw-layer-out .mw-page {
+      animation: none !important;
+    }
+  }
+
+  [data-flip='fade'] .mw-layer-in { animation: mw-fade-in 300ms ease-out; }
+  [data-flip='fade'] .mw-layer-out { animation: mw-fade-out 300ms ease-in forwards; z-index: 3; }
 
   /* 翻页时两层重叠：绝对定位到舞台中心，纸本身负责动画 */
   .mw-book.is-turning .mw-layer .mw-page {
     box-shadow: 0 10px 34px -10px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(0, 0, 0, 0.14);
   }
 
-  [data-flip='slide'] .mw-layer-in .mw-page { animation: mw-slide-in-next 420ms cubic-bezier(0.22, 0.8, 0.28, 1); }
-  [data-flip='slide'] .mw-layer-out .mw-page { animation: mw-slide-out-next 420ms cubic-bezier(0.22, 0.8, 0.28, 1) forwards; }
+  [data-flip='slide'] .mw-layer-in .mw-page { animation: mw-slide-in-next 380ms cubic-bezier(0.22, 0.9, 0.24, 1); }
+  [data-flip='slide'] .mw-layer-out .mw-page { animation: mw-slide-out-next 380ms cubic-bezier(0.22, 0.9, 0.24, 1) forwards; }
   [data-flip='slide'] .mw-book.is-reverse .mw-layer-in .mw-page { animation-name: mw-slide-in-prev; }
   [data-flip='slide'] .mw-book.is-reverse .mw-layer-out .mw-page { animation-name: mw-slide-out-prev; }
 
   [data-flip='cover'] .mw-layer-in { z-index: 2; }
-  [data-flip='cover'] .mw-layer-in .mw-page { animation: mw-cover-in-next 420ms cubic-bezier(0.3, 0.9, 0.25, 1); }
+  [data-flip='cover'] .mw-layer-in .mw-page { animation: mw-cover-in-next 380ms cubic-bezier(0.2, 0.85, 0.2, 1); }
   [data-flip='cover'] .mw-book.is-reverse .mw-layer-in .mw-page { animation-name: mw-cover-in-prev; }
 
   /* 仿真翻书：绕书脊（左页边）转过去，背面变暗，新页从内侧翻起 */
   [data-flip='book'] .mw-layer-out { z-index: 3; }
   [data-flip='book'] .mw-layer-out .mw-page {
     transform-origin: left center;
-    animation: mw-book-out-next 560ms cubic-bezier(0.3, 0.75, 0.25, 1) forwards;
+    animation: mw-book-out-next 420ms cubic-bezier(0.36, 0.7, 0.24, 1) forwards;
     backface-visibility: hidden;
   }
-  [data-flip='book'] .mw-layer-in .mw-page { animation: mw-book-in-next 560ms ease; }
+  /* 翻过去的那一面压出一道书脊阴影，观感不再像「整块纸平移」 */
+  [data-flip='book'] .mw-layer-out .mw-page::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: linear-gradient(90deg, rgba(0, 0, 0, 0.34) 0%, rgba(0, 0, 0, 0.08) 42%, rgba(0, 0, 0, 0) 100%);
+    animation: mw-book-shade 420ms ease-in forwards;
+  }
+  [data-flip='book'] .mw-book.is-reverse .mw-layer-out .mw-page::after {
+    background: linear-gradient(270deg, rgba(0, 0, 0, 0.34) 0%, rgba(0, 0, 0, 0.08) 42%, rgba(0, 0, 0, 0) 100%);
+  }
+  [data-flip='book'] .mw-layer-in .mw-page { animation: mw-book-in-next 420ms ease-out; }
   [data-flip='book'] .mw-book.is-reverse .mw-layer-out .mw-page {
     transform-origin: right center;
     animation-name: mw-book-out-prev;
@@ -1183,6 +1271,12 @@
   /* 连续滚动时关掉 3D，避免长文档掉帧 */
   [data-layout='continuous'] .mw-book {
     perspective: none;
+  }
+  .reader-scroll .mw-page {
+    box-shadow: 0 2px 12px -4px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(0, 0, 0, 0.14);
+  }
+  .reader-scroll .mw-page.is-active {
+    box-shadow: 0 6px 22px -8px rgba(0, 0, 0, 0.6), 0 0 0 2px hsl(var(--primary) / 0.55);
   }
 
   .reader-panel {

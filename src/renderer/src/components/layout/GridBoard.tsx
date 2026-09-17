@@ -10,7 +10,7 @@ import {
   type PointerEvent as ReactPointerEvent,
   type ReactNode
 } from 'react'
-import { Check, GripVertical, History, LayoutDashboard, Pencil, RotateCcw, Save, Shuffle } from 'lucide-react'
+import { Check, History, LayoutDashboard, Pencil, RotateCcw, Save, Shuffle } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { Button } from '../ui/Button'
 
@@ -273,8 +273,8 @@ function ResizeHandles(props: {
           tabIndex={-1}
           aria-label={`调整 ${props.title} 大小`}
           onPointerDown={(event) => props.onStart(event, props.id, edge.mode)}
-          // z-20 必须高于卡片内容自身可能设置的层级，否则会被带 z-index 的卡片内容挡住而无法缩放
-          className={cn('absolute z-20 transition-opacity', props.editing ? 'opacity-100' : 'opacity-0', edge.hit)}
+          // 只有编辑模式才会渲染这些热区（见 GridItem），常规模式下不存在可拉伸的隐形边
+          className={cn('absolute z-20 opacity-100', edge.hit)}
         >
           {/* 紧贴模块边缘的细白线（直角、2px），只在悬停/编辑时显现 */}
           <span className={cn('absolute rounded-[1px] bg-white/80', edge.bar)} />
@@ -351,37 +351,17 @@ const GridItem = memo(function GridItem({
         {children}
       </div>
 
-      {/* 悬停不再叠加柔光/模糊层：模块内容始终按原样显示 */}
-      {!locked ? (
+      {/* 常规模式不提供任何拖拽 / 拉伸热区：只有进入编辑模式（工具条「编辑布局」或长按模块）才能摆放 */}
+      {editable ? (
         <>
-          {editable ? (
-            /* 编辑模式：无需「拖动键」，整块直接拖 */
-            <div
-              role="button"
-              tabIndex={-1}
-              aria-label={`拖动 ${title}`}
-              onPointerDown={(event) => onStart(event, id, 'move')}
-              className="absolute inset-0 z-10 cursor-move touch-none"
-            />
-          ) : (
-            /* 常规模式：拖动把手位于卡片顶部内边距空白处，hover 时显现 */
-            <div
-              role="button"
-              tabIndex={-1}
-              aria-label={`拖动 ${title}`}
-              onPointerDown={(event) => onStart(event, id, 'move')}
-              className={cn(
-                'absolute inset-x-0 top-0 z-30 flex h-5 cursor-move touch-none items-center justify-center transition-opacity',
-                active ? 'opacity-100' : 'opacity-0 group-hover/grid-item:opacity-100'
-              )}
-            >
-              <span className="flex items-center gap-1 rounded-full border border-border bg-background px-2 py-0.5 text-[10px] text-muted-foreground shadow-sm">
-                <GripVertical className="h-3 w-3" />
-                拖动
-              </span>
-            </div>
-          )}
-          <ResizeHandles id={id} title={title} editing={editable} onStart={onStart} />
+          <div
+            role="button"
+            tabIndex={-1}
+            aria-label={`拖动 ${title}`}
+            onPointerDown={(event) => onStart(event, id, 'move')}
+            className="absolute inset-0 z-10 cursor-move touch-none"
+          />
+          <ResizeHandles id={id} title={title} editing onStart={onStart} />
         </>
       ) : null}
     </div>
@@ -999,7 +979,7 @@ export function GridBoard({
               <LayoutDashboard className="h-3.5 w-3.5" />
               {editing
                 ? '编辑模式：整块拖动即可摆放 · 四边与四角拉伸大小 · 模块内容暂不可点击'
-                : '拖动卡片顶部可自由摆放 · 长按任意模块进入编辑 · 四边与四角可拉伸大小'}
+                : '常规模式下模块固定不可拖动 · 长按任意模块或点「编辑布局」即可调整'}
             </span>
           )}
           {editing ? (

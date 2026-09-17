@@ -40,27 +40,27 @@ class IpcCMapReader {
 
 export interface PdfDocInfo {
   doc: PDFDocumentProxy
+  /** 缓存标识：同一份文档的画布按 uid + 页码 + 缩放 + 角度复用 */
+  uid: number
   pageCount: number
   /** 首页在 scale=1 下的宽高（CSS 像素） */
   baseWidth: number
   baseHeight: number
   /** 书签目录（页码为 0 表示这条书签没有可解析的目标） */
-  outline: { title: string; page: number; depth: number }[]
+  outline: PdfOutlineItem[]
 }
 
-export async function openPdf(data: Uint8Array): Promise<PdfDocInfo> {
-  ensureWorker()
-  const doc = await pdfjsLib.getDocument({
-    data,
-    CMapReaderFactory: IpcCMapReader as unknown as never,
-    useSystemFonts: true,
-    isEvalSupported: false
-  }).promise
+export interface PdfOutlineItem {
+  title: string
+  page: number
+  depth: number
+}
 
-  const first = await doc.getPage(1)
-  const viewport = first.getViewport({ scale: 1 })
+let docSeq = 0
 
-  const outline: { title: string; page: number; depth: number }[] = []
+/** 书签目录：逐条解析目标页，长文档能拖住首屏，所以放后台补 */
+async function buildOutline(doc: PDFDocumentProxy): Promise<PdfOutlineItem[]> {
+  const outline: PdfOutlineItem[] = []
   try {
     const raw = await doc.getOutline()
     const walk = async (items: never[], depth: number): Promise<void> => {
@@ -80,8 +80,31 @@ export async function openPdf(data: Uint8Array): Promise<PdfDocInfo> {
   } catch {
     /* 没有书签的 PDF 很常见 */
   }
+  return outline
+}
 
-  return { doc, pageCount: doc.numPages, baseWidth: viewport.width, baseHeight: viewport.height, outline }
+/** onOutline 在后台解析完书签后回调，不阻塞首屏 */
+export async function openPdf(data: Uint8Array, onOutline?: (outline: PdfOutlineItem[]) => void): Promise<PdfDocInfo> {
+  ensureWorker()
+  const doc = await pdfjsLib.getDocument({
+    data,
+    CMapReaderFactory: IpcCMapReader as unknown as never,
+    useSystemFonts: true,
+    isEvalSupported: false
+  }).promise
+
+  const first = await doc.getPage(1)
+  const viewport = first.getViewport({ scale: 1 })
+  if (onOutline) void buildOutline(doc).then(onOutline).catch(() => undefined)
+
+  return {
+    doc,
+    uid: ++docSeq,
+    pageCount: doc.numPages,
+    baseWidth: viewport.width,
+    baseHeight: viewport.height,
+    outline: []
+  }
 }
 
 export interface RenderedPage {
@@ -102,16 +125,19 @@ export async function renderPage(
   const viewport = page.getViewport({ scale, rotation })
   const canvas = document.createElement('canvas')
   const ratio = Math.min(2, window.devicePixelRatio || 1)
-  canvas.width = Math.max(1, Math.floor(viewport.width * ratio))
-  canvas.height = Math.max(1, Math.floor(viewport.height * ratio))
   canvas.style.width = `${Math.round(viewport.width)}px`
   canvas.style.height = `${Math.round(viewport.height)}px`
+  // 超大倍率下限制总像素，否则一次渲染就能把主线程卡死几十秒
+  const ratioCap = Math.min(ratio, Math.sqrt(14_000_000 / Math.max(1, viewport.width * viewport.height)))
+  const sharp = Math.max(1, ratioCap)
+  canvas.width = Math.max(1, Math.floor(viewport.width * sharp))
+  canvas.height = Math.max(1, Math.floor(viewport.height * sharp))
   const context = canvas.getContext('2d')
   if (!context) throw new Error('无法创建画布')
   await page.render({
     canvasContext: context,
     viewport,
-    transform: ratio === 1 ? undefined : [ratio, 0, 0, ratio, 0, 0]
+    transform: sharp === 1 ? undefined : [sharp, 0, 0, sharp, 0, 0]
   }).promise
   return { canvas, width: viewport.width, height: viewport.height, page }
 }
@@ -134,4 +160,120 @@ export async function pageText(page: PDFPageProxy): Promise<string> {
   }
   if (current.trim() !== '') lines.push(current.trim())
   return lines.join('\n')
+}
+/* ==========================================================================
+ * 渲染队列 + 画布缓存
+ * pdf.js 在这里跑的是「无 worker」模式，渲染全在主线程：并发画十页会把界面钉死，
+ * 所以同一时刻只画一页，按优先级排队；画好的画布按 页码+缩放+角度 缓存复用，
+ * 来回翻页、放大缩小回到原倍率时直接取缓存，不再重画。
+ * ========================================================================== */
+
+interface RenderJob {
+  priority: number
+  seq: number
+  run: () => void
+}
+
+const pageCache = new Map<string, HTMLCanvasElement>()
+const pending = new Map<string, Promise<HTMLCanvasElement>>()
+const backlog: RenderJob[] = []
+let rendering = false
+let jobSeq = 0
+/** 缓存上限：超了先丢已经不在页面上的旧画布 */
+const MAX_CACHED = 48
+
+function pump(): void {
+  if (rendering || backlog.length === 0) return
+  backlog.sort((a, b) => b.priority - a.priority || a.seq - b.seq)
+  const job = backlog.shift()
+  if (!job) return
+  rendering = true
+  job.run()
+}
+
+function remember(key: string, canvas: HTMLCanvasElement): void {
+  pageCache.set(key, canvas)
+  if (pageCache.size <= MAX_CACHED) return
+  for (const old of [...pageCache.keys()]) {
+    if (pageCache.size <= MAX_CACHED) break
+    const node = pageCache.get(old)
+    if (old === key || !node || node.isConnected) continue
+    pageCache.delete(old)
+  }
+}
+
+/** 取某一页在指定倍率下的画布：命中缓存立即返回，未命中排队渲染 */
+export function pageCanvas(
+  doc: PDFDocumentProxy,
+  uid: number,
+  pageNumber: number,
+  scale: number,
+  rotation: number,
+  priority = 0
+): Promise<HTMLCanvasElement> {
+  const rounded = Math.round(scale * 100) / 100
+  const key = uid + '|' + pageNumber + '|' + rounded + '|' + rotation
+  const cached = pageCache.get(key)
+  if (cached) {
+    pageCache.delete(key)
+    pageCache.set(key, cached)
+    return Promise.resolve(cached)
+  }
+  const inflight = pending.get(key)
+  if (inflight) return inflight
+
+  const task = new Promise<HTMLCanvasElement>((resolve, reject) => {
+    backlog.push({
+      priority,
+      seq: ++jobSeq,
+      run: () => {
+        void renderPage(doc, pageNumber, rounded, rotation)
+          .then((rendered) => {
+            remember(key, rendered.canvas)
+            resolve(rendered.canvas)
+          })
+          .catch(reject)
+          .finally(() => {
+            pending.delete(key)
+            rendering = false
+            pump()
+          })
+      }
+    })
+    pump()
+  })
+  pending.set(key, task)
+  return task
+}
+
+/** 复制一份画布：同一页同时出现在两处（翻页残影 + 当前页）时用 */
+export function cloneCanvas(source: HTMLCanvasElement): HTMLCanvasElement {
+  const copy = document.createElement('canvas')
+  copy.width = source.width
+  copy.height = source.height
+  copy.style.width = source.style.width
+  copy.style.height = source.style.height
+  const context = copy.getContext('2d')
+  if (context) context.drawImage(source, 0, 0)
+  return copy
+}
+
+/** 关掉一本书时丢掉它的缓存画布，长文档不至于占着几百 MB 不放 */
+export function forgetPdf(uid: number): void {
+  const prefix = uid + '|'
+  for (const key of [...pageCache.keys()]) {
+    if (!key.startsWith(prefix)) continue
+    const node = pageCache.get(key)
+    if (node && node.isConnected) continue
+    pageCache.delete(key)
+  }
+}
+
+/** 页面在指定缩放与旋转下的尺寸（CSS 像素） */
+export function pageSize(width: number, height: number, scale: number, rotation: number): { width: number; height: number } {
+  const swap = ((rotation % 180) + 180) % 180 !== 0
+  return {
+    width: (swap ? height : width) * scale,
+    height: (swap ? width : height) * scale
+  }
 }

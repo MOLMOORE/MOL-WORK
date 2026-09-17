@@ -303,6 +303,24 @@ export interface NoteImportSummary {
   items: NoteImportItem[]
 }
 
+/** 导入进度：主进程逐文件推送，渲染层据此画进度条 */
+export interface NoteImportProgress {
+  /** 本批文件总数 */
+  total: number
+  /** 已完成的文件数 */
+  done: number
+  /** 当前文件名 */
+  file: string
+  /** 当前阶段 */
+  stage: 'queue' | 'parse' | 'render' | 'store' | 'done'
+  /** 0-100 总进度 */
+  percent: number
+  /** 已用时（毫秒） */
+  elapsed: number
+  /** 预计剩余（毫秒，按均速估算） */
+  eta: number
+}
+
 export interface ScheduleEvent {
   id: number
   taskId: number | null

@@ -185,7 +185,10 @@ async function pdfFromOffice(filePath: string): Promise<PdfRendition | null> {
 }
 
 /** 统一入口：先试 LibreOffice，再试本机 Office */
-export async function convertToPdf(filePath: string): Promise<PdfRendition | null> {
+/** 转换排队：LibreOffice 用户配置目录与 Office COM 都是单实例，同一时刻只跑一个 */
+let conversionChain: Promise<unknown> = Promise.resolve()
+
+async function runConversion(filePath: string): Promise<PdfRendition | null> {
   const ext = extname(filePath).toLowerCase()
   if (ext === '.pdf') return { buffer: readFileSync(filePath), engine: '原生 PDF' }
   const fromOffice = comScript(ext)
@@ -193,4 +196,16 @@ export async function convertToPdf(filePath: string): Promise<PdfRendition | nul
   const libre = await pdfFromLibreOffice(filePath)
   if (libre) return libre
   return pdfFromOffice(filePath)
+}
+
+export function convertToPdf(filePath: string): Promise<PdfRendition | null> {
+  const next = conversionChain.then(
+    () => runConversion(filePath),
+    () => runConversion(filePath)
+  )
+  conversionChain = next.then(
+    () => undefined,
+    () => undefined
+  )
+  return next
 }

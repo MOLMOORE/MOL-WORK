@@ -35,7 +35,7 @@ export function Tabs({ items, value, onChange, className, size = 'md' }: TabsPro
             aria-selected={active}
             onClick={() => onChange(item.key)}
             className={cn(
-              'inline-flex items-center gap-1.5 rounded-lg font-medium transition-all duration-150 active:scale-[0.97]',
+              'inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg font-medium transition-all duration-150 active:scale-[0.97]',
               size === 'sm' ? 'h-7 px-2.5 text-xs' : 'h-8 px-3 text-xs',
               active
                 ? 'bg-card text-foreground shadow-card'

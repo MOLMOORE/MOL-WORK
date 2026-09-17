@@ -10,6 +10,7 @@ import type {
   Note,
   NoteDocInfo,
   NoteImportOptions,
+  NoteImportProgress,
   NoteImportSummary,
   NoteInput,
   NoteMark,
@@ -163,6 +164,8 @@ const api: WorkstationApi = {
   search: {
     query: (keyword: string, limit?: number) => invoke<SearchHit[]>('search:query', keyword, limit)
   },
+  onNoteImportProgress: (callback: (payload: NoteImportProgress) => void) =>
+    subscribe<NoteImportProgress>(IPC_EVENTS.noteImport, callback),
   onReminder: (callback: (payload: ReminderPayload) => void) => subscribe<ReminderPayload>(IPC_EVENTS.reminder, callback),
   onDataChanged: (callback: (scope: string) => void) => subscribe<string>(IPC_EVENTS.dataChanged, callback),
   onCloseRequest: (callback: (payload: CloseRequestPayload) => void) =>

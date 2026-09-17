@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import type { MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent, RefObject } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -20,13 +21,16 @@ import {
   Rows3,
   Save,
   Search,
+  Maximize2,
+  Minimize2,
+  RotateCw,
   Star,
   X
 } from 'lucide-react'
 import type { NoteDocInfo, NoteMark, NoteMarkKind } from '@shared/types/domain'
 import { Button, IconButton } from '../components/ui/Button'
 import { Spinner } from '../components/ui/Feedback'
-import { openPdf, pageText, renderPage, SCREEN_SCALE, type PdfDocInfo } from '../lib/pdf'
+import { cloneCanvas, forgetPdf, openPdf, pageCanvas, pageSize, pageText, SCREEN_SCALE, type PdfDocInfo } from '../lib/pdf'
 import { api } from '../lib/ipc'
 import { cn, formatDateTime } from '../lib/utils'
 
@@ -46,6 +50,9 @@ const FLIP_LABELS: { key: FlipEffect; label: string }[] = [
   { key: 'book', label: '翻书' }
 ]
 
+/** 翻页动效时长，与 CSS 里的动画保持一致 */
+const TURN_MS = 420
+
 export function ReaderPage(): JSX.Element {
   const { noteId } = useParams()
   const navigate = useNavigate()
@@ -59,6 +66,9 @@ export function ReaderPage(): JSX.Element {
   const [layout, setLayout] = useState<StageLayout>('single')
   const [fit, setFit] = useState<FitMode>('page')
   const [zoom, setZoom] = useState(1)
+  const [rotation, setRotation] = useState(0)
+  const [panning, setPanning] = useState(false)
+  const [fullscreen, setFullscreen] = useState(false)
   const [flip, setFlip] = useState<FlipEffect>('book')
   const [panel, setPanel] = useState<PanelTab | null>('outline')
   const [marks, setMarks] = useState<NoteMark[]>([])
@@ -70,7 +80,16 @@ export function ReaderPage(): JSX.Element {
   const [turning, setTurning] = useState<{ from: number; to: number; dir: 1 | -1 } | null>(null)
   const [composer, setComposer] = useState<{ kind: NoteMarkKind; quote: string } | null>(null)
   const stageRef = useRef<HTMLDivElement>(null)
+  const scrollRef = useRef<HTMLDivElement | null>(null)
   const progressTimer = useRef<number | null>(null)
+  const turnTimer = useRef<number | null>(null)
+  const panRef = useRef<{ x: number; y: number; left: number; top: number; moved: boolean } | null>(null)
+  const suppressClick = useRef(false)
+  const anchor = useRef<{ x: number; y: number; r: number; cx: number; cy: number } | null>(null)
+  const wheelAcc = useRef(0)
+  const scaleRef = useRef(1)
+  const layoutRef = useRef<StageLayout>('single')
+  const stepRef = useRef<(delta: number) => void>(() => undefined)
 
   // ---------- 载入文档 ----------
   useEffect(() => {
@@ -86,8 +105,15 @@ export function ReaderPage(): JSX.Element {
         setDraft(doc.text)
         setPage(Math.max(1, doc.note.lastPage || 1))
         if (doc.viewMode === 'pages' && doc.data) {
-          const opened = await openPdf(doc.data)
-          if (cancelled) return
+          const opened = await openPdf(doc.data, (outline) => {
+            opened.outline = outline
+            setPdf((current) => (current && current.doc === opened.doc ? { ...opened } : current))
+          })
+          if (cancelled) {
+            forgetPdf(opened.uid)
+            void opened.doc.destroy()
+            return
+          }
           setPdf(opened)
           setPageCount(opened.pageCount)
           void api.note.progress(id, Math.max(1, doc.note.lastPage || 1), opened.pageCount)
@@ -107,6 +133,13 @@ export function ReaderPage(): JSX.Element {
     }
   }, [id])
 
+  // 换书 / 关书时丢掉这本书的画布缓存，长文档不至于一直占着内存
+  useEffect(() => {
+    if (!pdf) return undefined
+    const uid = pdf.uid
+    return () => forgetPdf(uid)
+  }, [pdf])
+
   // ---------- 舞台尺寸：自适应窗口，等比缩放都以此为基准 ----------
   useEffect(() => {
     const node = stageRef.current
@@ -118,11 +151,14 @@ export function ReaderPage(): JSX.Element {
     return () => observer.disconnect()
   }, [info])
 
-  // ---------- 翻页动画：记下起止页，动画结束再清掉 ----------
+  // ---------- 翻页动画：只有逐页翻才做动效，动画结束再清掉残影 ----------
   const pageRef = useRef(1)
   useEffect(() => {
     pageRef.current = page
   }, [page])
+  useEffect(() => {
+    layoutRef.current = layout
+  }, [layout])
 
   const goPage = useCallback(
     (next: number, dir?: 1 | -1) => {
@@ -131,9 +167,17 @@ export function ReaderPage(): JSX.Element {
       if (target === current) return
       const direction = dir ?? (target > current ? 1 : -1)
       pageRef.current = target
-      if (flip !== 'none') {
+      if (flip !== 'none' && Math.abs(target - current) === 1) {
+        if (turnTimer.current) window.clearTimeout(turnTimer.current)
         setTurning({ from: current, to: target, dir: direction })
-        window.setTimeout(() => setTurning(null), 620)
+        turnTimer.current = window.setTimeout(() => {
+          turnTimer.current = null
+          setTurning(null)
+        }, TURN_MS)
+      } else {
+        if (turnTimer.current) window.clearTimeout(turnTimer.current)
+        turnTimer.current = null
+        setTurning(null)
       }
       setPage(target)
     },
@@ -143,10 +187,13 @@ export function ReaderPage(): JSX.Element {
   const step = useCallback(
     (delta: number) => {
       const stride = layout === 'double' ? 2 : 1
-      goPage(page + delta * stride, delta > 0 ? 1 : -1)
+      goPage(pageRef.current + delta * stride, delta > 0 ? 1 : -1)
     },
-    [goPage, layout, page]
+    [goPage, layout]
   )
+  useEffect(() => {
+    stepRef.current = step
+  }, [step])
 
   // ---------- 阅读进度：停留 900ms 再落库，避免翻页时频繁写库 ----------
   useEffect(() => {
@@ -160,7 +207,7 @@ export function ReaderPage(): JSX.Element {
     }
   }, [id, page, pageCount, info])
 
-  // ---------- 快捷键 ----------
+  // ---------- 快捷键：与主流阅读器对齐（Ctrl+滚轮 / Ctrl+- 缩放，方向键与空格翻页，F 全屏） ----------
   useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
       const target = event.target as HTMLElement | null
@@ -169,33 +216,82 @@ export function ReaderPage(): JSX.Element {
         if (event.key === 'Escape') (target as HTMLElement).blur()
         return
       }
+      const ctrl = event.ctrlKey || event.metaKey
+      const pages = info?.viewMode === 'pages'
+      const scrolling = layout === 'continuous' || info?.viewMode === 'text'
+
+      if (ctrl) {
+        switch (event.key) {
+          case '=':
+          case '+':
+            event.preventDefault()
+            zoomBy(1.2)
+            return
+          case '-':
+          case '_':
+            event.preventDefault()
+            zoomBy(1 / 1.2)
+            return
+          case '0':
+            event.preventDefault()
+            resetZoom()
+            return
+          case 'f':
+          case 'F':
+            event.preventDefault()
+            setPanel('find')
+            return
+          default:
+            return
+        }
+      }
+
       switch (event.key) {
         case 'ArrowRight':
-        case 'PageDown':
-          event.preventDefault()
-          step(1)
-          break
-        case 'ArrowDown':
-          if (info?.viewMode !== 'text') {
+          if (pages) {
             event.preventDefault()
             step(1)
           }
           break
-        case ' ':
-          event.preventDefault()
-          step(event.shiftKey ? -1 : 1)
+        case 'ArrowDown':
+          if (scrolling) {
+            event.preventDefault()
+            scrollPages(1, 0.28)
+          } else if (canScrollStage()) {
+            event.preventDefault()
+            scrollPages(1, 0.28)
+          } else {
+            event.preventDefault()
+            step(1)
+          }
           break
         case 'ArrowLeft':
-        case 'PageUp':
-          event.preventDefault()
-          step(-1)
-          break
-        case 'ArrowUp':
-          if (info?.viewMode !== 'text') {
+          if (pages) {
             event.preventDefault()
             step(-1)
           }
           break
+        case 'ArrowUp':
+          if (scrolling) {
+            event.preventDefault()
+            scrollPages(-1, 0.28)
+          } else if (canScrollStage()) {
+            event.preventDefault()
+            scrollPages(-1, 0.28)
+          } else {
+            event.preventDefault()
+            step(-1)
+          }
+          break
+        case ' ':
+        case 'PageDown':
+        case 'PageUp': {
+          const back = event.key === 'PageUp' || (event.key === ' ' && event.shiftKey)
+          event.preventDefault()
+          if (scrolling) scrollPages(back ? -1 : 1, 1)
+          else step(back ? -1 : 1)
+          break
+        }
         case 'Home':
           event.preventDefault()
           goPage(1, -1)
@@ -207,17 +303,23 @@ export function ReaderPage(): JSX.Element {
         case '+':
         case '=':
           event.preventDefault()
-          setZoom((value) => Math.min(6, +(value * 1.15).toFixed(3)))
+          zoomBy(1.2)
           break
         case '-':
         case '_':
           event.preventDefault()
-          setZoom((value) => Math.max(0.2, +(value / 1.15).toFixed(3)))
+          zoomBy(1 / 1.2)
           break
         case '0':
           event.preventDefault()
-          setZoom(1)
-          setFit('page')
+          resetZoom()
+          break
+        case 'r':
+        case 'R':
+          if (pages) {
+            event.preventDefault()
+            setRotation((value) => (value + 90) % 360)
+          }
           break
         case 'b':
         case 'B':
@@ -236,14 +338,32 @@ export function ReaderPage(): JSX.Element {
           break
         case 'f':
         case 'F':
-          if (event.ctrlKey || event.metaKey) {
-            event.preventDefault()
-            setPanel('find')
-          }
+          event.preventDefault()
+          toggleFullscreen()
+          break
+        case 'l':
+        case 'L': {
+          event.preventDefault()
+          const order: StageLayout[] = ['single', 'double', 'continuous']
+          setLayout(order[(order.indexOf(layout) + 1) % order.length])
+          break
+        }
+        case '1':
+          event.preventDefault()
+          setLayout('single')
+          break
+        case '2':
+          event.preventDefault()
+          setLayout('double')
+          break
+        case '3':
+          event.preventDefault()
+          setLayout('continuous')
           break
         case 'Escape':
           if (composer) setComposer(null)
           else if (panel) setPanel(null)
+          else if (document.fullscreenElement) void document.exitFullscreen()
           else navigate(-1)
           break
         default:
@@ -253,7 +373,7 @@ export function ReaderPage(): JSX.Element {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step, goPage, pageCount, panel, composer, info, flip, navigate])
+  }, [step, goPage, pageCount, panel, composer, info, flip, navigate, page, marks, layout])
 
   // ---------- 标记 ----------
   const toggleMark = async (kind: NoteMarkKind): Promise<void> => {
@@ -319,18 +439,170 @@ export function ReaderPage(): JSX.Element {
     }
   }
 
-  // ---------- 缩放计算 ----------
+  // ---------- 缩放计算：适应基准 × 用户倍率，窗口变化时自动跟随 ----------
   const fitScale = useMemo(() => {
     if (!pdf) return 1
-    const pad = 56
+    const pad = 44
     const w = Math.max(120, stageSize.width - pad)
     const h = Math.max(120, stageSize.height - pad)
-    const base = layout === 'double' ? pdf.baseWidth * 2 + 16 : pdf.baseWidth
-    if (fit === 'width') return w / base
-    if (fit === 'page') return Math.min(w / base, h / pdf.baseHeight)
+    const box = pageSize(pdf.baseWidth, pdf.baseHeight, 1, rotation)
+    const base = layout === 'double' ? box.width * 2 + 16 : box.width
+    // 连续滚动时按宽度铺满，整页适配没有意义
+    if (fit === 'width' || layout === 'continuous') return w / box.width
+    if (fit === 'page') return Math.min(w / base, h / box.height)
     return SCREEN_SCALE
-  }, [pdf, stageSize, fit, layout])
-  const scale = Math.max(0.15, Math.min(8, fitScale * zoom))
+  }, [pdf, stageSize, fit, layout, rotation])
+  const scale = Math.max(0.1, Math.min(12, fitScale * zoom))
+  scaleRef.current = scale
+  const zoomPercent = info?.viewMode === 'rich' ? Math.round(zoom * 100) : Math.round((scale / SCREEN_SCALE) * 100)
+  /** 只有内容真的比舞台大才需要拖动平移 */
+  const canPan = info?.viewMode === 'pages' && (layout === 'continuous' || scale > fitScale + 0.002 || zoom > 1.001)
+
+  /** 连续滚动时由舞台回报「现在看到第几页」 */
+  const handleActivePage = useCallback(
+    (next: number) => {
+      const target = Math.min(Math.max(1, next), Math.max(1, pageCount))
+      if (pageRef.current === target) return
+      pageRef.current = target
+      setPage(target)
+    },
+    [pageCount]
+  )
+  const handleWheelZoomRich = useCallback((factor: number) => {
+    setZoom((value) => Math.max(0.35, Math.min(6, value * factor)))
+  }, [])
+  const attachScrollNode = useCallback((node: HTMLDivElement | null) => {
+    scrollRef.current = node
+  }, [])
+
+  /** 以指针为锚点缩放：先记下锚点，缩放落地后把滚动条调回指针下 */
+  const zoomBy = useCallback((factor: number, clientX?: number, clientY?: number) => {
+    const node = scrollRef.current
+    const before = scaleRef.current
+    const after = Math.max(0.1, Math.min(12, before * factor))
+    if (node && clientX !== undefined && clientY !== undefined) {
+      const rect = node.getBoundingClientRect()
+      const cx = clientX - rect.left
+      const cy = clientY - rect.top
+      anchor.current = { x: cx + node.scrollLeft, y: cy + node.scrollTop, r: after / before, cx, cy }
+    }
+    setZoom((value) => Math.max(0.1, Math.min(12, value * (after / before))))
+  }, [])
+
+  const resetZoom = useCallback(() => {
+    setZoom(1)
+    setFit('page')
+    setRotation(0)
+  }, [])
+
+  // 缩放落地后修正滚动位置：放大时指针指着的内容保持在原地
+  useLayoutEffect(() => {
+    const spot = anchor.current
+    const node = scrollRef.current
+    if (!spot || !node) return
+    anchor.current = null
+    node.scrollLeft = spot.x * spot.r - spot.cx
+    node.scrollTop = spot.y * spot.r - spot.cy
+  }, [scale])
+
+  // ---------- Ctrl + 滚轮缩放；普通滚轮：单页滚到底再翻页，连续模式走原生滚动 ----------
+  useEffect(() => {
+    const node = scrollRef.current
+    if (!node || !info || info.viewMode === 'text') return
+    const onWheel = (event: WheelEvent): void => {
+      if (event.ctrlKey || event.metaKey) {
+        event.preventDefault()
+        const factor = Math.exp(-event.deltaY * 0.0022)
+        if (info.viewMode === 'rich') setZoom((value) => Math.max(0.35, Math.min(6, value * factor)))
+        else zoomBy(factor, event.clientX, event.clientY)
+        wheelAcc.current = 0
+        return
+      }
+      if (info.viewMode !== 'pages') return
+      if (layoutRef.current === 'continuous') return
+      const down = event.deltaY > 0
+      const fits = node.scrollHeight <= node.clientHeight + 2
+      const atBottom = node.scrollTop + node.clientHeight >= node.scrollHeight - 2
+      const atTop = node.scrollTop <= 2
+      if (!fits && !(down ? atBottom : atTop)) {
+        wheelAcc.current = 0
+        return
+      }
+      wheelAcc.current += event.deltaY
+      if (Math.abs(wheelAcc.current) < 140) return
+      stepRef.current(down ? 1 : -1)
+      wheelAcc.current = 0
+    }
+    node.addEventListener('wheel', onWheel, { passive: false })
+    return () => node.removeEventListener('wheel', onWheel)
+  }, [info, layout, zoomBy])
+
+  // ---------- 左键按住拖动：放大后随手平移页面 ----------
+  const onPanDown = (event: ReactPointerEvent<HTMLDivElement>): void => {
+    if (event.button !== 0) return
+    const node = scrollRef.current
+    if (!node || !info || info.viewMode === 'text') return
+    const target = event.target as HTMLElement | null
+    if (target?.closest('button, a, input, select, textarea, iframe, [role="switch"], [role="button"]')) return
+    panRef.current = {
+      x: event.clientX,
+      y: event.clientY,
+      left: node.scrollLeft,
+      top: node.scrollTop,
+      moved: false
+    }
+  }
+  const onPanMove = (event: ReactPointerEvent<HTMLDivElement>): void => {
+    const pan = panRef.current
+    const node = scrollRef.current
+    if (!pan || !node) return
+    const dx = event.clientX - pan.x
+    const dy = event.clientY - pan.y
+    if (!pan.moved && Math.abs(dx) + Math.abs(dy) < 5) return
+    pan.moved = true
+    if (!panning) setPanning(true)
+    node.scrollLeft = pan.left - dx
+    node.scrollTop = pan.top - dy
+  }
+  const endPan = (): void => {
+    const pan = panRef.current
+    panRef.current = null
+    if (panning) setPanning(false)
+    if (pan && pan.moved) {
+      suppressClick.current = true
+      window.setTimeout(() => {
+        suppressClick.current = false
+      }, 80)
+    }
+  }
+  /** 刚拖完那一下不算点击，避免拖动变成跳页 */
+  const onStageClickCapture = (event: ReactMouseEvent): void => {
+    if (!suppressClick.current) return
+    event.preventDefault()
+    event.stopPropagation()
+  }
+
+  // ---------- 全屏（F） ----------
+  const toggleFullscreen = useCallback((): void => {
+    if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined)
+    else void document.documentElement.requestFullscreen().catch(() => undefined)
+  }, [])
+  useEffect(() => {
+    const sync = (): void => setFullscreen(Boolean(document.fullscreenElement))
+    document.addEventListener('fullscreenchange', sync)
+    return () => document.removeEventListener('fullscreenchange', sync)
+  }, [])
+
+  /** 连续滚动 / 文本模式下的滚动翻页 */
+  const scrollPages = (direction: number, screens = 1): void => {
+    const node = scrollRef.current
+    if (!node) return
+    node.scrollBy({ top: direction * Math.max(80, node.clientHeight - 72) * screens, behavior: 'smooth' })
+  }
+  const canScrollStage = (): boolean => {
+    const node = scrollRef.current
+    return !!node && node.scrollHeight > node.clientHeight + 4
+  }
 
   const marksOnPage = marks.filter((mark) => (info?.viewMode === 'text' ? 0 : page) === mark.page)
   const hasBookmark = marksOnPage.some((mark) => mark.kind === 'bookmark')
@@ -409,35 +681,41 @@ export function ReaderPage(): JSX.Element {
               onChange={(key) => setFlip(key as FlipEffect)}
             />
             <div className="flex items-center gap-1 rounded-lg border border-border bg-muted p-0.5">
-              <IconButton
-                label="缩小（-）"
-                onClick={() => setZoom((value) => Math.max(0.2, +(value / 1.15).toFixed(3)))}
-              >
+              <IconButton label="缩小（Ctrl+滚轮 / Ctrl+-）" onClick={() => (info.viewMode === 'rich' ? handleWheelZoomRich(1 / 1.2) : zoomBy(1 / 1.2))}>
                 <Minus className="h-3.5 w-3.5" />
               </IconButton>
-              <span className="w-12 text-center text-[11px] tabular-nums text-foreground">
-                {Math.round((scale / SCREEN_SCALE) * 100)}%
-              </span>
-              <IconButton
-                label="放大（+）"
-                onClick={() => setZoom((value) => Math.min(6, +(value * 1.15).toFixed(3)))}
+              <button
+                type="button"
+                title="恢复适页（Ctrl+0）"
+                onClick={resetZoom}
+                className="w-14 shrink-0 cursor-pointer text-center text-[11px] tabular-nums text-foreground hover:text-tint-primary"
               >
+                {zoomPercent}%
+              </button>
+              <IconButton label="放大（Ctrl+滚轮 / Ctrl++）" onClick={() => (info.viewMode === 'rich' ? handleWheelZoomRich(1.2) : zoomBy(1.2))}>
                 <Plus className="h-3.5 w-3.5" />
               </IconButton>
             </div>
-            <Segmented
-              value={fit}
-              title="缩放基准"
-              options={[
-                { key: 'width', label: '适宽' },
-                { key: 'page', label: '适页' },
-                { key: 'actual', label: '100%' }
-              ]}
-              onChange={(key) => {
-                setFit(key as FitMode)
-                setZoom(1)
-              }}
-            />
+            {info.viewMode === 'pages' ? (
+              <>
+                <Segmented
+                  value={fit}
+                  title="缩放基准"
+                  options={[
+                    { key: 'width', label: '适宽' },
+                    { key: 'page', label: '适页' },
+                    { key: 'actual', label: '100%' }
+                  ]}
+                  onChange={(key) => {
+                    setFit(key as FitMode)
+                    setZoom(1)
+                  }}
+                />
+                <IconButton label="旋转 90°（R）" onClick={() => setRotation((value) => (value + 90) % 360)}>
+                  <RotateCw className={cn('h-3.5 w-3.5', rotation !== 0 && 'text-tint-primary')} />
+                </IconButton>
+              </>
+            ) : null}
           </>
         ) : (
           <div className="flex items-center gap-1 rounded-lg border border-border bg-muted p-0.5">
@@ -470,6 +748,9 @@ export function ReaderPage(): JSX.Element {
           >
             <List className="h-4 w-4" />
           </IconButton>
+          <IconButton label={fullscreen ? '退出全屏（F）' : '全屏阅读（F）'} onClick={toggleFullscreen}>
+            {fullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+          </IconButton>
           {info.viewMode === 'text' && !info.readonly ? (
             <Button
               size="sm"
@@ -497,9 +778,24 @@ export function ReaderPage(): JSX.Element {
         <main className="reader-stage-wrap relative flex min-w-0 flex-1 flex-col">
           <div
             ref={stageRef}
-            className="reader-stage relative flex-1 overflow-hidden"
+            className={cn(
+              'reader-stage relative flex-1 overflow-hidden',
+              canPan && 'is-pannable',
+              panning && 'is-panning'
+            )}
             data-flip={flip}
             data-layout={layout}
+            onPointerDown={onPanDown}
+            onPointerMove={onPanMove}
+            onPointerUp={endPan}
+            onPointerLeave={endPan}
+            onPointerCancel={endPan}
+            onClickCapture={onStageClickCapture}
+            onDoubleClick={() => {
+              if (info.viewMode !== 'pages') return
+              if (zoom !== 1) resetZoom()
+              else zoomBy(1.6)
+            }}
           >
             {info.viewMode === 'pages' && pdf ? (
               <PdfStage
@@ -507,17 +803,23 @@ export function ReaderPage(): JSX.Element {
                 page={page}
                 pageCount={pageCount}
                 scale={scale}
+                rotation={rotation}
                 layout={layout}
                 turning={turning}
-                onJump={goPage}
+                  onScrollNode={attachScrollNode}
+                  onJump={goPage}
+                onActivePage={handleActivePage}
               />
             ) : info.viewMode === 'rich' ? (
               <RichStage
                 html={info.html ?? ''}
                 page={page}
-                zoom={scale / SCREEN_SCALE}
+                zoom={zoom}
+                layout={layout}
                 turning={turning}
                 onPageCount={setPageCount}
+                onActivePage={handleActivePage}
+                onWheelZoom={handleWheelZoomRich}
               />
             ) : (
               <TextStage
@@ -538,10 +840,13 @@ export function ReaderPage(): JSX.Element {
             <span className="h-3 w-px bg-border" />
             <span>← → 翻页</span>
             <span>空格 下一页</span>
-            <span>+ − 缩放</span>
+            <span>Ctrl+滚轮 缩放</span>
+            <span>按住左键拖动</span>
             <span>B 书签</span>
             <span>S 重点</span>
             <span>E 注释</span>
+            <span>R 旋转</span>
+            <span>F 全屏</span>
             <span className="ml-auto tabular-nums">{Math.round((page / Math.max(1, pageCount)) * 100)}%</span>
           </footer>
         </main>
@@ -605,95 +910,191 @@ function Segmented(props: {
 }
 
 /* ==================== 书页舞台（PDF / 原版式） ==================== */
-function PdfStage(props: {
+interface StageProps {
   pdf: PdfDocInfo
   page: number
   pageCount: number
   scale: number
+  rotation: number
   layout: StageLayout
   turning: { from: number; to: number; dir: 1 | -1 } | null
+  /** 把真正滚动的节点交回上层：Ctrl+滚轮缩放与左键拖动都要挂在它上面 */
+  onScrollNode: (node: HTMLDivElement | null) => void
   onJump: (page: number) => void
-}): JSX.Element {
-  const { pdf, page, pageCount, scale, layout, turning, onJump } = props
+  onActivePage: (page: number) => void
+}
+
+function PdfStage(props: StageProps): JSX.Element {
+  const { pdf, page, pageCount, scale, rotation, layout, turning, onScrollNode, onJump, onActivePage } = props
 
   if (layout === 'continuous') {
-    const pages = Array.from({ length: pageCount }, (_, index) => index + 1)
     return (
-      <div className="reader-scroll h-full overflow-auto px-6 py-5">
-        <div className="mx-auto flex w-fit flex-col gap-4">
-          {pages.map((number) => (
-            <PdfPageView key={number} pdf={pdf} pageNumber={number} scale={scale} active={number === page} lazy onJump={onJump} />
-          ))}
-        </div>
-      </div>
+      <ContinuousPages
+        pdf={pdf}
+        page={page}
+        pageCount={pageCount}
+        scale={scale}
+        rotation={rotation}
+        onScrollNode={onScrollNode}
+        onJump={onJump}
+        onActivePage={onActivePage}
+      />
     )
   }
 
   const double = layout === 'double'
-  const left = double ? page : page
   const right = double ? page + 1 : 0
-  const ghostPages = turning
-    ? double
-      ? [turning.from, turning.from + 1]
-      : [turning.from]
-    : []
-  const currentPages = double ? [left, right] : [page]
+  const ghostPages = turning ? (double ? [turning.from, turning.from + 1] : [turning.from]) : []
+  const currentPages = double ? [page, right] : [page]
+  const box = pageSize(pdf.baseWidth, pdf.baseHeight, scale, rotation)
 
   return (
-    <div className="reader-page-area relative flex h-full items-center justify-center overflow-auto px-4 py-4">
-      <div className={cn('mw-book', turning && 'is-turning', turning?.dir === -1 && 'is-reverse')}>
-        {ghostPages.length > 0 && turning ? (
-          <div className="mw-layer mw-layer-out" key={`out-${turning.from}`}>
-            {ghostPages.map((number) =>
-              number <= pageCount ? (
-                <PdfPageView key={`o${number}`} pdf={pdf} pageNumber={number} scale={scale} ghost />
-              ) : null
+    <div ref={onScrollNode} className="reader-page-area h-full overflow-auto">
+      {/* 用 margin:auto 居中：放大超出舞台时上下左右都能滚到，不会被裁掉 */}
+      <div className="mw-book-frame">
+        <div className={cn('mw-book', turning && 'is-turning', turning?.dir === -1 && 'is-reverse')}>
+          <div className="mw-layer mw-layer-in" key={`in-${page}`}>
+            {currentPages.map((number) =>
+              number >= 1 && number <= pageCount ? (
+                <PdfPageView
+                  key={`i${number}`}
+                  pdf={pdf}
+                  pageNumber={number}
+                  scale={scale}
+                  rotation={rotation}
+                  active
+                  priority={10}
+                />
+              ) : (
+                <div key={`blank${number}`} className="mw-page mw-page-blank" style={{ width: box.width, height: box.height }} />
+              )
             )}
           </div>
-        ) : null}
-        <div className="mw-layer mw-layer-in" key={`in-${page}`}>
-          {currentPages.map((number) =>
-            number >= 1 && number <= pageCount ? (
-              <PdfPageView key={`i${number}`} pdf={pdf} pageNumber={number} scale={scale} active />
-            ) : (
-              <div key={`blank${number}`} className="mw-page mw-page-blank" style={{ width: pdf.baseWidth * scale, height: pdf.baseHeight * scale }} />
-            )
-          )}
+          {ghostPages.length > 0 && turning ? (
+            <div className="mw-layer mw-layer-out" key={`out-${turning.from}`}>
+              {ghostPages.map((number) =>
+                number >= 1 && number <= pageCount ? (
+                  <PdfPageView
+                    key={`o${number}`}
+                    pdf={pdf}
+                    pageNumber={number}
+                    scale={scale}
+                    rotation={rotation}
+                    ghost
+                  />
+                ) : null
+              )}
+            </div>
+          ) : null}
         </div>
       </div>
     </div>
   )
 }
 
-/** 单页画布：pdf.js 画到 canvas 再插进容器，尺寸变化自动重画 */
+/** 连续模式：所有页顺排，滚到哪页算哪页；画布按队列逐页渲染，不会一次卡死 */
+function ContinuousPages(props: Omit<StageProps, 'turning' | 'layout'>): JSX.Element {
+  const { pdf, page, pageCount, scale, rotation, onScrollNode, onJump, onActivePage } = props
+  const listRef = useRef<HTMLDivElement>(null)
+  const nodeRef = useRef<HTMLDivElement | null>(null)
+  const setNode = (el: HTMLDivElement | null): void => {
+    nodeRef.current = el
+    onScrollNode(el)
+  }
+  const raf = useRef(0)
+  const reported = useRef(page)
+  reported.current = page
+
+  const handleScroll = (): void => {
+    if (raf.current) return
+    raf.current = window.requestAnimationFrame(() => {
+      raf.current = 0
+      const node = nodeRef.current
+      const list = listRef.current
+      if (!node || !list) return
+      const line = node.scrollTop + node.clientHeight * 0.4
+      let found = 1
+      const children = list.children
+      for (let index = 0; index < children.length; index += 1) {
+        const child = children[index] as HTMLElement
+        if (child.offsetTop <= line) found = index + 1
+        else break
+      }
+      if (found !== reported.current) {
+        reported.current = found
+        onActivePage(found)
+      }
+    })
+  }
+  useEffect(
+    () => () => {
+      if (raf.current) window.cancelAnimationFrame(raf.current)
+    },
+    []
+  )
+
+  return (
+    <div ref={setNode} className="reader-scroll h-full overflow-auto px-6 py-5" onScroll={handleScroll}>
+      <div ref={listRef} className="mx-auto flex w-fit flex-col gap-4">
+        {Array.from({ length: pageCount }, (_, index) => index + 1).map((number) => (
+          <PdfPageView
+            key={number}
+            pdf={pdf}
+            pageNumber={number}
+            scale={scale}
+            rotation={rotation}
+            active={number === page}
+            lazy
+            priority={Math.abs(number - page) <= 1 ? 30 : 4}
+            onJump={onJump}
+          />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+/** 单页画布：走渲染队列 + 画布缓存，缩放来回切不重画，翻页残影也能立刻拿到图 */
 function PdfPageView(props: {
   pdf: PdfDocInfo
   pageNumber: number
   scale: number
+  rotation: number
   active?: boolean
   ghost?: boolean
   lazy?: boolean
+  priority?: number
   onJump?: (page: number) => void
 }): JSX.Element {
-  const { pdf, pageNumber, scale, active, ghost, lazy, onJump } = props
+  const { pdf, pageNumber, scale, rotation, active, ghost, lazy, priority = 0, onJump } = props
   const holder = useRef<HTMLDivElement>(null)
+  const boxRef = useRef<HTMLDivElement>(null)
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading')
   const [visible, setVisible] = useState(!lazy)
   const rounded = Math.round(scale * 100) / 100
+  const box = pageSize(pdf.baseWidth, pdf.baseHeight, rounded, rotation)
+  const scrollRoot = useRef<HTMLElement | null>(null)
+  if (!scrollRoot.current && typeof document !== 'undefined') {
+    scrollRoot.current = boxRef.current?.closest('.reader-scroll, .reader-page-area') ?? null
+  }
 
   useEffect(() => {
     if (!lazy || visible) return
-    const node = holder.current
+    // 观察页面外框而不是画布宿主：宿主是 display:contents，没有盒子，观察者永远不触发
+    const node = boxRef.current
     if (!node || typeof IntersectionObserver === 'undefined') {
       setVisible(true)
       return
     }
-    const observer = new IntersectionObserver((entries) => {
-      if (entries.some((entry) => entry.isIntersecting)) {
-        setVisible(true)
-        observer.disconnect()
-      }
-    }, { rootMargin: '400px 0px' })
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          setVisible(true)
+          observer.disconnect()
+        }
+      },
+      { root: scrollRoot.current, rootMargin: '600px 0px' }
+    )
     observer.observe(node)
     return () => observer.disconnect()
   }, [lazy, visible])
@@ -701,15 +1102,14 @@ function PdfPageView(props: {
   useEffect(() => {
     if (!visible) return
     let cancelled = false
-    setState('loading')
     void (async () => {
       try {
-        const { canvas } = await renderPage(pdf.doc, pageNumber, rounded)
+        const source = await pageCanvas(pdf.doc, pdf.uid, pageNumber, rounded, rotation, ghost ? priority - 50 : priority)
         if (cancelled || !holder.current) return
         const host = holder.current
-        // 先清掉自己上一轮的画布，再挂新的；host 里没有 React 节点，安全
+        // 画布可能同时被「残影层」和「当前层」用到：谁后到谁复制一份，避免同一个节点被搬走
         while (host.firstChild) host.removeChild(host.firstChild)
-        host.appendChild(canvas)
+        host.appendChild(source.isConnected ? cloneCanvas(source) : source)
         setState('ready')
       } catch {
         if (!cancelled) setState('error')
@@ -718,7 +1118,7 @@ function PdfPageView(props: {
     return () => {
       cancelled = true
     }
-  }, [pdf, pageNumber, rounded, visible])
+  }, [pdf, pageNumber, rounded, rotation, visible, ghost, priority])
 
   useEffect(() => {
     if (active) holder.current?.parentElement?.scrollIntoView({ block: 'nearest' })
@@ -726,8 +1126,9 @@ function PdfPageView(props: {
 
   return (
     <div
-      className={cn('mw-page', active && 'is-active', ghost && 'is-ghost', state === 'loading' && 'is-loading')}
-      style={{ width: pdf.baseWidth * rounded, height: pdf.baseHeight * rounded }}
+      ref={boxRef}
+      className={cn('mw-page', active && 'is-active', ghost && 'is-ghost', state === 'loading' && 'is-loading', state === 'error' && 'is-error')}
+      style={{ width: box.width, height: box.height }}
       onClick={() => onJump?.(pageNumber)}
     >
       {/* 画布由 pdf.js 直接挂到这个宿主节点上：React 不往里面渲染任何东西，避免两方争抢同一批子节点 */}
@@ -748,12 +1149,17 @@ function RichStage(props: {
   html: string
   page: number
   zoom: number
+  layout: StageLayout
   turning: { from: number; to: number; dir: 1 | -1 } | null
   onPageCount: (count: number) => void
+  onActivePage: (page: number) => void
+  onWheelZoom: (factor: number) => void
 }): JSX.Element {
-  const { html, page, zoom, turning, onPageCount } = props
+  const { html, page, zoom, layout, turning, onPageCount, onActivePage, onWheelZoom } = props
   const frameRef = useRef<HTMLIFrameElement>(null)
   const [ready, setReady] = useState(false)
+  /** 程序滚动之后短暂忽略滚动回报，避免「滚到第几页」和「第几页滚过去」互相打架 */
+  const ignoreScrollUntil = useRef(0)
 
   // 内容侧缩放：像浏览器缩放一样重排，一页 = 一屏高度
   useEffect(() => {
@@ -770,8 +1176,27 @@ function RichStage(props: {
     }
     measure()
     const timer = window.setInterval(measure, 1500)
-    return () => window.clearInterval(timer)
-  }, [ready, zoom, onPageCount])
+    // iframe 会自己吃掉滚轮事件，Ctrl+滚轮 要进到文档里监听才能拦下浏览器缩放
+    const onWheel = (event: WheelEvent): void => {
+      if (!event.ctrlKey && !event.metaKey) return
+      event.preventDefault()
+      onWheelZoom(Math.exp(-event.deltaY * 0.0022))
+    }
+    const onScroll = (): void => {
+      if (layout !== 'continuous') return
+      if (Date.now() < ignoreScrollUntil.current) return
+      const screen = frame.clientHeight / Math.max(0.2, zoom)
+      const current = Math.min(20000, Math.max(1, Math.floor(doc.documentElement.scrollTop / Math.max(1, screen)) + 1))
+      onActivePage(current)
+    }
+    doc.addEventListener('wheel', onWheel, { passive: false })
+    doc.addEventListener('scroll', onScroll, { passive: true })
+    return () => {
+      window.clearInterval(timer)
+      doc.removeEventListener('wheel', onWheel)
+      doc.removeEventListener('scroll', onScroll)
+    }
+  }, [ready, zoom, layout, onPageCount, onActivePage, onWheelZoom])
 
   // 翻页 = 把 iframe 滚到对应位置（保持原版式，不做二次排版）
   useEffect(() => {
@@ -779,6 +1204,7 @@ function RichStage(props: {
     const doc = frame?.contentDocument
     if (!frame || !doc || !ready) return
     try {
+      ignoreScrollUntil.current = Date.now() + 400
       const top = ((page - 1) * frame.clientHeight) / zoom
       doc.defaultView?.scrollTo({ top, behavior: turning ? 'auto' : 'smooth' })
     } catch {
@@ -792,7 +1218,7 @@ function RichStage(props: {
 
   return (
     <div className="reader-page-area relative flex h-full items-center justify-center overflow-hidden px-6 py-5">
-      <div className={cn('mw-book', turning && 'is-turning', turning?.dir === -1 && 'is-reverse')}>
+      <div className={cn('mw-book mw-book-fill', turning && 'is-turning', turning?.dir === -1 && 'is-reverse')}>
         <div className="mw-layer mw-layer-in" key={`rich-${page}`}>
           <div className="mw-page mw-page-rich">
             <iframe
@@ -1039,7 +1465,7 @@ function ReaderPanel(props: {
                   className="block overflow-hidden rounded bg-white"
                   style={{ height: Math.round((116 * pdf.baseHeight) / pdf.baseWidth) }}
                 >
-                  <PdfPageView pdf={pdf} pageNumber={number} scale={116 / pdf.baseWidth} lazy />
+                  <PdfPageView pdf={pdf} pageNumber={number} scale={116 / pdf.baseWidth} rotation={0} lazy priority={2} />
                 </span>
                 <span className="mt-1 block text-center text-[10px] tabular-nums text-muted-foreground">{number}</span>
               </button>

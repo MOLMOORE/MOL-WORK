@@ -50,6 +50,12 @@ export interface PreparedDocument extends ParsedDocument {
 
 /** 单个文件的大小上限：超过则拒绝，避免把主进程卡死 */
 const MAX_FILE_BYTES = 120 * 1024 * 1024
+/** 正文抽取的页数上限：超长文档只抽前若干页供搜索，翻阅不受影响 */
+const MAX_TEXT_PAGES = 160
+
+/** 导入阶段（供进度条细分单文件内的耗时步骤） */
+export type ImportStage = 'parse' | 'render' | 'store'
+export type ImportStageSink = (stage: ImportStage) => void
 
 const PLAIN_EXTS = ['.md', '.markdown', '.txt', '.text', '.log', '.mdown', '.mkd']
 const CODE_EXTS = ['.json', '.xml', '.yml', '.yaml', '.toml', '.ini', '.csv', '.tsv', '.sql', '.py', '.js', '.ts', '.java', '.c', '.cpp', '.h', '.go', '.rs', '.sh', '.bat', '.ps1']
@@ -98,7 +104,7 @@ async function convertWithPandoc(filePath: string): Promise<ParsedDocument | nul
 }
 
 /** 解析单个文件为 Markdown（抛错时由调用方记录为失败项） */
-export async function parseDocument(filePath: string): Promise<ParsedDocument> {
+export async function parseDocument(filePath: string, preloaded?: Buffer): Promise<ParsedDocument> {
   if (!existsSync(filePath)) throw new Error('文件不存在或已被移动')
   const stat = statSync(filePath)
   if (stat.isDirectory()) throw new Error('不能导入文件夹，请进入文件夹选择具体文件')
@@ -107,7 +113,8 @@ export async function parseDocument(filePath: string): Promise<ParsedDocument> {
   const ext = extname(filePath).toLowerCase()
   const fileName = basename(filePath)
   const base = { filePath, fileName, format: formatLabel(ext), title: fallbackTitle(filePath), pages: null as number | null }
-  const read = (): Buffer => readFileSync(filePath)
+  // 同一份字节只读一次：调用方已读过就直接复用，省一遍磁盘 IO
+  const read = (): Buffer => preloaded ?? readFileSync(filePath)
   const finish = (content: string, engine: string, title = '', pages: number | null = null): ParsedDocument => {
     const cleaned = tidyMarkdown(content)
     const empty = cleaned.replace(/\s/g, '').length < 8
@@ -126,7 +133,7 @@ export async function parseDocument(filePath: string): Promise<ParsedDocument> {
 
   switch (ext) {
     case '.pdf': {
-      const parsed = await extractPdf(read())
+      const parsed = await extractPdf(read(), MAX_TEXT_PAGES)
       return finish(parsed.content, '内置 PDF 解析', '', parsed.pages)
     }
     case '.docx': {
@@ -268,8 +275,16 @@ const EDITABLE_DOC_EXTS = ['.doc', '.docx', '.rtf', '.wps', '.odt']
  * 再按格式决定阅读模式并生成书库渲染件——
  * PDF / Office 走原版式书页，网页 / EPUB 走自包含 HTML，纯文本类保持可编辑。
  */
-export async function prepareDocument(filePath: string): Promise<PreparedDocument> {
-  const doc = await parseDocument(filePath)
+export async function prepareDocument(filePath: string, onStage?: ImportStageSink): Promise<PreparedDocument> {
+  onStage?.('parse')
+  // 先读一次字节，parseDocument 与渲染件都复用它，避免大文件重复读盘
+  let bytes: Buffer | undefined
+  try {
+    if (existsSync(filePath) && statSync(filePath).size <= MAX_FILE_BYTES) bytes = readFileSync(filePath)
+  } catch {
+    bytes = undefined
+  }
+  const doc = await parseDocument(filePath, bytes)
   const ext = extname(filePath).toLowerCase()
   const attach = (patch: Partial<PreparedDocument>): PreparedDocument => ({
     ...doc,
@@ -283,7 +298,8 @@ export async function prepareDocument(filePath: string): Promise<PreparedDocumen
   })
 
   if (ext === '.pdf') {
-    const buffer = readFileSync(filePath)
+    const buffer = bytes ?? readFileSync(filePath)
+    onStage?.('store')
     return attach({
       viewMode: 'pages',
       docKind: 'pdf',
@@ -295,6 +311,7 @@ export async function prepareDocument(filePath: string): Promise<PreparedDocumen
   }
 
   if (RICH_EXTS.includes(ext)) {
+    onStage?.('render')
     const bundled = ext === '.epub' ? await bundleEpubFile(filePath) : bundleHtmlFile(filePath)
     if (bundled) {
       return attach({
@@ -312,6 +329,7 @@ export async function prepareDocument(filePath: string): Promise<PreparedDocumen
   }
 
   if (PAGINATED_EXTS.includes(ext)) {
+    onStage?.('render')
     const pdf = await convertToPdf(filePath)
     if (pdf) {
       // Word 类给原版式的同时保留正文可编辑；PPT / Excel 只读
@@ -332,6 +350,7 @@ export async function prepareDocument(filePath: string): Promise<PreparedDocumen
     return attach({ viewMode: 'text', readonly: !EDITABLE_DOC_EXTS.includes(ext) })
   }
 
+  onStage?.('store')
   if (doc.warning) throw new Error(doc.warning)
   return attach({ viewMode: TEXT_EXTS.includes(ext) ? 'text' : 'text', readonly: false })
 }

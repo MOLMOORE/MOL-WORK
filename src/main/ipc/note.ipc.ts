@@ -4,10 +4,12 @@ import type {
   NoteDocInfo,
   NoteInput,
   NoteImportOptions,
+  NoteImportProgress,
   NoteImportSummary,
   NoteMark,
   NoteMarkInput
 } from '@shared/types/domain'
+import { IPC_EVENTS } from '@shared/types/ipc'
 import { IMPORT_EXTENSIONS } from '@shared/constants'
 import { handle } from './handle'
 import {
@@ -24,7 +26,20 @@ import {
 } from '../services/note.service'
 import { importNoteFiles } from '../services/note-import.service'
 import { readPdfAsset, type PdfAssetKind } from '../services/pdf-assets'
-import { notifyDataChanged } from '../services/bus'
+import { emitToRenderer, notifyDataChanged } from '../services/bus'
+
+/** 导入进度广播：换文件或换阶段立刻发，同一阶段内按 120ms 节流，够画进度条也不刷屏 */
+let lastProgressAt = 0
+let lastProgressKey = ''
+function pushImportProgress(progress: NoteImportProgress): void {
+  const now = Date.now()
+  const key = progress.file + '|' + progress.stage + '|' + progress.done
+  const final = progress.stage === 'done' && progress.done >= progress.total
+  if (!final && key === lastProgressKey && now - lastProgressAt < 120) return
+  lastProgressKey = key
+  lastProgressAt = now
+  emitToRenderer(IPC_EVENTS.noteImport, progress)
+}
 
 export function registerNoteIpc(): void {
   handle<Note[]>('note:list', (taskId?: number | null, keyword?: string) => listNotes(taskId, keyword))
@@ -70,7 +85,7 @@ export function registerNoteIpc(): void {
   handle<Uint8Array | null>('note:pdf-asset', (kind: PdfAssetKind, name: string) => readPdfAsset(kind, name))
 
   handle<NoteImportSummary>('note:import-files', async (paths: string[], options?: NoteImportOptions) => {
-    const summary = await importNoteFiles(paths, options)
+    const summary = await importNoteFiles(paths, options, pushImportProgress)
     if (summary.created.length > 0) notifyDataChanged('notes')
     return summary
   })
@@ -86,7 +101,7 @@ export function registerNoteIpc(): void {
       ]
     })
     if (result.canceled || result.filePaths.length === 0) return { created: [], items: [] }
-    const summary = await importNoteFiles(result.filePaths, options)
+    const summary = await importNoteFiles(result.filePaths, options, pushImportProgress)
     if (summary.created.length > 0) notifyDataChanged('notes')
     return summary
   })

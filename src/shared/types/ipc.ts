@@ -7,6 +7,7 @@ import type {
   Note,
   NoteDocInfo,
   NoteImportOptions,
+  NoteImportProgress,
   NoteImportSummary,
   NoteInput,
   NoteMark,
@@ -37,7 +38,8 @@ export const IPC_EVENTS = {
   reminder: 'event:reminder',
   dataChanged: 'event:data-changed',
   reviewAutoScheduled: 'event:review-auto-scheduled',
-  closeRequest: 'event:close-request'
+  closeRequest: 'event:close-request',
+  noteImport: 'event:note-import-progress'
 } as const
 
 export interface ReminderPayload {
@@ -181,4 +183,6 @@ export interface WorkstationApi {
   onDataChanged(callback: (scope: string) => void): () => void
   /** 用户点击窗口关闭按钮（主进程已按设置拦截，需要渲染层弹窗询问） */
   onCloseRequest(callback: (payload: CloseRequestPayload) => void): () => void
+  /** 文档导入进度（进度条） */
+  onNoteImportProgress(callback: (payload: NoteImportProgress) => void): () => void
 }

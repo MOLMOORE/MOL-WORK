@@ -3,13 +3,13 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { BookOpen, Eye, FileText, Layers, Paperclip, Pencil, Plus, Save, Search, Trash2, Upload } from 'lucide-react'
-import type { NoteImportOptions, NoteImportSummary, NoteKind, ReviewRating } from '@shared/types/domain'
+import type { NoteImportOptions, NoteImportProgress, NoteImportSummary, NoteKind, ReviewRating } from '@shared/types/domain'
 import { IMPORT_FORMAT_GROUPS } from '@shared/constants'
 import { Card, SectionHeader } from '../components/ui/Card'
 import { Badge, EmptyState, Spinner } from '../components/ui/Feedback'
 import { Button, IconButton } from '../components/ui/Button'
 import { Field, Input, Select, Switch, Textarea } from '../components/ui/Field'
-import { ConfirmDialog } from '../components/ui/Overlay'
+import { ConfirmDialog, Modal } from '../components/ui/Overlay'
 import { Tabs } from '../components/ui/Tabs'
 import { PageGrid } from '../components/layout/PageGrid'
 import type { GridEntry } from '../components/layout/GridBoard'
@@ -22,6 +22,14 @@ import { addDays, cn, formatDateTime, formatDay, relativeDay } from '../lib/util
 
 /** 三种阅读模式的中文名：列表与编辑器共用 */
 const VIEW_MODE_LABEL: Record<string, string> = { text: '文本', pages: '书页', rich: '排版' }
+/** 导入进度条上的阶段说明 */
+const IMPORT_STAGE_LABEL: Record<string, string> = {
+  queue: '排队中',
+  parse: '读取并解析文档',
+  render: '生成原版式页面',
+  store: '写入书库与数据库',
+  done: '完成'
+}
 
 const KIND_TABS: { key: NoteKind | 'all'; label: string }[] = [
   { key: 'all', label: '全部' },
@@ -71,16 +79,34 @@ export function NotesPage(): JSX.Element {
   const [importTaskId, setImportTaskId] = useState<number | null>(null)
   const [importKind, setImportKind] = useState<NoteKind>('material')
   const [importSplit, setImportSplit] = useState(false)
+  // 详情弹窗：选中任意一条资料后弹出，替代原先常驻右侧的详情区
+  const [detailOpen, setDetailOpen] = useState(false)
+  // 导入进度（主进程逐文件推送）
+  const [progress, setProgress] = useState<NoteImportProgress | null>(null)
 
   useEffect(() => {
     void load()
     void loadTasks()
   }, [load, loadTasks])
 
+  // 订阅导入进度：进度条浮层在页面底部显示，完成后自动收起
+  useEffect(() => {
+    const off = api.onNoteImportProgress((payload) => {
+      setProgress(payload)
+      if (payload.total > 0 && payload.done >= payload.total) {
+        window.setTimeout(() => {
+          setProgress((current) => (current && current.done >= current.total ? null : current))
+        }, 1400)
+      }
+    })
+    return off
+  }, [])
+
   useEffect(() => {
     const state = location.state as { noteId?: number } | null
     if (state?.noteId) {
       void select(state.noteId)
+      setDetailOpen(true)
       navigate(location.pathname, { replace: true, state: null })
     }
   }, [location.state, location.pathname, select, navigate])
@@ -114,6 +140,12 @@ export function NotesPage(): JSX.Element {
   /** 点开一条笔记就是翻开这本书：进入独立的阅读界面 */
   const openReader = (id: number): void => {
     navigate('/reader/' + id)
+  }
+
+  /** 选中一条资料 = 弹出详情视图（正文、原件、复习计划都在这里） */
+  const openDetail = async (id: number): Promise<void> => {
+    await select(id)
+    setDetailOpen(true)
   }
 
   const handleCreate = async (): Promise<void> => {
@@ -260,110 +292,124 @@ export function NotesPage(): JSX.Element {
         void handleDropFiles(Array.from(event.dataTransfer.files))
       }}
     >
-      <Card className="flex h-full flex-col">
-        <div className="mb-3 flex h-9 items-center gap-2 rounded-xl border border-border bg-input/60 px-3">
-          <Search className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-          <input
-            value={keyword}
-            onChange={(event) => void setKeyword(event.target.value)}
-            placeholder="搜索笔记标题或正文"
-            className="h-full flex-1 border-0 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/70 focus:outline-none"
-          />
-          <Button
-            size="sm"
-            variant="secondary"
-            loading={importing}
-            icon={<Upload className="h-3.5 w-3.5" />}
-            title="导入 PDF / Word / PPT / 网页 / 纯文本等文档"
-            onClick={openImport}
-          >
-            导入
-          </Button>
-        </div>
-        <Tabs
-          size="sm"
-          className="mb-3"
-          value={kind}
-          onChange={(key) => setKind(key as NoteKind | 'all')}
-          items={KIND_TABS.map((tab) => ({
-            key: tab.key,
-            label: tab.label,
-            count: tab.key === 'all' ? notes.length : notes.filter((note) => note.kind === tab.key).length
-          }))}
-        />
-
-        <div className="flex-1 overflow-y-auto pr-1">
-          {loading ? (
-            <div className="flex h-32 items-center justify-center">
-              <Spinner />
+        <Card className="flex h-full min-w-0 flex-col">
+          <div className="mb-3 flex items-center gap-2">
+            <div className="flex h-9 min-w-0 flex-1 items-center gap-2 rounded-xl border border-border bg-input/60 px-3">
+              <Search className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+              <input
+                value={keyword}
+                onChange={(event) => void setKeyword(event.target.value)}
+                placeholder="搜索笔记标题或正文"
+                className="h-full min-w-0 flex-1 border-0 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/70 focus:outline-none"
+              />
             </div>
-          ) : filtered.length === 0 ? (
-            <EmptyState icon={<FileText className="h-5 w-5" />} title="还没有笔记" description="点击右上角加号创建第一篇笔记" />
-          ) : (
-            filtered.map((note) => (
-              <button
-                key={note.id}
-                type="button"
-                onClick={() => void select(note.id)}
-                className={cn(
-                  'mb-2 w-full rounded-xl border p-3 text-left transition-all duration-150',
-                  current?.id === note.id
-                    ? 'border-primary/50 bg-primary/10'
-                    : 'border-border bg-muted/20 hover:border-primary/30 hover:bg-muted/40'
-                )}
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <Badge tone={note.kind === 'material' ? 'warning' : note.kind === 'flashcard' ? 'info' : 'primary'}>
-                    {note.kind === 'material' ? '资料' : note.kind === 'flashcard' ? '卡片' : '笔记'}
-                  </Badge>
-                  {note.review ? (
-                    <Badge tone={note.review.status === 'mastered' ? 'success' : 'info'} dot>
-                      {note.review.status === 'mastered' ? '已掌握' : relativeDay(note.review.dueAt)}
-                    </Badge>
-                  ) : (
-                    <Badge tone="default">未复习</Badge>
+            <Button
+              size="sm"
+              variant="secondary"
+              className="h-9 shrink-0"
+              loading={importing}
+              icon={<Upload className="h-3.5 w-3.5" />}
+              title="导入 PDF / Word / PPT / 网页 / 纯文本等文档"
+              onClick={openImport}
+            >
+              导入
+            </Button>
+          </div>
+          <Tabs
+            size="sm"
+            className="mb-3 w-full overflow-x-auto"
+            value={kind}
+            onChange={(key) => setKind(key as NoteKind | 'all')}
+            items={KIND_TABS.map((tab) => ({
+              key: tab.key,
+              label: tab.label,
+              count: tab.key === 'all' ? notes.length : notes.filter((note) => note.kind === tab.key).length
+            }))}
+          />
+
+          <div className="mw-note-list flex-1 overflow-y-auto pr-1">
+            {/* 列表占了整页宽度，宽窗口下两列排，卡片不再中间空一大段 */}
+            <div className="grid gap-x-2 2xl:grid-cols-2">
+            {loading ? (
+              <div className="flex h-32 items-center justify-center">
+                <Spinner />
+              </div>
+            ) : filtered.length === 0 ? (
+              <EmptyState icon={<FileText className="h-5 w-5" />} title="还没有笔记" description="点击右上角的「导入」把 PDF / Word / PPT 等文档收进书柜，或先新建一篇笔记" />
+            ) : (
+              filtered.map((note) => (
+                <div
+                  key={note.id}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => void openDetail(note.id)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') void openDetail(note.id)
+                  }}
+                  className={cn(
+                    'mb-2 w-full cursor-pointer rounded-xl border p-3 text-left transition-all duration-150',
+                    current?.id === note.id
+                      ? 'border-primary/50 bg-primary/10'
+                      : 'border-border bg-muted/20 hover:border-primary/30 hover:bg-muted/40'
                   )}
-                </div>
-                <p className="mt-2 truncate text-xs font-medium text-foreground">{note.title}</p>
-                <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-muted-foreground">
-                  {note.viewMode === 'text'
-                    ? note.content.replace(/[#>*`]/g, '').slice(0, 80) || '暂无正文'
-                    : `按 ${note.sourceFormat ?? '原文件'} 原版式显示，图片与排版都在`}
-                </p>
-                <div className="mt-1.5 flex items-center gap-2 text-[10px] text-muted-foreground">
-                  <span className="rounded bg-muted px-1.5 py-0.5">{VIEW_MODE_LABEL[note.viewMode] ?? '文本'}</span>
-                  {note.pageCount > 0 ? <span className="tabular-nums">{note.pageCount} 页</span> : null}
-                  {note.readonly ? <span>只读</span> : null}
-                  {note.lastPage > 1 && note.viewMode !== 'text' ? (
-                    <span className="tabular-nums">读到 {note.lastPage}</span>
-                  ) : null}
-                  <span className="ml-auto flex shrink-0 items-center gap-1.5">
-                    {note.taskTitle ? <span className="max-w-[90px] truncate">任务：{note.taskTitle}</span> : null}
-                    <span
-                      role="button"
-                      tabIndex={0}
-                      title="在右侧编辑区改正文"
-                      onClick={(event) => {
-                        event.stopPropagation()
-                        void select(note.id)
-                      }}
-                      onKeyDown={(event) => {
-                        if (event.key === 'Enter') {
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <Badge tone={note.kind === 'material' ? 'warning' : note.kind === 'flashcard' ? 'info' : 'primary'}>
+                      {note.kind === 'material' ? '资料' : note.kind === 'flashcard' ? '卡片' : '笔记'}
+                    </Badge>
+                    {note.review ? (
+                      <Badge tone={note.review.status === 'mastered' ? 'success' : 'info'} dot>
+                        {note.review.status === 'mastered' ? '已掌握' : relativeDay(note.review.dueAt)}
+                      </Badge>
+                    ) : (
+                      <Badge tone="default">未复习</Badge>
+                    )}
+                  </div>
+                  <p className="mt-2 truncate text-xs font-medium text-foreground">{note.title}</p>
+                  <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-muted-foreground">
+                    {note.viewMode === 'text'
+                      ? note.content.replace(/[#>*`]/g, '').slice(0, 80) || '暂无正文'
+                      : `按 ${note.sourceFormat ?? '原文件'} 原版式显示，图片与排版都在`}
+                  </p>
+                  <div className="mt-1.5 flex items-center gap-2 text-[10px] text-muted-foreground">
+                    <span className="rounded bg-muted px-1.5 py-0.5">{VIEW_MODE_LABEL[note.viewMode] ?? '文本'}</span>
+                    {note.pageCount > 0 ? <span className="tabular-nums">{note.pageCount} 页</span> : null}
+                    {note.readonly ? <span>只读</span> : null}
+                    {note.lastPage > 1 && note.viewMode !== 'text' ? (
+                      <span className="tabular-nums">读到 {note.lastPage}</span>
+                    ) : null}
+                    <span className="ml-auto flex shrink-0 items-center gap-1.5">
+                      {note.taskTitle ? <span className="max-w-[90px] truncate">任务：{note.taskTitle}</span> : null}
+                      <button
+                        type="button"
+                        title="编辑正文与复习计划"
+                        onClick={(event) => {
                           event.stopPropagation()
-                          void select(note.id)
-                        }
-                      }}
-                      className="rounded p-0.5 transition-colors hover:bg-muted hover:text-foreground"
-                    >
-                      <Pencil className="h-3 w-3" />
+                          void openDetail(note.id)
+                        }}
+                        className="rounded-md border border-transparent p-1 transition-colors hover:border-border hover:bg-muted hover:text-foreground"
+                      >
+                        <Pencil className="h-3 w-3" />
+                      </button>
+                      <button
+                        type="button"
+                        title="进入阅读模式"
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          openReader(note.id)
+                        }}
+                        className="flex items-center gap-1 rounded-md border border-border bg-background/70 px-1.5 py-1 text-[10px] text-muted-foreground transition-colors hover:border-primary/60 hover:bg-primary/10 hover:text-foreground"
+                      >
+                        <BookOpen className="h-3 w-3" />
+                        阅读
+                      </button>
                     </span>
-                    <BookOpen className="h-3 w-3" />
-                  </span>
+                  </div>
                 </div>
-              </button>
-            ))
-          )}
-        </div>
+              ))
+            )}
+            </div>
+          </div>
       </Card>
       {dropping ? (
         <div className="pointer-events-none absolute inset-0 z-10 grid place-items-center rounded-xl border-2 border-dashed border-primary/70 bg-primary/10 text-xs font-medium text-tint-primary">
@@ -373,181 +419,15 @@ export function NotesPage(): JSX.Element {
     </div>
   )
 
-  const detailNodes: GridEntry[] = current
-    ? [
-        {
-          id: 'editor',
-          title: '编辑笔记',
-          x: 7,
-          y: 3,
-          w: 5,
-          h: 8,
-          minW: 4,
-          minH: 5,
-          node: (
-            <Card className="flex h-full flex-col overflow-y-auto">
-              <SectionHeader
-                title={current.readonly ? '笔记正文' : '编辑笔记'}
-                description={
-                  current.viewMode === 'text'
-                    ? `文本 · 最近更新 ${current.updatedAt.replace('T', ' ').slice(0, 16)}`
-                    : `${VIEW_MODE_LABEL[current.viewMode]} · ${current.pageCount > 0 ? `${current.pageCount} 页 · ` : ''}只读原版式`
-                }
-                action={
-                  <>
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      icon={<BookOpen className="h-3.5 w-3.5" />}
-                      onClick={() => openReader(current.id)}
-                    >
-                      打开阅读
-                    </Button>
-                    {!current.readonly ? (
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        icon={preview ? <Pencil className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                        onClick={() => setPreview((value) => !value)}
-                      >
-                        {preview ? '继续编辑' : '预览'}
-                      </Button>
-                    ) : null}
-                    {!current.readonly ? (
-                      <Button size="sm" variant="primary" icon={<Save className="h-3.5 w-3.5" />} loading={saving} onClick={handleSave}>
-                        保存
-                      </Button>
-                    ) : null}
-                    <IconButton label="删除笔记" tone="danger" onClick={() => setConfirmId(current.id)}>
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </IconButton>
-                  </>
-                }
-              />
-
-              <div className="grid gap-4">
-                <div className="grid grid-cols-[1fr_160px_180px] gap-4">
-                  <Field label="标题">
-                    <Input value={draftTitle} onChange={(event) => setDraftTitle(event.target.value)} />
-                  </Field>
-                  <Field label="类型">
-                    <Select value={draftKind} onChange={(event) => setDraftKind(event.target.value as NoteKind)}>
-                      <option value="note">笔记</option>
-                      <option value="material">资料</option>
-                      <option value="flashcard">卡片</option>
-                    </Select>
-                  </Field>
-                  <Field label="复习计划">
-                    <div className="flex h-9 items-center rounded-xl border border-border bg-input/60 px-3">
-                      <Switch checked={enableReview} onChange={setEnableReview} label={enableReview ? '已纳入遗忘曲线' : '不纳入复习'} />
-                    </div>
-                  </Field>
-                </div>
-
-                {current.filePath ? (
-                  <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-muted/25 px-3 py-1.5 text-[11px] text-muted-foreground">
-                    <Paperclip className="h-3.5 w-3.5 shrink-0" />
-                    <span className="min-w-0 flex-1 truncate" title={current.filePath}>
-                      原件 {current.filePath}
-                    </span>
-                    <Button size="sm" variant="ghost" onClick={() => void api.app.openPath(current.filePath as string)}>
-                      打开源文件
-                    </Button>
-                    <Button size="sm" variant="ghost" onClick={() => void api.app.showItemInFolder(current.filePath as string)}>
-                      定位
-                    </Button>
-                  </div>
-                ) : null}
-
-                {preview || current.readonly ? (
-                  <div className="prose-invert max-h-[420px] overflow-y-auto rounded-xl border border-border bg-muted/20 p-4 text-sm leading-relaxed text-foreground">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{draftContent || '_暂无正文_'}</ReactMarkdown>
-                  </div>
-                ) : (
-                  <Textarea
-                    rows={16}
-                    value={draftContent}
-                    onChange={(event) => setDraftContent(event.target.value)}
-                    placeholder={'## 小节标题\n\n- 知识点一\n- 知识点二\n\n> 关键结论'}
-                    className="font-mono text-[13px]"
-                  />
-                )}
-                {current.readonly ? (
-                  <p className="text-[11px] leading-relaxed text-muted-foreground">
-                    这份资料按原版式只读保存（图片、表格、排版都在），这里显示的是供搜索与摘要用的抽取文字。
-                    要记想法请点「打开阅读」，在书里加书签、重点页与注释。
-                  </p>
-                ) : null}
-              </div>
-            </Card>
-          )
-        },
-        {
-          id: 'review',
-          title: '遗忘曲线复习',
-          x: 7,
-          y: 11,
-          w: 5,
-          h: 4,
-          minW: 4,
-          minH: 3,
-          node: (
-            <Card className="flex h-full flex-col overflow-y-auto">
-              <SectionHeader title="遗忘曲线复习" description="评分后会按 SM-2 计算下次复习时间" />
-              {current.review ? (
-                <ReviewQueue
-                  items={[current.review]}
-                  onGrade={handleGrade}
-                  onPlanTomorrow={handlePlan}
-                  emptyHint="该笔记未纳入复习计划"
-                />
-              ) : (
-                <EmptyState
-                  icon={<Layers className="h-5 w-5" />}
-                  title="该笔记未纳入复习计划"
-                  description="打开右上角的复习计划开关并保存，即可自动生成遗忘曲线排程"
-                />
-              )}
-            </Card>
-          )
-        }
-      ]
-    : [
-        {
-          id: 'empty',
-          title: '笔记编辑区',
-          x: 7,
-          y: 3,
-          w: 5,
-          h: 12,
-          minW: 4,
-          minH: 5,
-          node: (
-            <Card className="flex h-full items-center justify-center">
-            <EmptyState
-              icon={<FileText className="h-6 w-6" />}
-              title="点左侧任意一条即可翻开阅读"
-              description="阅读界面支持目录、缩略图、书签、重点页与注释；文本类笔记可在这里继续编辑正文"
-              action={
-                <Button variant="primary" size="sm" icon={<Plus className="h-3.5 w-3.5" />} onClick={() => setCreateOpen(true)}>
-                  新建笔记
-                </Button>
-              }
-            />
-          </Card>
-          )
-        }
-      ]
-
+  // 详情不再常驻右侧：选中任意一条资料后弹出独立视图（见下方 NoteDetailModal）
   const entries: GridEntry[] = [
     { id: 'tasks', title: '归属任务', x: 0, y: 3, w: 3, h: 12, minW: 2, minH: 5, node: tasksNode },
-    { id: 'list', title: '笔记列表', x: 3, y: 3, w: 4, h: 12, minW: 3, minH: 5, node: listNode },
-    ...detailNodes
+    { id: 'list', title: '笔记列表', x: 3, y: 3, w: 9, h: 12, minW: 3, minH: 5, node: listNode }
   ]
 
   return (
     <div className="grid gap-5">
-      <PageGrid pageKey="notes" entries={entries} storageKey="workstation.grid.notes.v3" />
+      <PageGrid pageKey="notes" entries={entries} storageKey="workstation.grid.notes.v4" />
 
       {createOpen ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
@@ -658,6 +538,146 @@ export function NotesPage(): JSX.Element {
                 选择文件并导入
               </Button>
             </div>
+          </div>
+        </div>
+      ) : null}
+
+      {current ? (
+        <Modal
+          open={detailOpen}
+          onClose={() => setDetailOpen(false)}
+          title={current.title}
+          description={
+            `${VIEW_MODE_LABEL[current.viewMode] ?? '文本'} · ${current.pageCount > 0 ? `${current.pageCount} 页 · ` : ''}` +
+            (current.readonly ? '只读原版式' : `更新于 ${current.updatedAt.replace('T', ' ').slice(0, 16)}`)
+          }
+          width="max-w-4xl"
+          footer={
+            <>
+              <Button
+                variant="ghost"
+                className="text-danger hover:text-danger"
+                icon={<Trash2 className="h-3.5 w-3.5" />}
+                onClick={() => setConfirmId(current.id)}
+              >
+                删除
+              </Button>
+              <div className="ml-auto flex items-center gap-2">
+                {!current.readonly ? (
+                  <Button variant="ghost" icon={<Eye className="h-3.5 w-3.5" />} onClick={() => setPreview(!preview)}>
+                    {preview ? '继续编辑' : '预览'}
+                  </Button>
+                ) : null}
+                {!current.readonly ? (
+                  <Button variant="secondary" icon={<Save className="h-3.5 w-3.5" />} loading={saving} onClick={handleSave}>
+                    保存
+                  </Button>
+                ) : null}
+                <Button variant="primary" icon={<BookOpen className="h-3.5 w-3.5" />} onClick={() => openReader(current.id)}>
+                  进入阅读
+                </Button>
+              </div>
+            </>
+          }
+        >
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_270px]">
+            <div className="grid min-w-0 content-start gap-4">
+              <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_150px]">
+                <Field label="标题">
+                  <Input value={draftTitle} onChange={(event) => setDraftTitle(event.target.value)} />
+                </Field>
+                <Field label="类型">
+                  <Select value={draftKind} onChange={(event) => setDraftKind(event.target.value as NoteKind)}>
+                    <option value="note">笔记</option>
+                    <option value="material">资料</option>
+                    <option value="flashcard">卡片</option>
+                  </Select>
+                </Field>
+              </div>
+
+              {current.filePath ? (
+                <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-muted/25 px-3 py-1.5 text-[11px] text-muted-foreground">
+                  <Paperclip className="h-3.5 w-3.5 shrink-0" />
+                  <span className="min-w-0 flex-1 truncate" title={current.filePath}>
+                    原件 {current.filePath}
+                  </span>
+                  <Button size="xs" variant="ghost" onClick={() => void api.app.openPath(current.filePath as string)}>
+                    打开源文件
+                  </Button>
+                  <Button size="xs" variant="ghost" onClick={() => void api.app.showItemInFolder(current.filePath as string)}>
+                    定位
+                  </Button>
+                </div>
+              ) : null}
+
+              {preview || current.readonly ? (
+                <div className="mw-note-preview max-h-[46vh] overflow-y-auto rounded-xl border border-border bg-muted/20 p-4 text-sm leading-relaxed text-foreground">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{draftContent || '_暂无正文_'}</ReactMarkdown>
+                </div>
+              ) : (
+                <Textarea
+                  rows={14}
+                  value={draftContent}
+                  onChange={(event) => setDraftContent(event.target.value)}
+                  placeholder={'## 小节标题\n\n- 知识点一\n- 知识点二\n\n> 关键结论'}
+                  className="min-h-[30vh] font-mono text-[13px]"
+                />
+              )}
+              {current.readonly ? (
+                <p className="text-[11px] leading-relaxed text-muted-foreground">
+                  这份资料按原版式只读保存（图片、表格、排版都在），上面显示的是供搜索与摘要用的抽取文字。
+                  要记想法请点「进入阅读」，在书里加书签、重点页与注释。
+                </p>
+              ) : null}
+            </div>
+
+            <aside className="grid min-w-0 content-start gap-3 rounded-xl border border-border bg-muted/20 p-3">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-medium text-foreground">复习计划</span>
+                <Switch checked={enableReview} onChange={setEnableReview} label={enableReview ? '已纳入' : '不纳入'} />
+              </div>
+              {current.review ? (
+                <ReviewQueue
+                  items={[current.review]}
+                  onGrade={handleGrade}
+                  onPlanTomorrow={handlePlan}
+                  emptyHint="该笔记未纳入复习计划"
+                />
+              ) : (
+                <p className="text-[11px] leading-relaxed text-muted-foreground">
+                  这条资料还没有排进遗忘曲线。打开上方开关并保存，就会自动生成复习计划。
+                </p>
+              )}
+              <div className="mt-1 border-t border-border pt-2 text-[11px] leading-relaxed text-muted-foreground">
+                <p>标签：{current.tags.length > 0 ? current.tags.join(' / ') : '无'}</p>
+                <p>创建：{formatDateTime(current.createdAt)}</p>
+                {current.sourceFormat ? <p>来源格式：{current.sourceFormat}</p> : null}
+              </div>
+            </aside>
+          </div>
+        </Modal>
+      ) : null}
+
+      {progress ? (
+        <div className="pointer-events-none fixed bottom-8 left-1/2 z-40 w-[min(460px,88vw)] -translate-x-1/2">
+          <div className="rounded-xl border border-border bg-surface/95 p-3 shadow-pop backdrop-blur">
+            <div className="flex items-center justify-between gap-3 text-xs">
+              <span className="flex items-center gap-1.5 font-medium text-foreground">
+                <Spinner className="h-3.5 w-3.5" />
+                正在导入第 {Math.min(progress.done + 1, progress.total)} / {progress.total} 个文件
+              </span>
+              <span className="tabular-nums text-muted-foreground">{progress.percent}%</span>
+            </div>
+            <div className="mt-2 h-2 overflow-hidden rounded-full bg-muted">
+              <div
+                className="h-full rounded-full bg-primary transition-[width] duration-200 ease-out"
+                style={{ width: `${Math.max(3, progress.percent)}%` }}
+              />
+            </div>
+            <p className="mt-1.5 truncate text-[11px] text-muted-foreground" title={progress.file}>
+              {IMPORT_STAGE_LABEL[progress.stage]}：{progress.file}
+              {progress.eta > 1500 ? ` · 预计还需 ${Math.ceil(progress.eta / 1000)} 秒` : ''}
+            </p>
           </div>
         </div>
       ) : null}
