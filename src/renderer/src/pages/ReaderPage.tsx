@@ -360,7 +360,7 @@ export function ReaderPage(): JSX.Element {
   return (
     <div className="reader-shell flex h-full w-full flex-col overflow-hidden bg-background">
       {/* ---------------- 顶部工具条 ---------------- */}
-      <header className="reader-bar flex h-14 shrink-0 items-center gap-2 border-b border-border bg-surface px-3">
+      <header className="reader-bar flex min-h-[3.5rem] shrink-0 flex-wrap items-center gap-2 border-b border-border bg-surface px-3 py-1.5">
         <IconButton label="返回（Esc）" onClick={() => navigate(-1)}>
           <ArrowLeft className="h-4 w-4" />
         </IconButton>
@@ -377,7 +377,7 @@ export function ReaderPage(): JSX.Element {
 
         {info.viewMode !== 'text' ? (
           <>
-            <div className="hidden items-center gap-1 lg:flex">
+            <div className="flex items-center gap-1">
               <IconButton label="上一页（←）" onClick={() => step(-1)}>
                 <ChevronLeft className="h-4 w-4" />
               </IconButton>
@@ -585,7 +585,7 @@ function Segmented(props: {
 }): JSX.Element {
   const { value, title, options, onChange } = props
   return (
-    <div className="seg-base hidden xl:inline-flex" title={title}>
+    <div className="seg-base inline-flex" title={title}>
       {options.map((option) => (
         <button
           key={option.key}

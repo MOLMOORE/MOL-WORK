@@ -521,6 +521,7 @@
   }
   html[data-skin='magazine'] .app-sidebar { display: none; }
   html[data-skin='magazine'] .skin-topnav { display: flex; }
+  html[data-skin='magazine'] .skin-topnav-tail { border-left: 1px solid hsl(var(--border)); padding-left: 0.75rem; }
   html[data-skin='magazine'] .app-topbar {
     border-bottom: 3px double hsl(var(--border));
     background: hsl(var(--background));
@@ -678,7 +679,8 @@
     --page-bg-image: repeating-linear-gradient(45deg, transparent 0 22px, rgba(255, 255, 255, 0.05) 22px 23px);
   }
   html[data-skin='brutalism'] .app-sidebar { display: none; }
-  html[data-skin='brutalism'] .skin-topnav { display: flex; border-bottom: 3px solid hsl(var(--border)); }
+  html[data-skin='brutalism'] .skin-topnav { display: flex; flex-wrap: wrap; border-bottom: 3px solid hsl(var(--border)); }
+  html[data-skin='brutalism'] .skin-topnav-tail { border-left: 3px solid hsl(var(--border)); padding-left: 0.5rem; }
   html[data-skin='brutalism'] .app-topbar { border-bottom: 3px solid hsl(var(--border)); }
   html[data-skin='brutalism'] .glass-card {
     border: 3px solid hsl(var(--border));
@@ -720,9 +722,10 @@
   }
   html[data-skin='hud'] .app-shell { background-size: 28px 28px; }
   html[data-skin='hud'] .app-sidebar { width: 68px; border-right: 1px solid hsl(var(--primary) / 0.28); }
+  /* 导轨只收文字与「收起侧栏」按钮：明暗切换、设置两个入口必须留在导轨里 */
   html[data-skin='hud'] .nav-label,
   html[data-skin='hud'] .brand-text,
-  html[data-skin='hud'] .sidebar-only { display: none; }
+  html[data-skin='hud'] .sidebar-collapse { display: none; }
   html[data-skin='hud'] .app-nav-item { justify-content: center; padding-left: 0; padding-right: 0; }
   html[data-skin='hud'] .app-statusbar { display: flex; }
   html[data-skin='hud'] .app-topbar { border-bottom: 1px solid hsl(var(--primary) / 0.28); }

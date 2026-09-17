@@ -17,6 +17,9 @@ import { APP_NAME } from '@shared/constants'
 import { useAppStore } from '../../stores/appStore'
 import { cn } from '../../lib/utils'
 
+/** 设置入口：侧栏底部与皮肤顶部导航共用，保证任何皮肤下都不会丢失 */
+export const SETTINGS_NAV = { to: '/settings', label: '设置', icon: Settings }
+
 export const NAV_ITEMS = [
   { to: '/', label: '仪表盘', icon: LayoutDashboard, end: true },
   { to: '/tasks', label: '任务日程', icon: ListChecks },
@@ -114,27 +117,28 @@ export function Sidebar(): JSX.Element {
           onClick={() => void updateSettings({ theme: settings?.theme === 'dark' ? 'light' : 'dark' })}
           title="切换主题"
           className={cn(
-            'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-muted-foreground transition-all hover:bg-muted/60 hover:text-foreground',
+            'app-nav-item flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-muted-foreground transition-all hover:bg-muted/60 hover:text-foreground',
             collapsed && 'justify-center px-0'
           )}
         >
           {settings?.theme === 'light' ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
-          {!collapsed ? <span>{settings?.theme === 'light' ? '切换深色' : '切换浅色'}</span> : null}
+          {!collapsed ? <span className="nav-label">{settings?.theme === 'light' ? '切换深色' : '切换浅色'}</span> : null}
         </button>
 
+        {/* 带上 app-nav-item / nav-label：驾驶舱等皮肤折叠侧栏时，设置仍能作为图标项留在导轨里 */}
         <NavLink
           to="/settings"
           title="设置"
           className={({ isActive }) =>
             cn(
-              'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all',
+              'app-nav-item flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all',
               collapsed && 'justify-center px-0',
-              isActive ? 'bg-muted/70 text-foreground' : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
+              isActive ? 'is-active bg-muted/70 text-foreground' : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
             )
           }
         >
           <Settings className="h-4 w-4 shrink-0" />
-          {!collapsed ? <span>设置</span> : null}
+          {!collapsed ? <span className="nav-label">设置</span> : null}
         </NavLink>
 
         <button
@@ -142,12 +146,12 @@ export function Sidebar(): JSX.Element {
           onClick={() => setCollapsed((value) => !value)}
           title={collapsed ? '展开侧栏' : '收起侧栏'}
           className={cn(
-            'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-muted-foreground transition-all hover:bg-muted/60 hover:text-foreground',
+            'sidebar-collapse flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-muted-foreground transition-all hover:bg-muted/60 hover:text-foreground',
             collapsed && 'justify-center px-0'
           )}
         >
           <ChevronLeft className={cn('h-4 w-4 transition-transform', collapsed && 'rotate-180')} />
-          {!collapsed ? <span>收起侧栏</span> : null}
+          {!collapsed ? <span className="nav-label">收起侧栏</span> : null}
         </button>
       </div>
     </aside>
