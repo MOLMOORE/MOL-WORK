@@ -210,7 +210,7 @@ export function ScheduleBoard({
                   {...dayDropProps(key)}
                   className={cn(
                     'flex cursor-pointer flex-col items-center gap-1 rounded-xl border px-2 py-2 transition-colors',
-                    active ? 'border-primary/50 bg-primary/10' : 'border-border/70 bg-muted/20 hover:bg-muted/40',
+                    active ? 'border-primary/50 bg-primary/10' : 'border-border bg-muted/20 hover:bg-muted/40',
                     overDay === key && 'border-primary bg-primary/20'
                   )}
                 >
@@ -218,7 +218,7 @@ export function ScheduleBoard({
                   <span
                     className={cn(
                       'flex h-6 min-w-6 items-center justify-center rounded-lg px-1.5 text-xs font-semibold',
-                      key === today ? 'bg-gradient-to-r from-[#6366F1] to-[#7C3AED] text-white' : 'text-foreground'
+                      key === today ? 'bg-primary text-primary-foreground' : 'text-foreground'
                     )}
                   >
                     {date.getDate()}
@@ -233,7 +233,7 @@ export function ScheduleBoard({
             {...dayDropProps(dayKey)}
             className={cn(
               'flex min-h-[320px] flex-1 flex-col gap-2 overflow-y-auto rounded-2xl border p-3 transition-colors',
-              overDay === dayKey ? 'border-primary/60 bg-primary/5' : 'border-border/70 bg-muted/10'
+              overDay === dayKey ? 'border-primary/60 bg-primary/5' : 'border-border bg-muted/10'
             )}
           >
             <div className="mb-1 flex items-center justify-between">
@@ -286,7 +286,7 @@ export function ScheduleBoard({
               {...dayDropProps(key)}
               className={cn(
                 'flex min-h-[420px] flex-col gap-2 rounded-2xl border p-2 transition-colors',
-                key === today ? 'border-primary/40 bg-primary/5' : 'border-border/70 bg-muted/15',
+                key === today ? 'border-primary/40 bg-primary/5' : 'border-border bg-muted/15',
                 overDay === key && 'border-primary/70 bg-primary/10'
               )}
             >
@@ -300,7 +300,7 @@ export function ScheduleBoard({
                 <span
                   className={cn(
                     'flex h-6 min-w-6 items-center justify-center rounded-lg px-1.5 text-xs font-semibold',
-                    key === today ? 'bg-gradient-to-r from-[#6366F1] to-[#7C3AED] text-white' : 'text-foreground'
+                    key === today ? 'bg-primary text-primary-foreground' : 'text-foreground'
                   )}
                 >
                   {date.getDate()}
@@ -324,8 +324,8 @@ export function ScheduleBoard({
 
   const matrix = buildMonthMatrix(anchor)
   return (
-    <div className="overflow-hidden rounded-2xl border border-border/70">
-      <div className="grid grid-cols-7 border-b border-border/70 bg-muted/30">
+    <div className="overflow-hidden rounded-2xl border border-border">
+      <div className="grid grid-cols-7 border-b border-border bg-muted/30">
         {WEEKDAY_CN.map((day) => (
           <div key={day} className="px-3 py-2 text-center text-[11px] font-medium text-muted-foreground">
             周{day}
@@ -354,7 +354,7 @@ export function ScheduleBoard({
                 <span
                   className={cn(
                     'flex h-5 min-w-5 items-center justify-center rounded-md px-1 text-[11px] font-medium',
-                    isToday ? 'bg-gradient-to-r from-[#6366F1] to-[#7C3AED] text-white' : 'text-foreground'
+                    isToday ? 'bg-primary text-primary-foreground' : 'text-foreground'
                   )}
                 >
                   {date.getDate()}
@@ -398,12 +398,12 @@ function MiniTag({
   tone?: 'default' | 'primary' | 'success' | 'warning' | 'danger' | 'info'
 }): JSX.Element {
   const tones: Record<string, string> = {
-    default: 'border-border/80 bg-muted/60 text-muted-foreground',
-    primary: 'border-primary/40 bg-primary/10 text-[#A5B4FC]',
-    success: 'border-success/40 bg-success/10 text-[#86EFAC]',
-    warning: 'border-warning/40 bg-warning/10 text-[#FCD34D]',
-    danger: 'border-danger/40 bg-danger/10 text-[#FCA5A5]',
-    info: 'border-info/40 bg-info/10 text-[#67E8F9]'
+    default: 'border-border bg-muted/60 text-muted-foreground',
+    primary: 'border-primary/40 bg-primary/10 text-tint-primary',
+    success: 'border-success/40 bg-success/10 text-tint-success',
+    warning: 'border-warning/40 bg-warning/10 text-tint-warning',
+    danger: 'border-danger/40 bg-danger/10 text-tint-danger',
+    info: 'border-info/40 bg-info/10 text-tint-info'
   }
   return (
     <span
@@ -450,7 +450,7 @@ function TaskCard({
           ? 'border-danger/60 bg-danger/10'
           : overdue
             ? 'border-warning/50 bg-warning/5 hover:border-warning/70'
-            : 'border-border/70 bg-muted/30 hover:border-primary/40',
+            : 'border-border bg-muted/30 hover:border-primary/40',
         dragging && 'opacity-40',
         highlight && 'ring-1 ring-primary/60',
         done && 'opacity-60'
@@ -537,7 +537,7 @@ interface UnscheduledPanelProps {
 
 function UnscheduledPanel({ tasks, draggingId, onOpen, onDragStart, onDragEnd }: UnscheduledPanelProps): JSX.Element {
   return (
-    <div className="flex flex-col gap-2 rounded-2xl border border-border/70 bg-muted/10 p-3">
+    <div className="flex flex-col gap-2 rounded-2xl border border-border bg-muted/10 p-3">
       <div className="flex items-center gap-1.5">
         <Inbox className="h-3.5 w-3.5 text-muted-foreground" />
         <p className="text-xs font-semibold text-foreground">未排期任务</p>
@@ -559,7 +559,7 @@ function UnscheduledPanel({ tasks, draggingId, onOpen, onDragStart, onDragEnd }:
               onClick={() => onOpen(task)}
               className={cn(
                 'cursor-grab rounded-xl border px-2 py-1.5 active:cursor-grabbing',
-                task.isPriority ? 'border-danger/60 bg-danger/10' : 'border-border/70 bg-muted/30',
+                task.isPriority ? 'border-danger/60 bg-danger/10' : 'border-border bg-muted/30',
                 draggingId === task.id && 'opacity-40'
               )}
             >

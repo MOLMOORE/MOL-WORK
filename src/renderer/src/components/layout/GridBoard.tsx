@@ -375,7 +375,7 @@ const GridItem = memo(function GridItem({
                 active ? 'opacity-100' : 'opacity-0 group-hover/grid-item:opacity-100'
               )}
             >
-              <span className="flex items-center gap-1 rounded-full border border-border/60 bg-background px-2 py-0.5 text-[10px] text-muted-foreground shadow-sm">
+              <span className="flex items-center gap-1 rounded-full border border-border bg-background px-2 py-0.5 text-[10px] text-muted-foreground shadow-sm">
                 <GripVertical className="h-3 w-3" />
                 拖动
               </span>
@@ -993,7 +993,7 @@ export function GridBoard({
       {toolbar ? (
         <div className="mb-2 flex flex-wrap items-center justify-end gap-2" data-grid-toolbar>
           {hint ? (
-            <span className="mr-auto text-[11px] text-[#A5B4FC]">{hint}</span>
+            <span className="mr-auto text-[11px] text-tint-primary">{hint}</span>
           ) : (
             <span className="mr-auto flex items-center gap-1 text-[11px] text-muted-foreground">
               <LayoutDashboard className="h-3.5 w-3.5" />

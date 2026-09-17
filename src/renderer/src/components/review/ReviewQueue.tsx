@@ -7,7 +7,7 @@ import { cn, formatDateTime, isOverdue } from '../../lib/utils'
 const RATINGS: { rating: ReviewRating; label: string; hint: string; className: string }[] = [
   { rating: 0, label: '重来', hint: '10 分钟后重新复习', className: 'hover:border-danger/60 hover:bg-danger/15 hover:text-danger' },
   { rating: 1, label: '困难', hint: '明天再复习', className: 'hover:border-warning/60 hover:bg-warning/15 hover:text-warning' },
-  { rating: 2, label: '一般', hint: '按曲线正常间隔', className: 'hover:border-primary/60 hover:bg-primary/15 hover:text-[#A5B4FC]' },
+  { rating: 2, label: '一般', hint: '按曲线正常间隔', className: 'hover:border-primary/60 hover:bg-primary/15 hover:text-tint-primary' },
   { rating: 3, label: '简单', hint: '间隔延长 30%', className: 'hover:border-success/60 hover:bg-success/15 hover:text-success' }
 ]
 
@@ -36,7 +36,7 @@ export function ReviewQueue({ items, onGrade, onPlanTomorrow, compact, emptyHint
         return (
           <div
             key={item.id}
-            className="group rounded-xl border border-border/70 bg-muted/25 p-3 transition-all duration-150 hover:border-primary/40 hover:bg-muted/40"
+            className="group rounded-xl border border-border bg-muted/25 p-3 transition-all duration-150 hover:border-primary/40 hover:bg-muted/40"
           >
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
@@ -91,7 +91,7 @@ export function ReviewSummary({ mastered, due, averageEase }: { mastered: number
   return (
     <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
       <span className="inline-flex items-center gap-1">
-        <Sparkles className="h-3 w-3 text-[#A5B4FC]" />
+        <Sparkles className="h-3 w-3 text-tint-primary" />
         待复习 {due}
       </span>
       <span>·</span>

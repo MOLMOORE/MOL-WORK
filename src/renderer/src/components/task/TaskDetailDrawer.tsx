@@ -75,7 +75,7 @@ function EditableTagRow({ task, dueReviewCount, onPatch, onJump }: EditableTagRo
           type="button"
           title="点击修改状态"
           onClick={() => setStatusMenu((value) => !value)}
-          className="inline-flex items-center gap-1 rounded-full border border-primary/40 bg-primary/15 px-2 py-0.5 text-[11px] font-medium leading-none text-[#A5B4FC] transition-colors hover:bg-primary/25"
+          className="inline-flex items-center gap-1 rounded-full border border-primary/40 bg-primary/15 px-2 py-0.5 text-[11px] font-medium leading-none text-tint-primary transition-colors hover:bg-primary/25"
         >
           {TASK_STATUS_META[task.status].label}
           <Pencil className="h-2.5 w-2.5 opacity-70" />
@@ -83,7 +83,7 @@ function EditableTagRow({ task, dueReviewCount, onPatch, onJump }: EditableTagRo
         {statusMenu ? (
           <>
             <button type="button" aria-label="关闭" className="fixed inset-0 z-40 cursor-default" onClick={() => setStatusMenu(false)} />
-            <span className="absolute left-0 top-7 z-50 flex w-32 flex-col overflow-hidden rounded-xl border border-border/80 bg-surface/95 shadow-2xl backdrop-blur-xl animate-scale-in">
+            <span className="absolute left-0 top-7 z-50 flex w-32 flex-col overflow-hidden rounded-xl border border-border bg-surface shadow-pop animate-scale-in">
               {STATUS_OPTIONS.map((status) => (
                 <button
                   key={status}
@@ -94,7 +94,7 @@ function EditableTagRow({ task, dueReviewCount, onPatch, onJump }: EditableTagRo
                   }}
                   className={cn(
                     'flex items-center justify-between px-3 py-1.5 text-left text-[11px] transition-colors hover:bg-muted/60',
-                    status === task.status ? 'text-[#A5B4FC]' : 'text-foreground'
+                    status === task.status ? 'text-tint-primary' : 'text-foreground'
                   )}
                 >
                   {TASK_STATUS_META[status].label}
@@ -114,7 +114,7 @@ function EditableTagRow({ task, dueReviewCount, onPatch, onJump }: EditableTagRo
         className={cn(
           'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium leading-none transition-colors',
           task.isPriority
-            ? 'border-danger/40 bg-danger/15 text-[#FCA5A5] hover:bg-danger/25'
+            ? 'border-danger/40 bg-danger/15 text-tint-danger hover:bg-danger/25'
             : 'border-border bg-muted text-muted-foreground hover:text-foreground'
         )}
       >
@@ -146,7 +146,7 @@ function EditableTagRow({ task, dueReviewCount, onPatch, onJump }: EditableTagRo
             setEstimateDraft(String(task.estimateMinutes))
             setEditingEstimate(true)
           }}
-          className="inline-flex items-center gap-1 rounded-full border border-info/40 bg-info/15 px-2 py-0.5 text-[11px] font-medium leading-none text-[#67E8F9] transition-colors hover:bg-info/25"
+          className="inline-flex items-center gap-1 rounded-full border border-info/40 bg-info/15 px-2 py-0.5 text-[11px] font-medium leading-none text-tint-info transition-colors hover:bg-info/25"
         >
           预计 {formatMinutes(task.estimateMinutes)}
           <Pencil className="h-2.5 w-2.5 opacity-70" />
@@ -191,7 +191,7 @@ function EditableTagRow({ task, dueReviewCount, onPatch, onJump }: EditableTagRo
                 setEditingTag(tag)
                 setTagDraft(tag)
               }}
-              className="inline-flex items-center rounded-full border border-warning/40 bg-warning/15 px-2 py-0.5 text-[11px] font-medium leading-none text-[#FCD34D] transition-colors hover:bg-warning/25"
+              className="inline-flex items-center rounded-full border border-warning/40 bg-warning/15 px-2 py-0.5 text-[11px] font-medium leading-none text-tint-warning transition-colors hover:bg-warning/25"
             >
               #{tag}
             </button>
@@ -313,7 +313,7 @@ export function TaskDetailDrawer(): JSX.Element | null {
 
         {task && detail ? (
           <div className="grid gap-4">
-            <div className="grid gap-3 rounded-xl border border-border/70 bg-muted/25 p-4">
+            <div className="grid gap-3 rounded-xl border border-border bg-muted/25 p-4">
               <div className="grid grid-cols-3 gap-3">
                 <Field label="状态">
                   <Select value={task.status} onChange={(event) => void patch({ status: event.target.value as TaskStatus })}>
@@ -350,7 +350,7 @@ export function TaskDetailDrawer(): JSX.Element | null {
                   step={5}
                   value={task.progress}
                   onChange={(event) => void patch({ progress: Number(event.target.value) })}
-                  className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-muted accent-[#6366F1]"
+                  className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-muted accent-primary"
                 />
               </Field>
 

@@ -49,10 +49,10 @@ export interface StatCardProps {
 }
 
 const TONES: Record<NonNullable<StatCardProps['tone']>, string> = {
-  primary: 'from-[#6366F1]/25 to-[#7C3AED]/10 text-[#A5B4FC]',
-  info: 'from-[#22D3EE]/25 to-[#6366F1]/10 text-[#67E8F9]',
-  success: 'from-[#22C55E]/25 to-[#22D3EE]/10 text-[#86EFAC]',
-  warning: 'from-[#F59E0B]/25 to-[#EF4444]/10 text-[#FCD34D]'
+  primary: 'text-tint-primary',
+  info: 'text-tint-info',
+  success: 'text-tint-success',
+  warning: 'text-tint-warning'
 }
 
 export function StatCard({ label, value, hint, tone = 'primary', icon, onClick, className, clickable }: StatCardProps): JSX.Element {
@@ -70,7 +70,6 @@ export function StatCard({ label, value, hint, tone = 'primary', icon, onClick, 
         className
       )}
     >
-      <div className={cn('absolute inset-0 bg-gradient-to-br opacity-70', TONES[tone])} />
       <div className="relative flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">{label}</p>
@@ -78,7 +77,7 @@ export function StatCard({ label, value, hint, tone = 'primary', icon, onClick, 
           {hint ? <p className="mt-1 truncate text-xs text-muted-foreground">{hint}</p> : null}
         </div>
         {icon ? (
-          <div className={cn('shrink-0 rounded-xl bg-background/60 p-2', TONES[tone])}>
+          <div className={cn('shrink-0 rounded-lg bg-muted p-2', TONES[tone])}>
             {icon}
           </div>
         ) : null}

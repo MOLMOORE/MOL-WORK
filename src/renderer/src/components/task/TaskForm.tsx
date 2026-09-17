@@ -164,7 +164,7 @@ export function TaskForm({ open, onClose, initial, defaultProjectId, defaultDueA
           </Field>
         </div>
 
-        <div className="rounded-xl border border-border/70 bg-muted/25 p-3">
+        <div className="rounded-xl border border-border bg-muted/25 p-3">
           <Switch
             checked={isPriority}
             onChange={setIsPriority}
@@ -181,7 +181,7 @@ export function TaskForm({ open, onClose, initial, defaultProjectId, defaultDueA
               step={5}
               value={progress}
               onChange={(event) => setProgress(Number(event.target.value))}
-              className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-muted accent-[#6366F1]"
+              className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-muted accent-primary"
             />
           </Field>
           <Field label="标签" hint="多个标签用英文逗号分隔">

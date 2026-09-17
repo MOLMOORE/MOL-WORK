@@ -241,7 +241,7 @@ export function DashboardPage(): JSX.Element {
                       setTodayOverId(null)
                     }}
                     className={cn(
-                      'group flex cursor-grab items-start gap-3 rounded-xl border border-border/70 bg-muted/25 p-3 transition-all duration-150 hover:border-primary/40 hover:bg-muted/40 active:cursor-grabbing',
+                      'group flex cursor-grab items-start gap-3 rounded-xl border border-border bg-muted/25 p-3 transition-all duration-150 hover:border-primary/40 hover:bg-muted/40 active:cursor-grabbing',
                       todayDragId === task.id && 'opacity-40',
                       todayOverId === task.id && todayDragId !== task.id && 'ring-1 ring-primary/60'
                     )}
@@ -345,7 +345,7 @@ export function DashboardPage(): JSX.Element {
             ))}
           </div>
           <div className="mt-3 rounded-xl border border-warning/30 bg-warning/10 p-3">
-            <p className="flex items-center gap-1.5 text-[11px] font-medium text-[#FCD34D]">
+            <p className="flex items-center gap-1.5 text-[11px] font-medium text-tint-warning">
               <TriangleAlert className="h-3 w-3" />
               复盘建议
             </p>

@@ -15,8 +15,20 @@ import {
   Timer,
   Trash2
 } from 'lucide-react'
-import type { AppSettings, ClockLayout } from '@shared/types/domain'
-import { FONT_SIZE_META, resolveClockSettings } from '@shared/constants'
+import type { AppSettings, ClockDateFormat, ClockLayout, ThemePreset } from '@shared/types/domain'
+import {
+  CLOCK_DATE_FORMATS,
+  CLOCK_DATE_SIZE_TIERS,
+  CLOCK_HEIGHT_TIERS,
+  CLOCK_SIZE_TIERS,
+  CLOCK_SPACING_TIERS,
+  CLOCK_WEIGHT_TIERS,
+  CLOCK_WIDTH_TIERS,
+  FONT_SIZE_META,
+  THEME_PRESETS,
+  nearestTier,
+  resolveClockSettings
+} from '@shared/constants'
 import { Card, SectionHeader } from '../components/ui/Card'
 import { Badge, Spinner } from '../components/ui/Feedback'
 import { Button } from '../components/ui/Button'
@@ -24,13 +36,13 @@ import { Field, Input, Select, Switch } from '../components/ui/Field'
 import { Tabs } from '../components/ui/Tabs'
 import { ClockTile } from '../components/layout/ClockTile'
 import type { ClockStyle } from '@shared/types/domain'
-import { useAppStore } from '../stores/appStore'
+import { resolveTheme, useAppStore } from '../stores/appStore'
 import { api } from '../lib/ipc'
 import { cn, todayKey } from '../lib/utils'
 
 /** 设置分区：列表页纵向排列，点击进入详情修改 */
 const SECTIONS: { key: string; title: string; description: string; icon: typeof Palette }[] = [
-  { key: 'general', title: '外观与通用', description: '称呼（软件名）、主题与字体大小', icon: Palette },
+  { key: 'general', title: '外观与通用', description: '称呼、主题配色（10 套预设）、深浅色与字号', icon: Palette },
   { key: 'review', title: '复习与计划', description: '复习算法、每日上限、工作时段与自动排程', icon: Repeat },
   { key: 'notify', title: '提醒与通知', description: '提醒提前量与截止提醒提示音', icon: Bell },
   { key: 'pomodoro', title: '番茄钟', description: '专注时长、休息节奏与阶段提示音', icon: Timer },
@@ -58,7 +70,7 @@ const CLOCK_LAYOUTS: { key: ClockLayout; label: string; hint: string }[] = [
   { key: 'date-right', label: '日期在右', hint: '时间在左、日期在右' }
 ]
 
-/** 时钟形状微调的默认值（字号 0 = 随方块尺寸自适应） */
+/** 时钟形状的默认档位（字号 0 = 随方块尺寸自适应） */
 const CLOCK_SHAPE_DEFAULTS = {
   clockFontSize: 0,
   clockFontWeight: 700,
@@ -67,38 +79,138 @@ const CLOCK_SHAPE_DEFAULTS = {
   clockLetterSpacing: 0
 } satisfies Partial<AppSettings>
 
-/** 单行滑块：左侧名称、右侧当前值，下方一条细轨道 */
-function ClockRange(props: {
+/** 日期行的默认设置 */
+const CLOCK_DATE_DEFAULTS = {
+  clockShowDate: true,
+  clockDateFormat: 'cn' as const,
+  clockShowWeekday: true,
+  clockDateSize: 13
+} satisfies Partial<AppSettings>
+
+/** 档位选择行：一排可点选的档位按钮，点一下即写入该档位的确定值 */
+function TierRow(props: {
   label: string
   value: number
-  min: number
-  max: number
-  step: number
-  unit?: string
-  note?: string
+  tiers: { value: number; label: string }[]
+  format?: (value: number) => string
   onChange: (value: number) => void
 }): JSX.Element {
-  const { label, value, min, max, step, unit = '', note, onChange } = props
+  const { label, value, tiers, format, onChange } = props
+  const current = nearestTier(value, tiers)
   return (
-    <div className="grid gap-1">
+    <div className="grid gap-1.5">
       <div className="flex items-baseline justify-between text-[11px]">
         <span className="text-muted-foreground">{label}</span>
-        <span className="tabular-nums text-foreground">
-          {value}
-          {unit}
-          {note ? <span className="ml-1 text-muted-foreground/70">{note}</span> : null}
-        </span>
+        <span className="tabular-nums text-foreground">{format ? format(current) : current}</span>
       </div>
-      <input
-        type="range"
-        min={min}
-        max={max}
-        step={step}
-        value={value}
-        aria-label={label}
-        onChange={(event) => onChange(Number(event.target.value))}
-        className="w-full cursor-pointer accent-foreground"
-      />
+      <div className="flex flex-wrap gap-1">
+        {tiers.map((tier) => (
+          <button
+            key={tier.value}
+            type="button"
+            onClick={() => onChange(tier.value)}
+            className={cn(
+              'rounded-md border px-2 py-1 text-[11px] transition-colors',
+              tier.value === current
+                ? 'border-primary bg-primary/12 font-medium text-tint-primary'
+                : 'border-border bg-input text-muted-foreground hover:border-muted-foreground/60 hover:text-foreground'
+            )}
+          >
+            {tier.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+/** 带示例文案的选项行（日期格式这类字符串取值用） */
+function OptionRow(props: {
+  label: string
+  value: string
+  options: { key: string; label: string; hint?: string }[]
+  onChange: (value: string) => void
+}): JSX.Element {
+  const { label, value, options, onChange } = props
+  return (
+    <div className="grid gap-1.5">
+      <div className="flex items-baseline justify-between text-[11px]">
+        <span className="text-muted-foreground">{label}</span>
+      </div>
+      <div className="grid grid-cols-2 gap-1 sm:grid-cols-3">
+        {options.map((option) => (
+          <button
+            key={option.key}
+            type="button"
+            onClick={() => onChange(option.key)}
+            className={cn(
+              'rounded-md border px-2 py-1 text-left transition-colors',
+              option.key === value
+                ? 'border-primary bg-primary/12'
+                : 'border-border bg-input hover:border-muted-foreground/60'
+            )}
+          >
+            <span
+              className={cn(
+                'block text-[11px] font-medium',
+                option.key === value ? 'text-tint-primary' : 'text-foreground'
+              )}
+            >
+              {option.label}
+            </span>
+            {option.hint ? (
+              <span className="block truncate text-[10px] tabular-nums text-muted-foreground">{option.hint}</span>
+            ) : null}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+/** 主题配色选择：每张卡片用真实 CSS 变量渲染一个迷你窗口，所见即所得 */
+function ThemePicker(props: {
+  value: ThemePreset
+  mode: 'dark' | 'light'
+  onChange: (value: ThemePreset) => void
+}): JSX.Element {
+  const { value, mode, onChange } = props
+  return (
+    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+      {THEME_PRESETS.map((preset) => {
+        const selected = preset.key === value
+        return (
+          <button
+            key={preset.key}
+            type="button"
+            title={preset.hint}
+            onClick={() => onChange(preset.key)}
+            className={cn(
+              'rounded-lg border p-1.5 text-left transition-colors',
+              selected ? 'border-primary ring-2 ring-primary/25' : 'border-border hover:border-muted-foreground/60'
+            )}
+          >
+            <span className="themed block overflow-hidden rounded-md border border-border" data-preset={preset.key} data-theme={mode}>
+              <span className="flex items-center gap-1 px-1.5 py-1" style={{ background: 'hsl(var(--primary))' }}>
+                <span className="h-1.5 w-1.5 rounded-full" style={{ background: 'hsl(var(--primary-foreground))' }} />
+                <span className="h-1 w-6 rounded-full" style={{ background: 'hsl(var(--primary-foreground) / 0.65)' }} />
+              </span>
+              <span className="block space-y-1 p-1.5" style={{ background: 'hsl(var(--background))' }}>
+                <span className="block h-1 w-3/4 rounded-full" style={{ background: 'hsl(var(--foreground))' }} />
+                <span className="block h-1 w-1/2 rounded-full" style={{ background: 'hsl(var(--muted-foreground))' }} />
+                <span className="mt-1.5 flex gap-1">
+                  <span
+                    className="h-4 flex-1 rounded"
+                    style={{ background: 'hsl(var(--card))', boxShadow: 'inset 0 0 0 1px hsl(var(--border))' }}
+                  />
+                  <span className="h-4 flex-1 rounded" style={{ background: 'hsl(var(--muted))' }} />
+                </span>
+              </span>
+            </span>
+            <span className="mt-1.5 block truncate text-[11px] font-medium text-foreground">{preset.label}</span>
+          </button>
+        )
+      })}
     </div>
   )
 }
@@ -106,19 +218,21 @@ function ClockRange(props: {
 /** 版本更新日志（新版本发布时在最上方追加一条） */
 const CHANGELOG: { version: string; date: string; items: string[] }[] = [
   {
-    version: '1.2.2',
-    date: '2026-09-15',
+    version: '1.2.3',
+    date: '2026-09-17',
     items: [
-      '「一键排列」重做为真随机：顺序与宽高都随机，每行占满 12 列、行间紧密堆叠，不再留大块空白，同组模块仍相邻',
-      '侧边栏左上角改用与安装包同源的软件图标，文字换成黑白简约字标（宽字距称呼 + 细线副行）',
-      '移除模块悬停时的柔光与毛玻璃效果，「拖动」标签改为实底',
-      '修复时钟在小方块里显示不全：字号按方块宽高自适应，任何尺寸都完整显示；方块过小时自动隐藏日期',
-      '时钟新增表盘、圆点、竖排三种风格（共 7 种），并新增字号 / 笔画粗细 / 横向纵向拉伸 / 字距的形状微调，可一键恢复默认',
-      'npm run make-icon 同时生成侧边栏图标，界面图标与安装包图标同源'
+      '左上角字标改为 MOL-WORK，窗口标题、任务栏、托盘提示与到点提醒统一使用同一个软件名',
+      '界面整体改为简约风：去掉极光渐变背景与网格蒙版、毛玻璃与渐变填充，卡片统一实底 + 1px 细描边，圆角整体收紧，弹窗不再半透明糊底',
+      '主题从「深色 / 浅色」两档扩为 10 套预设配色：素白简约（默认）、极简黑白、宣纸暖白、靛青、苔原、暮沙、石墨、午夜靛蓝、紫棠、墨绿夜色',
+      '主题配色与深浅色解耦：任意一套配色都能在深色或浅色下使用，设置页每张卡片用真实配色渲染迷你预览，所见即所得',
+      '时钟「字号 / 笔画粗细 / 横向纵向拉伸 / 字距」由滑块改为预设档位，点一下即写入确定值，不再出现拖动时某一段不动的情况',
+      '时钟日期行改为可设置：可显示或隐藏、5 种日期格式（中文 / 斜杠 / 短横 / 缩写 / 英文）、是否附带星期、4 档日期字号',
+      '统计图表与状态色改读主题令牌，换主题后趋势图、环形图、拖延分析与着色标签同步变色',
+      'README 重写为面向使用者的功能说明，去掉设计与制作过程记录'
     ]
   },
   {
-    version: '1.2.1',
+    version: '1.2.2',
     date: '2026-09-15',
     items: [
       '修复桌面图标仍有白底：白底来自 Windows 图标缓存，安装程序结束时主动刷新图标缓存，升级后无需注销即可看到新图标',
@@ -393,6 +507,8 @@ export function SettingsPage(): JSX.Element {
   const clockSettings = resolveClockSettings(draft.clockStyle, draft.clockLayout)
   const clockStyle = clockSettings.style
   const clockLayout = clockSettings.layout
+  // 当前生效的深浅色：主题配色卡片按它渲染预览
+  const mode = resolveTheme(draft.theme)
 
   /** 各分区详情内容 */
   const renderSectionContent = (): JSX.Element | null => {
@@ -401,10 +517,10 @@ export function SettingsPage(): JSX.Element {
         return (
           <div className="grid gap-4">
             <div className="grid grid-cols-2 gap-4">
-              <Field label="称呼" hint="作为软件名前缀，窗口与侧边栏将显示为「XX的工作站」">
+              <Field label="称呼" hint="显示在左上角字标下方，也用于关闭确认等问候文案">
                 <Input value={draft.userName} onChange={(event) => void patch({ userName: event.target.value })} placeholder="例如：MOL" />
               </Field>
-              <Field label="主题" hint="跟随系统会随操作系统实时切换深浅色">
+              <Field label="深浅色" hint="跟随系统会随操作系统实时切换">
                 <Select value={draft.theme} onChange={(event) => void patch({ theme: event.target.value as AppSettings['theme'] })}>
                   <option value="dark">深色</option>
                   <option value="light">浅色</option>
@@ -412,7 +528,24 @@ export function SettingsPage(): JSX.Element {
                 </Select>
               </Field>
             </div>
-            <div className="grid gap-2 rounded-xl border border-border/70 bg-muted/25 p-3">
+            <div className="grid gap-2.5 rounded-lg border border-border bg-muted/25 p-3">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs font-medium text-muted-foreground">主题配色</p>
+                <span className="text-[11px] text-foreground">
+                  {THEME_PRESETS.find((item) => item.key === draft.themePreset)?.label ?? '素白简约'}
+                </span>
+              </div>
+              <ThemePicker
+                value={draft.themePreset ?? 'minimal'}
+                mode={mode}
+                onChange={(key) => void patch({ themePreset: key })}
+              />
+              <p className="text-[11px] leading-relaxed text-muted-foreground/80">
+                {THEME_PRESETS.find((item) => item.key === draft.themePreset)?.hint ?? ''}。
+                配色与深浅色互不影响，上面显示的是当前{mode === 'dark' ? '深色' : '浅色'}下的效果。
+              </p>
+            </div>
+            <div className="grid gap-2 rounded-lg border border-border bg-muted/25 p-3">
               <p className="text-xs font-medium text-muted-foreground">字体大小</p>
               <Tabs
                 size="sm"
@@ -424,7 +557,7 @@ export function SettingsPage(): JSX.Element {
                 当前字号 {FONT_SIZE_META[draft.fontSize]?.label ?? '标准'}（根字号 {FONT_SIZE_META[draft.fontSize]?.root ?? '16px'}），界面会立即缩放。
               </p>
             </div>
-            <div className="grid gap-3 rounded-xl border border-border/70 bg-muted/25 p-3">
+            <div className="grid gap-3 rounded-xl border border-border bg-muted/25 p-3">
               <p className="text-xs font-medium text-muted-foreground">时钟风格（时间的显示方式）</p>
               <Tabs
                 size="sm"
@@ -439,12 +572,13 @@ export function SettingsPage(): JSX.Element {
                 onChange={(key) => void patch({ clockLayout: key as ClockLayout, clockStyle })}
                 items={CLOCK_LAYOUTS.map((item) => ({ key: item.key, label: item.label }))}
               />
-              <div className="h-[150px] overflow-hidden rounded-xl border border-border/70 bg-background/40">
+              <div className="h-[210px] overflow-hidden rounded-lg border border-border bg-background">
                 <ClockTile style={clockStyle} layout={clockLayout} />
               </div>
-              <div className="grid gap-2.5 border-t border-border/60 pt-3">
+
+              <div className="grid gap-3 border-t border-border pt-3">
                 <div className="flex items-center justify-between gap-2">
-                  <p className="text-xs font-medium text-muted-foreground">形状微调（字号 / 粗细 / 长宽 / 字距）</p>
+                  <p className="text-xs font-medium text-muted-foreground">时间形状（点选档位，即时生效）</p>
                   <Button
                     size="sm"
                     variant="ghost"
@@ -454,59 +588,98 @@ export function SettingsPage(): JSX.Element {
                     恢复默认
                   </Button>
                 </div>
-                <div className="grid grid-cols-2 gap-x-4 gap-y-2.5">
-                  <ClockRange
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <TierRow
                     label="字号"
                     value={draft.clockFontSize ?? 0}
-                    min={0}
-                    max={160}
-                    step={2}
-                    unit={draft.clockFontSize ? 'px' : ''}
-                    note={draft.clockFontSize ? '' : '自动'}
+                    tiers={CLOCK_SIZE_TIERS}
+                    format={(value) => (value === 0 ? '随方块自适应' : value + 'px')}
                     onChange={(value) => void patch({ clockFontSize: value })}
                   />
-                  <ClockRange
+                  <TierRow
                     label="笔画粗细"
                     value={draft.clockFontWeight ?? 700}
-                    min={100}
-                    max={900}
-                    step={100}
+                    tiers={CLOCK_WEIGHT_TIERS}
+                    format={(value) => value}
                     onChange={(value) => void patch({ clockFontWeight: value })}
                   />
-                  <ClockRange
+                  <TierRow
                     label="横向拉伸"
                     value={draft.clockWidthScale ?? 100}
-                    min={40}
-                    max={240}
-                    step={5}
-                    unit="%"
+                    tiers={CLOCK_WIDTH_TIERS}
+                    format={(value) => value + '%'}
                     onChange={(value) => void patch({ clockWidthScale: value })}
                   />
-                  <ClockRange
+                  <TierRow
                     label="纵向拉伸"
                     value={draft.clockHeightScale ?? 100}
-                    min={40}
-                    max={240}
-                    step={5}
-                    unit="%"
+                    tiers={CLOCK_HEIGHT_TIERS}
+                    format={(value) => value + '%'}
                     onChange={(value) => void patch({ clockHeightScale: value })}
                   />
-                  <ClockRange
+                  <TierRow
                     label="字距"
                     value={draft.clockLetterSpacing ?? 0}
-                    min={-8}
-                    max={50}
-                    step={1}
-                    unit="×0.01em"
+                    tiers={CLOCK_SPACING_TIERS}
+                    format={(value) => (value > 0 ? '+' : '') + value + '×0.01em'}
                     onChange={(value) => void patch({ clockLetterSpacing: value })}
                   />
                 </div>
+                <p className="text-[11px] leading-relaxed text-muted-foreground/80">
+                  选「自适应」时字号随时块大小变化；选固定档位时，若方块太小，
+                  仍按能完整显示的最大尺寸呈现（把方块拖大即可看到该档位的真实效果）。
+                </p>
               </div>
-              <p className="text-[11px] text-muted-foreground/80">
+
+              <div className="grid gap-3 border-t border-border pt-3">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-xs font-medium text-muted-foreground">日期行（显示与格式）</p>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    title="恢复默认中文日期与星期"
+                    onClick={() => void patch(CLOCK_DATE_DEFAULTS)}
+                  >
+                    恢复默认
+                  </Button>
+                </div>
+                <div className="grid gap-2.5">
+                  <Switch
+                    checked={draft.clockShowDate !== false}
+                    onChange={(checked) => void patch({ clockShowDate: checked })}
+                    label="显示日期"
+                  />
+                  <Switch
+                    checked={draft.clockShowWeekday !== false}
+                    onChange={(checked) => void patch({ clockShowWeekday: checked })}
+                    label="日期后附带星期"
+                  />
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <OptionRow
+                    label="日期格式"
+                    value={draft.clockDateFormat ?? 'cn'}
+                    options={CLOCK_DATE_FORMATS.map((item) => ({
+                      key: item.key as string,
+                      label: item.label,
+                      hint: item.sample
+                    }))}
+                    onChange={(value) => void patch({ clockDateFormat: value as ClockDateFormat })}
+                  />
+                  <TierRow
+                    label="日期字号"
+                    value={draft.clockDateSize ?? 13}
+                    tiers={CLOCK_DATE_SIZE_TIERS}
+                    format={(value) => value + 'px'}
+                    onChange={(value) => void patch({ clockDateSize: value })}
+                  />
+                </div>
+              </div>
+
+              <p className="text-[11px] leading-relaxed text-muted-foreground/80">
                 {CLOCK_STYLES.find((item) => item.key === clockStyle)?.hint ?? ''}
                 {CLOCK_LAYOUTS.find((item) => item.key === clockLayout)?.hint ?? ''}。
-                每种风格都能自由搭配任意摆放与形状微调；字号为 0 时随时块大小自适应，
-                无论方块多小都会完整显示时间（不再出现只露半截的数字），方块太小时自动隐藏日期行。
+                风格、摆放、形状档位与日期设置彼此独立，任意组合都立即生效。
               </p>
             </div>
             <div className="grid grid-cols-2 gap-4">
@@ -531,7 +704,7 @@ export function SettingsPage(): JSX.Element {
                 </Select>
               </Field>
             </div>
-            <div className="rounded-xl border border-border/70 bg-muted/25 p-3">
+            <div className="rounded-xl border border-border bg-muted/25 p-3">
               <Switch
                 checked={draft.debugMode ?? false}
                 onChange={(checked) => void patch({ debugMode: checked })}
@@ -595,7 +768,7 @@ export function SettingsPage(): JSX.Element {
                 />
               </Field>
             </div>
-            <div className="rounded-xl border border-border/70 bg-muted/25 p-3">
+            <div className="rounded-xl border border-border bg-muted/25 p-3">
               <Switch
                 checked={draft.autoScheduleNextDay}
                 onChange={(checked) => void patch({ autoScheduleNextDay: checked })}
@@ -616,7 +789,7 @@ export function SettingsPage(): JSX.Element {
                 onChange={(event) => void patch({ notifyLeadMinutes: Number(event.target.value) })}
               />
             </Field>
-            <div className="rounded-xl border border-border/70 bg-muted/25 p-3">
+            <div className="rounded-xl border border-border bg-muted/25 p-3">
               <Switch
                 checked={draft.dialogSound}
                 onChange={(checked) => void patch({ dialogSound: checked })}
@@ -669,7 +842,7 @@ export function SettingsPage(): JSX.Element {
                 />
               </Field>
             </div>
-            <div className="flex flex-col gap-3 rounded-xl border border-border/70 bg-muted/25 p-3">
+            <div className="flex flex-col gap-3 rounded-xl border border-border bg-muted/25 p-3">
               <Switch
                 checked={draft.pomodoroAutoStartNext}
                 onChange={(checked) => void patch({ pomodoroAutoStartNext: checked })}
@@ -718,7 +891,7 @@ export function SettingsPage(): JSX.Element {
             </div>
             <div className="flex flex-col gap-2">
               {dependencies.map((dependency) => (
-                <div key={dependency.id} className="rounded-xl border border-border/70 bg-muted/25 p-3">
+                <div key={dependency.id} className="rounded-xl border border-border bg-muted/25 p-3">
                   <div className="flex items-center justify-between gap-2">
                     <span className="flex items-center gap-2 text-xs font-medium text-foreground">
                       <Terminal className="h-3.5 w-3.5 text-muted-foreground" />
@@ -753,7 +926,7 @@ export function SettingsPage(): JSX.Element {
       case 'data':
         return (
           <div className="flex flex-col gap-3">
-            <div className="rounded-xl border border-border/70 bg-muted/25 p-3">
+            <div className="rounded-xl border border-border bg-muted/25 p-3">
               <p className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
                 <Database className="h-3 w-3" />
                 数据目录
@@ -802,7 +975,7 @@ export function SettingsPage(): JSX.Element {
                 onClick={() => setActive(section.key)}
                 className="flex w-full items-center gap-4 border-b border-border/50 px-5 py-4 text-left transition-colors last:border-b-0 hover:bg-muted/40"
               >
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-[#A5B4FC]">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-tint-primary">
                   <Icon className="h-5 w-5" />
                 </span>
                 <span className="min-w-0 flex-1">
@@ -912,7 +1085,7 @@ function AboutSection(): JSX.Element {
         )}
       </div>
 
-      <div className="rounded-xl border border-border/70 bg-muted/25 p-4">
+      <div className="rounded-xl border border-border bg-muted/25 p-4">
         <p className="flex flex-wrap items-center gap-2 text-xs font-semibold text-foreground">
           本版更新内容
           {isMatched ? (
@@ -934,7 +1107,7 @@ function AboutSection(): JSX.Element {
         </ul>
       </div>
 
-      <div className="rounded-xl border border-border/70 bg-muted/25">
+      <div className="rounded-xl border border-border bg-muted/25">
         <button
           type="button"
           onClick={() => setShowHistory((value) => !value)}

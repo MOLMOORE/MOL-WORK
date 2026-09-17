@@ -207,7 +207,7 @@ export function NotesPage(): JSX.Element {
                   'mb-2 w-full rounded-xl border p-3 text-left transition-all duration-150',
                   current?.id === note.id
                     ? 'border-primary/50 bg-primary/10'
-                    : 'border-border/70 bg-muted/20 hover:border-primary/30 hover:bg-muted/40'
+                    : 'border-border bg-muted/20 hover:border-primary/30 hover:bg-muted/40'
                 )}
               >
                 <div className="flex items-center justify-between gap-2">
@@ -379,9 +379,9 @@ export function NotesPage(): JSX.Element {
             type="button"
             aria-label="关闭"
             onClick={() => setCreateOpen(false)}
-            className="absolute inset-0 cursor-default bg-background/70 backdrop-blur-sm"
+            className="absolute inset-0 cursor-default bg-black/40"
           />
-          <div className="relative z-10 w-full max-w-md rounded-2xl border border-border/80 bg-surface/95 p-5 shadow-2xl animate-scale-in">
+          <div className="relative z-10 w-full max-w-md rounded-xl border border-border bg-surface p-5 shadow-pop animate-scale-in">
             <p className="text-sm font-semibold text-foreground">新建笔记</p>
             <p className="mt-0.5 text-xs text-muted-foreground">可选择归属任务，保存后自动加入复习计划</p>
             <div className="mt-4 grid gap-4">

@@ -171,7 +171,7 @@ export function ProjectManager({ open, onClose }: { open: boolean; onClose: () =
             {projects.map((project) => (
               <div
                 key={project.id}
-                className="flex items-center gap-3 rounded-xl border border-border/70 bg-muted/25 p-3"
+                className="flex items-center gap-3 rounded-xl border border-border bg-muted/25 p-3"
               >
                 <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: project.color }} />
                 <div className="min-w-0 flex-1">

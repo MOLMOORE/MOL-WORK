@@ -312,8 +312,8 @@ export function TasksPage(): JSX.Element {
               </kbd>
 
               {suggestOpen && keywordDraft.trim() !== '' && suggestions.length > 0 ? (
-                <div className="absolute left-0 right-0 top-11 z-40 max-h-[420px] overflow-y-auto rounded-2xl border border-border/80 bg-surface/95 p-2 shadow-2xl backdrop-blur-2xl animate-scale-in">
-                  <p className="sticky top-0 z-10 bg-surface/95 px-2 py-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                <div className="absolute left-0 right-0 top-11 z-40 max-h-[420px] overflow-y-auto rounded-2xl border border-border bg-surface p-2 shadow-pop animate-scale-in">
+                  <p className="sticky top-0 z-10 bg-surface px-2 py-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
                     任务 · {suggestions.length}
                   </p>
                   {suggestions.map((task) => (
@@ -330,7 +330,7 @@ export function TasksPage(): JSX.Element {
                       <span
                         className={cn(
                           'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg',
-                          task.isPriority ? 'bg-danger/15 text-[#FCA5A5]' : 'bg-primary/15 text-[#A5B4FC]'
+                          task.isPriority ? 'bg-danger/15 text-tint-danger' : 'bg-primary/15 text-tint-primary'
                         )}
                       >
                         <ListChecks className="h-4 w-4" />

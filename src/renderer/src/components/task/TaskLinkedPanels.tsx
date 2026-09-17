@@ -50,7 +50,7 @@ export function SchedulePanel({ detail, onRefresh }: PanelProps): JSX.Element {
         <EmptyState icon={<CalendarPlus className="h-5 w-5" />} title="尚未排入日程" description="排入后到点会自动弹出系统通知提醒" />
       ) : (
         detail.schedules.map((event) => (
-          <div key={event.id} className="flex items-center gap-3 rounded-xl border border-border/70 bg-muted/25 p-3">
+          <div key={event.id} className="flex items-center gap-3 rounded-xl border border-border bg-muted/25 p-3">
             <Badge tone={event.type === 'review' ? 'info' : 'primary'}>{event.type === 'review' ? '复习' : '任务'}</Badge>
             <div className="min-w-0 flex-1">
               <p className="truncate text-xs text-foreground">{event.title}</p>
@@ -156,7 +156,7 @@ export function ReminderPanel({ detail, onRefresh }: PanelProps): JSX.Element {
         />
       ) : (
         withReminder.map((event) => (
-          <div key={event.id} className="rounded-xl border border-border/70 bg-muted/25 p-3">
+          <div key={event.id} className="rounded-xl border border-border bg-muted/25 p-3">
             <div className="flex items-center gap-3">
               <Bell className={event.reminded ? 'h-3.5 w-3.5 shrink-0 text-muted-foreground' : 'h-3.5 w-3.5 shrink-0 text-warning'} />
               <div className="min-w-0 flex-1">
@@ -281,7 +281,7 @@ export function NotesPanel({ detail, onRefresh }: PanelProps): JSX.Element {
             key={note.id}
             type="button"
             onClick={() => navigate('/notes', { state: { noteId: note.id } })}
-            className="flex items-center gap-3 rounded-xl border border-border/70 bg-muted/25 p-3 text-left transition-colors hover:border-primary/40"
+            className="flex items-center gap-3 rounded-xl border border-border bg-muted/25 p-3 text-left transition-colors hover:border-primary/40"
           >
             <Badge tone={note.kind === 'material' ? 'warning' : note.kind === 'flashcard' ? 'info' : 'primary'}>
               {note.kind === 'material' ? '资料' : note.kind === 'flashcard' ? '卡片' : '笔记'}
@@ -328,8 +328,8 @@ export function FocusPanel({ detail, onRefresh }: PanelProps): JSX.Element {
 
   return (
     <div className="grid gap-3">
-      <div className="flex items-center gap-2 rounded-xl border border-border/70 bg-muted/25 p-3">
-        <Clock className="h-4 w-4 text-[#A5B4FC]" />
+      <div className="flex items-center gap-2 rounded-xl border border-border bg-muted/25 p-3">
+        <Clock className="h-4 w-4 text-tint-primary" />
         <div className="flex-1">
           <p className="text-xs text-foreground">累计专注 {formatMinutes(total)}</p>
           <p className="text-[11px] text-muted-foreground">{active ? '正在计时中…' : '未在计时'}</p>
@@ -349,7 +349,7 @@ export function FocusPanel({ detail, onRefresh }: PanelProps): JSX.Element {
         <EmptyState icon={<Clock className="h-5 w-5" />} title="还没有专注记录" description="开始一次专注，用时会计入项目投入统计" />
       ) : (
         detail.focusSessions.map((session) => (
-          <div key={session.id} className="flex items-center gap-3 rounded-xl border border-border/70 bg-muted/25 p-3">
+          <div key={session.id} className="flex items-center gap-3 rounded-xl border border-border bg-muted/25 p-3">
             <Badge tone={session.endedAt ? 'success' : 'warning'}>{session.endedAt ? '已完成' : '进行中'}</Badge>
             <div className="min-w-0 flex-1">
               <p className="text-xs text-foreground">

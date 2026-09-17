@@ -158,7 +158,7 @@ export function ToolUsageDonut({ toolRuns }: ToolUsageDonutProps): JSX.Element {
                 </span>
               </div>
             ))}
-            <div className="mt-1 flex items-center gap-2 border-t border-border/60 pt-2">
+            <div className="mt-1 flex items-center gap-2 border-t border-border pt-2">
               <span className="text-[11px] text-muted-foreground">执行成功率</span>
               <Badge tone={successRate >= 80 ? 'success' : successRate >= 50 ? 'warning' : 'danger'}>{successRate}%</Badge>
             </div>
@@ -175,9 +175,9 @@ export interface SeverityDistributionProps {
 
 export function SeverityDistribution({ items }: SeverityDistributionProps): JSX.Element {
   const groups: { key: ProcrastinationItem['severity']; label: string; color: string }[] = [
-    { key: 'high', label: '严重', color: '#EF4444' },
-    { key: 'medium', label: '中等', color: '#F59E0B' },
-    { key: 'low', label: '轻微', color: '#38BDF8' }
+    { key: 'high', label: '严重', color: 'hsl(var(--danger))' },
+    { key: 'medium', label: '中等', color: 'hsl(var(--warning))' },
+    { key: 'low', label: '轻微', color: 'hsl(var(--info))' }
   ]
 
   return (

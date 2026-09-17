@@ -3,10 +3,10 @@ import { useAppStore } from '../../stores/appStore'
 import { cn } from '../../lib/utils'
 
 const TONE_MAP = {
-  info: { icon: Info, ring: 'border-info/40', text: 'text-[#67E8F9]' },
-  success: { icon: CheckCircle2, ring: 'border-success/40', text: 'text-[#86EFAC]' },
-  warning: { icon: AlertTriangle, ring: 'border-warning/40', text: 'text-[#FCD34D]' },
-  danger: { icon: XCircle, ring: 'border-danger/40', text: 'text-[#FCA5A5]' }
+  info: { icon: Info, ring: 'border-info/40', text: 'text-tint-info' },
+  success: { icon: CheckCircle2, ring: 'border-success/40', text: 'text-tint-success' },
+  warning: { icon: AlertTriangle, ring: 'border-warning/40', text: 'text-tint-warning' },
+  danger: { icon: XCircle, ring: 'border-danger/40', text: 'text-tint-danger' }
 } as const
 
 export function Toaster(): JSX.Element {
@@ -22,7 +22,7 @@ export function Toaster(): JSX.Element {
           <div
             key={toast.id}
             className={cn(
-              'pointer-events-auto flex items-start gap-3 rounded-xl border bg-surface/95 p-3 shadow-2xl backdrop-blur-xl animate-fade-in',
+              'pointer-events-auto flex items-start gap-3 rounded-xl border bg-surface p-3 shadow-pop animate-fade-in',
               tone.ring
             )}
           >

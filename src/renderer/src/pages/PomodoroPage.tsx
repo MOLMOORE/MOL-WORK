@@ -89,7 +89,7 @@ function TomatoTimer({
       </defs>
 
       {/* 外圈进度轨道 */}
-      <circle cx="150" cy="192" r={radius} fill="none" stroke="rgba(255,255,255,0.10)" strokeWidth="9" />
+      <circle cx="150" cy="192" r={radius} fill="none" stroke="hsl(var(--border))" strokeWidth="9" />
       {/* 外圈进度 */}
       <circle
         cx="150"
@@ -418,7 +418,7 @@ export function PomodoroPage(): JSX.Element {
                 />
               </Field>
             </div>
-            <div className="mt-4 flex flex-col gap-3 rounded-xl border border-border/70 bg-muted/25 p-3">
+            <div className="mt-4 flex flex-col gap-3 rounded-xl border border-border bg-muted/25 p-3">
               <Switch
                 checked={config.autoStartNext}
                 onChange={(checked) => void updateSettings({ pomodoroAutoStartNext: checked })}
@@ -544,7 +544,7 @@ function PomodoroStatsDialog({ chart, config, onClose }: PomodoroStatsDialogProp
               <XAxis dataKey="label" tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} />
               <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} />
               <Tooltip formatter={(value: number) => `${value} 个`} />
-              <Bar dataKey="tomatoes" name="番茄数" fill="#F59E0B" radius={[6, 6, 0, 0]} />
+              <Bar dataKey="tomatoes" name="番茄数" fill="hsl(var(--warning))" radius={[6, 6, 0, 0]} />
             </BarChart>
           ) : chart === 'today' ? (
             <BarChart data={hourlyData} margin={{ top: 12, right: 12, bottom: 0, left: -12 }}>
@@ -552,21 +552,21 @@ function PomodoroStatsDialog({ chart, config, onClose }: PomodoroStatsDialogProp
               <XAxis dataKey="hour" tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} />
               <YAxis tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} />
               <Tooltip formatter={(value: number) => `${value} 分钟`} />
-              <Bar dataKey="minutes" name="专注分钟" fill="#22C55E" radius={[6, 6, 0, 0]} />
+              <Bar dataKey="minutes" name="专注分钟" fill="hsl(var(--success))" radius={[6, 6, 0, 0]} />
             </BarChart>
           ) : (
             <AreaChart data={trendData} margin={{ top: 12, right: 12, bottom: 0, left: -12 }}>
               <defs>
                 <linearGradient id="focusArea" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#6366F1" stopOpacity={0.55} />
-                  <stop offset="100%" stopColor="#6366F1" stopOpacity={0.05} />
+                  <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.28} />
+                  <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0.02} />
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
               <XAxis dataKey="label" tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} />
               <YAxis tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} />
               <Tooltip formatter={(value: number) => `${value} 分钟`} />
-              <Area type="monotone" dataKey="focusMinutes" name="专注分钟" stroke="#6366F1" strokeWidth={2} fill="url(#focusArea)" />
+              <Area type="monotone" dataKey="focusMinutes" name="专注分钟" stroke="hsl(var(--primary))" strokeWidth={2} fill="url(#focusArea)" />
             </AreaChart>
           )}
         </ResponsiveContainer>

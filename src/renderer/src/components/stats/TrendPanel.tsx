@@ -15,12 +15,14 @@ import { Card, SectionHeader } from '../ui/Card'
 import { EmptyState } from '../ui/Feedback'
 import { BarChart3, TrendingUp } from 'lucide-react'
 
-export const CHART_FOCUS = '#6366F1'
-export const CHART_TOOL = '#F59E0B'
-export const CHART_COMPLETED = '#22C55E'
-export const CHART_REVIEW = '#22D3EE'
-export const CHART_GRID = 'rgba(148, 163, 184, 0.18)'
-export const CHART_AXIS = '#94A3B8'
+/* 图表配色直接引用主题令牌：换主题预设或换深浅色时，图形跟着一起变 */
+export const CHART_FOCUS = 'hsl(var(--chart-1))'
+export const CHART_TOOL = 'hsl(var(--chart-3))'
+export const CHART_COMPLETED = 'hsl(var(--chart-2))'
+export const CHART_REVIEW = 'hsl(var(--chart-4))'
+export const CHART_GRID = 'hsl(var(--border))'
+export const CHART_AXIS = 'hsl(var(--muted-foreground))'
+export const CHART_DANGER = 'hsl(var(--danger))'
 
 interface TooltipEntry {
   name?: string
@@ -39,7 +41,7 @@ export interface ChartTooltipProps {
 export function ChartTooltip({ active, label, payload, unitMap }: ChartTooltipProps): JSX.Element | null {
   if (!active || !payload || payload.length === 0) return null
   return (
-    <div className="rounded-xl border border-border/80 bg-surface/95 px-3 py-2 shadow-xl backdrop-blur">
+    <div className="rounded-lg border border-border bg-surface px-3 py-2 shadow-pop">
       <p className="text-[11px] font-medium text-foreground">{label}</p>
       <div className="mt-1 flex flex-col gap-0.5">
         {payload.map((entry) => (
@@ -57,8 +59,8 @@ export function ChartTooltip({ active, label, payload, unitMap }: ChartTooltipPr
   )
 }
 
-const legendStyle = { fontSize: 11, color: CHART_AXIS }
-const axisProps = { stroke: CHART_AXIS, fontSize: 10, tickLine: false, axisLine: false }
+export const legendStyle = { fontSize: 11, color: CHART_AXIS }
+export const axisProps = { stroke: CHART_AXIS, fontSize: 10, tickLine: false, axisLine: false }
 
 /** 图表卡片统一外壳：标题固定，图表区随卡片尺寸自适应 */
 function ChartCard({

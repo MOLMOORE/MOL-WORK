@@ -6,22 +6,21 @@ import { Card, SectionHeader } from '../ui/Card'
 import { Badge, EmptyState } from '../ui/Feedback'
 import { Tabs } from '../ui/Tabs'
 import { SeverityDistribution } from './DistributionPanel'
-import { CHART_AXIS, CHART_GRID, CHART_TOOL, ChartTooltip } from './TrendPanel'
+import { CHART_DANGER, CHART_FOCUS, CHART_GRID, CHART_TOOL, ChartTooltip, axisProps, legendStyle } from './TrendPanel'
 import { cn, formatMinutes } from '../../lib/utils'
 
 const LEVEL_META: Record<ProcrastinationLevel, { label: string; color: string; tone: 'success' | 'warning' | 'danger' }> = {
-  low: { label: '轻微', color: '#22C55E', tone: 'success' },
-  medium: { label: '中等', color: '#F59E0B', tone: 'warning' },
-  high: { label: '严重', color: '#EF4444', tone: 'danger' }
+  low: { label: '轻微', color: 'hsl(var(--success))', tone: 'success' },
+  medium: { label: '中等', color: 'hsl(var(--warning))', tone: 'warning' },
+  high: { label: '严重', color: 'hsl(var(--danger))', tone: 'danger' }
 }
 
 const KIND_META: Record<string, { label: string; color: string }> = {
-  defer: { label: '延期', color: '#6366F1' },
-  due: { label: '进入逾期', color: '#F59E0B' },
-  complete: { label: '完成超时', color: '#EF4444' }
+  defer: { label: '延期', color: CHART_FOCUS },
+  due: { label: '进入逾期', color: 'hsl(var(--warning))' },
+  complete: { label: '完成超时', color: 'hsl(var(--danger))' }
 }
 
-const axisProps = { stroke: CHART_AXIS, fontSize: 10, tickLine: false, axisLine: false }
 
 /** 0-100 拖延程度环形指示器 */
 function DegreeRing({ degree, color }: { degree: number; color: string }): JSX.Element {
@@ -98,7 +97,7 @@ export function ProcrastinationPanel({ report, items, onOpenTask, loading }: Pro
           <div className="flex flex-col gap-4">
             {/* 综合程度 + 日 / 周 / 月对比 */}
             <div className="grid gap-4 lg:grid-cols-[auto_1fr]">
-              <div className="flex items-center gap-4 rounded-xl border border-border/70 bg-muted/25 p-3">
+              <div className="flex items-center gap-4 rounded-xl border border-border bg-muted/25 p-3">
                 <div className="relative">
                   <DegreeRing degree={report?.degree ?? 0} color={level.color} />
                   <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
@@ -130,7 +129,7 @@ export function ProcrastinationPanel({ report, items, onOpenTask, loading }: Pro
                 {(report?.periods ?? []).map((period) => {
                   const meta = LEVEL_META[period.level]
                   return (
-                    <div key={period.key} className="rounded-xl border border-border/70 bg-muted/25 p-3">
+                    <div key={period.key} className="rounded-xl border border-border bg-muted/25 p-3">
                       <div className="flex items-center justify-between gap-2">
                         <span className="text-[11px] text-muted-foreground">{period.label}</span>
                         <Badge tone={meta.tone}>{meta.label}</Badge>
@@ -185,7 +184,7 @@ export function ProcrastinationPanel({ report, items, onOpenTask, loading }: Pro
             ) : null}
 
             {/* 走势对比图 */}
-            <div className="rounded-xl border border-border/70 bg-muted/25 p-3">
+            <div className="rounded-xl border border-border bg-muted/25 p-3">
               <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                 <p className="text-[11px] font-medium text-muted-foreground">拖延走势对比（柱=拖延时长，线=拖延程度）</p>
                 <Tabs
@@ -214,7 +213,7 @@ export function ProcrastinationPanel({ report, items, onOpenTask, loading }: Pro
                       <Tooltip
                         content={<ChartTooltip unitMap={{ delayMinutes: ' 分钟', events: ' 次', degree: ' 分' }} />}
                       />
-                      <Legend wrapperStyle={{ fontSize: 11, color: CHART_AXIS }} />
+                      <Legend wrapperStyle={legendStyle} />
                       <Bar
                         yAxisId="delay"
                         name="拖延时长"
@@ -228,7 +227,7 @@ export function ProcrastinationPanel({ report, items, onOpenTask, loading }: Pro
                         type="monotone"
                         name="拖延程度"
                         dataKey="degree"
-                        stroke="#EF4444"
+                        stroke={CHART_DANGER}
                         strokeWidth={2}
                         dot={false}
                       />
@@ -240,7 +239,7 @@ export function ProcrastinationPanel({ report, items, onOpenTask, loading }: Pro
 
             {/* 严重度分布 + 记忆流水 */}
             <div className="grid gap-4 lg:grid-cols-[1fr_1.4fr]">
-              <div className="rounded-xl border border-border/70 bg-muted/25 p-3">
+              <div className="rounded-xl border border-border bg-muted/25 p-3">
                 <p className="mb-3 text-[11px] font-medium text-muted-foreground">当前事项严重度分布</p>
                 {items.length === 0 ? (
                   <p className="text-[11px] text-muted-foreground">当前没有需要处理的拖延事项</p>
@@ -248,7 +247,7 @@ export function ProcrastinationPanel({ report, items, onOpenTask, loading }: Pro
                   <SeverityDistribution items={items} />
                 )}
               </div>
-              <div className="rounded-xl border border-border/70 bg-muted/25 p-3">
+              <div className="rounded-xl border border-border bg-muted/25 p-3">
                 <p className="mb-2 flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
                   <History className="h-3.5 w-3.5" />
                   拖延记忆流水
@@ -280,7 +279,7 @@ export function ProcrastinationPanel({ report, items, onOpenTask, loading }: Pro
 
             {/* 拖延事项清单 */}
             {items.length > 0 ? (
-              <div className="rounded-xl border border-border/70 bg-muted/25 p-3">
+              <div className="rounded-xl border border-border bg-muted/25 p-3">
                 <p className="mb-2 text-[11px] font-medium text-muted-foreground">需要处理的拖延事项（点击定位任务）</p>
                 <div className="flex max-h-[220px] flex-col gap-2 overflow-y-auto pr-1">
                   {items.slice(0, 12).map((item) => (
@@ -288,7 +287,7 @@ export function ProcrastinationPanel({ report, items, onOpenTask, loading }: Pro
                       key={item.task.id}
                       type="button"
                       onClick={() => onOpenTask(item.task.id)}
-                      className="rounded-xl border border-border/70 bg-background/40 p-3 text-left transition-colors hover:border-danger/40"
+                      className="rounded-xl border border-border bg-background/40 p-3 text-left transition-colors hover:border-danger/40"
                     >
                       <div className="flex items-center justify-between gap-2">
                         <p className="truncate text-xs font-medium text-foreground">{item.task.title}</p>

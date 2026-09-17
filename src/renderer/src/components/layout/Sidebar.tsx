@@ -13,6 +13,7 @@ import {
   Wrench
 } from 'lucide-react'
 import appIcon from '../../assets/app-icon.png'
+import { APP_NAME } from '@shared/constants'
 import { useAppStore } from '../../stores/appStore'
 import { cn } from '../../lib/utils'
 
@@ -43,22 +44,22 @@ export function Sidebar(): JSX.Element {
   return (
     <aside
       className={cn(
-        'relative z-20 flex h-full shrink-0 flex-col border-r border-border/70 bg-surface/70 backdrop-blur-2xl transition-all duration-250',
+        'relative z-20 flex h-full shrink-0 flex-col border-r border-border bg-surface transition-all duration-250',
         collapsed ? 'w-[76px]' : 'w-[222px]'
       )}
     >
       <div className="flex items-center gap-2.5 px-4 py-4">
         {/* 与安装包同源的软件图标（由 npm run make-icon 生成） */}
-        <img src={appIcon} alt="个人工作站" draggable={false} className="h-9 w-9 shrink-0 select-none" />
+        <img src={appIcon} alt={APP_NAME} draggable={false} className="h-9 w-9 shrink-0 select-none" />
         {!collapsed ? (
-          /* 黑白简约字标：称呼用宽字距大写感，副行用细线 + 极宽字距压住节奏 */
+          /* 简约字标：主行是软件名，副行用细线引出用户称呼 */
           <div className="min-w-0 leading-none">
-            <p className="truncate text-[13px] font-bold uppercase tracking-[0.16em] text-foreground">
-              {(settings?.userName ?? 'MOL').trim() || 'MOL'}
+            <p className="truncate text-[13px] font-bold uppercase tracking-[0.18em] text-foreground">
+              {APP_NAME}
             </p>
-            <p className="mt-1.5 flex items-center gap-1.5 text-[10px] tracking-[0.3em] text-muted-foreground">
+            <p className="mt-1.5 flex items-center gap-1.5 text-[10px] tracking-[0.26em] text-muted-foreground">
               <span className="inline-block h-px w-3 shrink-0 bg-current opacity-60" />
-              的工作站
+              {(settings?.userName ?? 'MOL').trim() || 'MOL'}
             </p>
           </div>
         ) : null}
@@ -79,7 +80,7 @@ export function Sidebar(): JSX.Element {
                   'group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all duration-150',
                   collapsed && 'justify-center px-0',
                   isActive
-                    ? 'bg-gradient-to-r from-[#6366F1]/25 to-[#7C3AED]/10 text-foreground'
+                    ? 'bg-muted font-medium text-foreground'
                     : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
                 )
               }
@@ -87,14 +88,14 @@ export function Sidebar(): JSX.Element {
               {({ isActive }) => (
                 <>
                   {isActive ? (
-                    <span className="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-full bg-gradient-to-b from-[#6366F1] to-[#22D3EE]" />
+                    <span className="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-full bg-primary" />
                   ) : null}
-                  <Icon className={cn('h-4 w-4 shrink-0', isActive && 'text-[#A5B4FC]')} />
+                  <Icon className={cn('h-4 w-4 shrink-0', isActive && 'text-tint-primary')} />
                   {!collapsed ? (
                     <>
                       <span className="flex-1 truncate">{item.label}</span>
                       {count !== null ? (
-                        <span className="rounded-full bg-primary/25 px-1.5 py-0.5 text-[10px] font-medium text-[#A5B4FC]">
+                        <span className="rounded-full bg-primary/25 px-1.5 py-0.5 text-[10px] font-medium text-tint-primary">
                           {count}
                         </span>
                       ) : null}

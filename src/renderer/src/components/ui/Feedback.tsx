@@ -5,11 +5,11 @@ type BadgeTone = 'default' | 'primary' | 'success' | 'warning' | 'danger' | 'inf
 
 const BADGE_TONES: Record<BadgeTone, string> = {
   default: 'bg-muted text-muted-foreground border-border',
-  primary: 'bg-primary/15 text-[#A5B4FC] border-primary/40',
-  success: 'bg-success/15 text-[#86EFAC] border-success/40',
-  warning: 'bg-warning/15 text-[#FCD34D] border-warning/40',
-  danger: 'bg-danger/15 text-[#FCA5A5] border-danger/40',
-  info: 'bg-info/15 text-[#67E8F9] border-info/40'
+  primary: 'bg-primary/15 text-tint-primary border-primary/40',
+  success: 'bg-success/15 text-tint-success border-success/40',
+  warning: 'bg-warning/15 text-tint-warning border-warning/40',
+  danger: 'bg-danger/15 text-tint-danger border-danger/40',
+  info: 'bg-info/15 text-tint-info border-info/40'
 }
 
 export interface BadgeProps {
@@ -41,9 +41,9 @@ export interface ProgressProps {
 }
 
 const PROGRESS_TONES: Record<NonNullable<ProgressProps['tone']>, string> = {
-  primary: 'from-[#6366F1] to-[#7C3AED]',
-  success: 'from-[#22C55E] to-[#22D3EE]',
-  warning: 'from-[#F59E0B] to-[#EF4444]'
+  primary: 'bg-primary',
+  success: 'bg-success',
+  warning: 'bg-warning'
 }
 
 export function Progress({ value, className, tone = 'primary' }: ProgressProps): JSX.Element {
@@ -51,7 +51,7 @@ export function Progress({ value, className, tone = 'primary' }: ProgressProps):
   return (
     <div className={cn('h-1.5 w-full overflow-hidden rounded-full bg-muted', className)}>
       <div
-        className={cn('h-full rounded-full bg-gradient-to-r transition-all duration-500', PROGRESS_TONES[tone])}
+        className={cn('h-full rounded-full transition-all duration-300', PROGRESS_TONES[tone])}
         style={{ width: `${safe}%` }}
       />
     </div>

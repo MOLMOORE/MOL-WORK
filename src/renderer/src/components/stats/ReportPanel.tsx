@@ -123,7 +123,7 @@ export function ReportPanel({ report, anchor, onAnchorChange }: ReportPanelProps
               ))}
             </div>
             <div className="mt-4 rounded-xl border border-warning/30 bg-warning/10 p-3">
-              <p className="flex items-center gap-1.5 text-[11px] font-medium text-[#FCD34D]">
+              <p className="flex items-center gap-1.5 text-[11px] font-medium text-tint-warning">
                 <TriangleAlert className="h-3 w-3" />
                 复盘建议
               </p>
@@ -137,7 +137,7 @@ export function ReportPanel({ report, anchor, onAnchorChange }: ReportPanelProps
             </div>
           </div>
 
-          <div className="rounded-xl border border-border/70 bg-muted/25 p-4">
+          <div className="rounded-xl border border-border bg-muted/25 p-4">
             <p className="text-xs font-medium text-foreground">当日时间线</p>
             <div className="mt-3 flex max-h-[260px] flex-col gap-2 overflow-y-auto pr-1">
               {report.stats.timeline.length === 0 ? (
@@ -171,7 +171,7 @@ export function ReportPanel({ report, anchor, onAnchorChange }: ReportPanelProps
           </div>
         </div>
       ) : (
-        <div className="max-h-[520px] overflow-y-auto rounded-xl border border-border/70 bg-background/50 p-4 pr-2">
+        <div className="max-h-[520px] overflow-y-auto rounded-xl border border-border bg-background/50 p-4 pr-2">
           <div
             className={[
               'text-xs leading-relaxed text-muted-foreground',
@@ -180,8 +180,8 @@ export function ReportPanel({ report, anchor, onAnchorChange }: ReportPanelProps
               '[&_ul]:my-1 [&_ul]:flex [&_ul]:flex-col [&_ul]:gap-0.5 [&_li]:list-none',
               '[&_blockquote]:my-2 [&_blockquote]:border-l-2 [&_blockquote]:border-primary/50 [&_blockquote]:pl-3',
               '[&_table]:my-2 [&_table]:w-full [&_table]:border-collapse [&_table]:text-[11px]',
-              '[&_th]:border [&_th]:border-border/70 [&_th]:px-2 [&_th]:py-1 [&_th]:text-left [&_th]:text-foreground',
-              '[&_td]:border [&_td]:border-border/70 [&_td]:px-2 [&_td]:py-1',
+              '[&_th]:border [&_th]:border-border [&_th]:px-2 [&_th]:py-1 [&_th]:text-left [&_th]:text-foreground',
+              '[&_td]:border [&_td]:border-border [&_td]:px-2 [&_td]:py-1',
               '[&_strong]:text-foreground'
             ].join(' ')}
           >

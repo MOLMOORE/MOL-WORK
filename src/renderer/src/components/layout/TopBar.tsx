@@ -50,7 +50,7 @@ export function TopBar(): JSX.Element {
 
   return (
     <>
-    <header className="relative z-40 flex h-14 shrink-0 items-center gap-4 border-b border-border/70 bg-surface/60 px-5 backdrop-blur-2xl">
+    <header className="relative z-40 flex h-14 shrink-0 items-center gap-4 border-b border-border bg-surface px-5">
       <div className="min-w-[170px] max-w-[240px] shrink-0">
         <h1 className="truncate text-sm font-semibold tracking-tight text-foreground">{meta.title}</h1>
         <p className="truncate text-[11px] text-muted-foreground">{meta.subtitle}</p>
@@ -74,7 +74,7 @@ export function TopBar(): JSX.Element {
               : 'border-border bg-muted/50 text-muted-foreground hover:text-foreground'
           )}
         >
-          <Timer className="h-3 w-3 text-[#A5B4FC]" />
+          <Timer className="h-3 w-3 text-tint-primary" />
           <span className="tabular-nums">{clock(pomodoroSeconds)}</span>
           <span className="text-muted-foreground">{PHASE_META[pomodoroPhase].label}</span>
         </button>
@@ -85,7 +85,7 @@ export function TopBar(): JSX.Element {
           title="管理项目与课程（可新增、编辑、删除）"
           className="hidden items-center gap-1 rounded-full border border-border bg-muted/50 px-2.5 py-1 text-[11px] text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground xl:flex"
         >
-          <FolderKanban className="h-3 w-3 text-[#A5B4FC]" />
+          <FolderKanban className="h-3 w-3 text-tint-primary" />
           {projectCount} 个项目
         </button>
 
@@ -100,8 +100,8 @@ export function TopBar(): JSX.Element {
           </IconButton>
 
           {bellOpen ? (
-            <div className="absolute right-0 top-10 z-40 w-[320px] overflow-hidden rounded-2xl border border-border/80 bg-surface/95 shadow-2xl backdrop-blur-2xl animate-scale-in">
-              <div className="flex items-center justify-between border-b border-border/70 px-4 py-2.5">
+            <div className="absolute right-0 top-10 z-40 w-[320px] overflow-hidden rounded-2xl border border-border bg-surface shadow-pop animate-scale-in">
+              <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
                 <p className="text-xs font-semibold text-foreground">到点提醒</p>
                 {reminders.length > 0 ? (
                   <button

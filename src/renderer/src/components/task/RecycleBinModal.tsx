@@ -90,7 +90,7 @@ export function RecycleBinModal({ open, onClose }: { open: boolean; onClose: () 
           </>
         }
       >
-        <div className="mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-border/70 bg-muted/25 p-3">
+        <div className="mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-border bg-muted/25 p-3">
           <span className="text-[11px] font-medium text-muted-foreground">保留时长</span>
           <div className="flex items-center gap-1">
             {[1, 7, 30].map((days) => (
@@ -101,7 +101,7 @@ export function RecycleBinModal({ open, onClose }: { open: boolean; onClose: () 
                 className={cn(
                   'rounded-lg border px-2.5 py-1 text-[11px] font-medium transition-all',
                   retentionDays === days
-                    ? 'border-primary/60 bg-primary/15 text-[#A5B4FC]'
+                    ? 'border-primary/60 bg-primary/15 text-tint-primary'
                     : 'border-border bg-muted/40 text-muted-foreground hover:text-foreground'
                 )}
               >
@@ -129,7 +129,7 @@ export function RecycleBinModal({ open, onClose }: { open: boolean; onClose: () 
               <div
                 key={task.id}
                 className={cn(
-                  'flex items-start gap-3 rounded-xl border border-border/70 bg-muted/25 p-3',
+                  'flex items-start gap-3 rounded-xl border border-border bg-muted/25 p-3',
                   task.isPriority && 'border-l-2 border-l-danger'
                 )}
               >

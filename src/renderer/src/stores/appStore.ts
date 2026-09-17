@@ -1,5 +1,12 @@
 import { create } from 'zustand'
-import type { AppSettings, DependencyStatus, FontSize, OverviewData, ThemeMode } from '@shared/types/domain'
+import type {
+  AppSettings,
+  DependencyStatus,
+  FontSize,
+  OverviewData,
+  ThemeMode,
+  ThemePreset
+} from '@shared/types/domain'
 import type { ReminderPayload } from '@shared/types/ipc'
 import { FONT_SIZE_META } from '@shared/constants'
 import { api } from '../lib/ipc'
@@ -38,8 +45,16 @@ export function resolveTheme(theme: ThemeMode): 'dark' | 'light' {
   return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
 }
 
-export function applyTheme(theme: ThemeMode): void {
-  document.documentElement.dataset.theme = resolveTheme(theme)
+/** 应用主题：深浅色 + 预设配色方案一起落到 <html> 的 data 属性上，CSS 变量随即生效 */
+export function applyTheme(theme: ThemeMode, preset: ThemePreset = 'minimal'): void {
+  const root = document.documentElement
+  root.dataset.theme = resolveTheme(theme)
+  root.dataset.preset = preset
+}
+
+/** 当前生效的深浅色（供图表取色等场景使用） */
+export function activeMode(): 'dark' | 'light' {
+  return document.documentElement.dataset.theme === 'light' ? 'light' : 'dark'
 }
 
 export function applyFontSize(size: FontSize): void {
@@ -56,13 +71,13 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   init: async () => {
     const settings = await api.app.getSettings()
-    applyTheme(settings.theme)
+    applyTheme(settings.theme, settings.themePreset)
     applyFontSize(settings.fontSize)
     set({ settings })
     // 主题设为「跟随系统」时，实时响应系统深浅色变化
     if (window.matchMedia) {
       window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
-        if (get().settings?.theme === 'system') applyTheme('system')
+        if (get().settings?.theme === 'system') applyTheme('system', get().settings?.themePreset)
       })
     }
     await Promise.all([get().refreshOverview(), get().refreshDependencies()])
@@ -90,7 +105,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   updateSettings: async (patch) => {
     const settings = await api.app.updateSettings(patch)
-    if (patch.theme !== undefined) applyTheme(settings.theme)
+    if (patch.theme !== undefined || patch.themePreset !== undefined) applyTheme(settings.theme, settings.themePreset)
     if (patch.fontSize !== undefined) applyFontSize(settings.fontSize)
     set({ settings })
   },

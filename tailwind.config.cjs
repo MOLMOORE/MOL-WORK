@@ -27,20 +27,37 @@ module.exports = {
         success: 'hsl(var(--success))',
         warning: 'hsl(var(--warning))',
         danger: 'hsl(var(--danger))',
-        info: 'hsl(var(--info))'
+        info: 'hsl(var(--info))',
+        /* 着色标签上的文字：随主题预设与深浅色自动取可读的明度 */
+        tint: {
+          primary: 'hsl(var(--tint-primary))',
+          success: 'hsl(var(--success-text))',
+          warning: 'hsl(var(--warning-text))',
+          danger: 'hsl(var(--danger-text))',
+          info: 'hsl(var(--info-text))'
+        },
+        chart: {
+          1: 'hsl(var(--chart-1))',
+          2: 'hsl(var(--chart-2))',
+          3: 'hsl(var(--chart-3))',
+          4: 'hsl(var(--chart-4))',
+          5: 'hsl(var(--chart-5))'
+        }
       },
+      /* 简约风：整体收紧圆角，去掉大圆角的「玩具感」 */
       borderRadius: {
-        xl: '16px',
-        lg: '12px',
-        md: '10px',
-        sm: '8px'
+        '2xl': '12px',
+        xl: '10px',
+        lg: '8px',
+        md: '6px',
+        sm: '4px'
       },
       fontFamily: {
         sans: ['Inter', 'PingFang SC', 'Microsoft YaHei', 'system-ui', 'sans-serif']
       },
       boxShadow: {
-        glow: '0 0 0 1px rgba(99,102,241,0.35), 0 8px 30px -12px rgba(99,102,241,0.55)',
-        card: '0 1px 0 0 rgba(255,255,255,0.04) inset, 0 10px 30px -18px rgba(0,0,0,0.9)'
+        card: 'var(--shadow-card)',
+        pop: 'var(--shadow-pop)'
       },
       keyframes: {
         'fade-in': {
@@ -48,7 +65,7 @@ module.exports = {
           to: { opacity: '1', transform: 'translateY(0)' }
         },
         'scale-in': {
-          from: { opacity: '0', transform: 'scale(0.97)' },
+          from: { opacity: '0', transform: 'scale(0.985)' },
           to: { opacity: '1', transform: 'scale(1)' }
         },
         shimmer: {
@@ -68,8 +85,8 @@ module.exports = {
         }
       },
       animation: {
-        'fade-in': 'fade-in 220ms ease-out',
-        'scale-in': 'scale-in 160ms ease-out',
+        'fade-in': 'fade-in 200ms ease-out',
+        'scale-in': 'scale-in 140ms ease-out',
         shimmer: 'shimmer 1.4s linear infinite',
         'flip-in': 'flip-in 460ms cubic-bezier(0.22, 0.9, 0.32, 1.04)',
         jiggle: 'jiggle 620ms ease-in-out infinite'

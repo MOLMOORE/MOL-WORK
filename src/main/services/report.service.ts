@@ -1,4 +1,5 @@
 import type { DailyReport } from '@shared/types/domain'
+import { APP_NAME } from '@shared/constants'
 import { procrastination, dailyStats } from './stats.service'
 import { nowIso } from '../utils/time'
 
@@ -52,7 +53,7 @@ export function dailyReport(dateKey: string): DailyReport {
 
 export function renderReportMarkdown(report: DailyReport): string {
   const lines: string[] = [
-    `# 个人工作站日报 · ${report.date}`,
+    `# ${APP_NAME}日报 · ${report.date}`,
     '',
     `> 生成时间：${report.generatedAt.replace('T', ' ')}`,
     '',

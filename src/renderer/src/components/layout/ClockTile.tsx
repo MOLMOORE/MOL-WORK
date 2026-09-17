@@ -1,6 +1,16 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from 'react'
 import type { ClockLayout, ClockStyle } from '@shared/types/domain'
-import { resolveClockSettings } from '@shared/constants'
+import {
+  CLOCK_DATE_SIZE_TIERS,
+  CLOCK_HEIGHT_TIERS,
+  CLOCK_SIZE_TIERS,
+  CLOCK_SPACING_TIERS,
+  CLOCK_WEIGHT_TIERS,
+  CLOCK_WIDTH_TIERS,
+  formatClockDate,
+  nearestTier,
+  resolveClockSettings
+} from '@shared/constants'
 import { FlipDigit } from '../ui/FlipDigit'
 import { cn, dateKey, weekdayCN } from '../../lib/utils'
 import { useAppStore } from '../../stores/appStore'
@@ -58,7 +68,8 @@ function useBoxSize(): { ref: RefObject<HTMLDivElement>; w: number; h: number } 
  * 可自由拖拽缩放的时钟方块：
  * - 「风格」决定时间怎么显示（翻页 / 极简 / 秒环 / 终端 / 表盘 / 圆点 / 竖排），
  * - 「摆放」决定日期在时间的哪一侧（上 / 下 / 左 / 右），
- * - 字号、字重、横向与纵向拉伸、字距全部可在设置里调，
+ * - 字号、笔画粗细、横向与纵向拉伸、字距都从设置里的预设档位取值，
+ * - 日期行可开关、可换格式（中文 / 斜杠 / 短横 / 缩写 / 英文）、可显隐星期、可调字号，
  * - 字号按方块实际宽高反推，因此小框也能完整显示（不再出现只显示半截时间）。
  */
 export function ClockTile({ style, layout }: ClockTileProps): JSX.Element {
@@ -75,15 +86,18 @@ export function ClockTile({ style, layout }: ClockTileProps): JSX.Element {
   const time = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`
   const hhmm = time.slice(0, 5)
   const ss = time.slice(6)
-  const dateText = `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日 · ${weekdayCN(dateKey(now))}`
+  // 日期行：格式 / 星期 / 是否显示，全部可在设置里改
+  const dateText = formatClockDate(now, settings?.clockDateFormat ?? 'cn')
+  const dateFull =
+    settings?.clockShowWeekday === false ? dateText : `${dateText} · ${weekdayCN(dateKey(now))}`
   const vertical = place === 'date-top' || place === 'date-bottom'
   const dateFirst = place === 'date-top' || place === 'date-left'
 
-  // ---- 用户可调参数（带安全区间） ------------------------------------------
-  const weight = Math.min(900, Math.max(100, settings?.clockFontWeight ?? 700))
-  const scaleX = Math.min(2.4, Math.max(0.4, (settings?.clockWidthScale ?? 100) / 100))
-  const scaleY = Math.min(2.4, Math.max(0.4, (settings?.clockHeightScale ?? 100) / 100))
-  const spacingEm = Math.min(0.5, Math.max(-0.08, (settings?.clockLetterSpacing ?? 0) / 100))
+  // ---- 用户可调参数：全部来自预设档位（旧数据里的任意值按最近档位取） ----------
+  const weight = nearestTier(settings?.clockFontWeight ?? 700, CLOCK_WEIGHT_TIERS)
+  const scaleX = nearestTier(settings?.clockWidthScale ?? 100, CLOCK_WIDTH_TIERS) / 100
+  const scaleY = nearestTier(settings?.clockHeightScale ?? 100, CLOCK_HEIGHT_TIERS) / 100
+  const spacingEm = nearestTier(settings?.clockLetterSpacing ?? 0, CLOCK_SPACING_TIERS) / 100
   const metrics = STYLE_METRICS[mode]
   // 字距与字重都会让整串变宽，一并计入所需宽度
   const units = metrics.units + Math.max(0, spacingEm) * 7 + (weight - 400) / 100 * 0.06
@@ -94,11 +108,19 @@ export function ClockTile({ style, layout }: ClockTileProps): JSX.Element {
   const fitByHeight = (innerH / metrics.lines) * metrics.heightRatio / scaleY
   const fitByWidth = innerW / units / scaleX
   const auto = Math.min(fitByHeight, fitByWidth)
-  const wanted = settings?.clockFontSize && settings.clockFontSize > 0 ? settings.clockFontSize : auto
-  const fontSize = Math.max(8, Math.min(wanted, auto || wanted))
-  const dateFontSize = Math.max(8, Math.min(13, innerH * 0.16, innerW / 9.8))
+  const wanted = nearestTier(settings?.clockFontSize ?? 0, CLOCK_SIZE_TIERS)
+  // wanted = 0 表示自适应；> 0 时按档位取，但仍不超过方块能容纳的尺寸（永不裁切数字）
+  const fontSize = Math.max(8, Math.min(wanted > 0 ? wanted : auto, auto || wanted))
+  /** 选中的档位因方块太小而显示不下：设置页据此给出提示 */
+  const sizeCapped = wanted > 0 && fontSize < wanted - 1
+
+  // 日期行字号：同样按档位，但不超过方块能给的余量
+  const dateTier = nearestTier(settings?.clockDateSize ?? 13, CLOCK_DATE_SIZE_TIERS)
+  const dateRoom = Math.min(innerH * 0.22, innerW / 9)
+  const dateFontSize = Math.max(8, Math.min(dateTier, Math.max(9, dateRoom)))
   // 方块太小时宁可只显示时间，也不让日期挤掉数字
-  const showDate = innerW > 0 && dateFontSize >= 9.5 && innerH >= 34
+  const showDate =
+    settings?.clockShowDate !== false && innerW > 0 && innerH >= 34 && dateFontSize >= 9.5
 
   const timeStyle: CSSProperties = {
     fontSize: `${fontSize.toFixed(1)}px`,
@@ -135,13 +157,13 @@ export function ClockTile({ style, layout }: ClockTileProps): JSX.Element {
       <div className="flex items-center gap-[0.5em]">
         <div className="relative" style={{ height: ring, aspectRatio: '1 / 1' }}>
           <svg viewBox="0 0 100 100" className="h-full w-full -rotate-90">
-            <circle cx="50" cy="50" r="44" fill="none" stroke="rgba(148,163,184,0.25)" strokeWidth="8" />
+            <circle cx="50" cy="50" r="44" fill="none" stroke="hsl(var(--border))" strokeWidth="8" />
             <circle
               cx="50"
               cy="50"
               r="44"
               fill="none"
-              stroke="#6366F1"
+              stroke="hsl(var(--primary))"
               strokeWidth="8"
               strokeLinecap="round"
               strokeDasharray={2 * Math.PI * 44}
@@ -181,7 +203,7 @@ export function ClockTile({ style, layout }: ClockTileProps): JSX.Element {
           ))}
           <line x1="50" y1="50" x2="50" y2="26" stroke="currentColor" strokeWidth="6" strokeLinecap="round" className="text-foreground" transform={`rotate(${hourAngle} 50 50)`} />
           <line x1="50" y1="50" x2="50" y2="16" stroke="currentColor" strokeWidth="4" strokeLinecap="round" className="text-foreground/80" transform={`rotate(${minuteAngle} 50 50)`} />
-          <line x1="50" y1="56" x2="50" y2="14" stroke="#6366F1" strokeWidth="2" strokeLinecap="round" transform={`rotate(${secondAngle} 50 50)`} />
+          <line x1="50" y1="56" x2="50" y2="14" stroke="hsl(var(--primary))" strokeWidth="2" strokeLinecap="round" transform={`rotate(${secondAngle} 50 50)`} />
           <circle cx="50" cy="50" r="3" fill="currentColor" className="text-foreground" />
         </svg>
         <span className="tabular-nums text-foreground" style={timeStyle}>{hhmm}</span>
@@ -207,7 +229,7 @@ export function ClockTile({ style, layout }: ClockTileProps): JSX.Element {
     )
   } else {
     timeBlock = (
-      <span className="font-mono tabular-nums text-[#86EFAC]" style={timeStyle}>
+      <span className="font-mono tabular-nums text-tint-success" style={timeStyle}>
         {`[${time}]`}
       </span>
     )
@@ -218,15 +240,17 @@ export function ClockTile({ style, layout }: ClockTileProps): JSX.Element {
       className={cn('whitespace-nowrap text-muted-foreground', mode === 'mono' && 'font-mono')}
       style={{ fontSize: `${dateFontSize.toFixed(1)}px`, lineHeight: 1.3 }}
     >
-      {mode === 'mono' ? `> ${dateText}` : dateText}
+      {mode === 'mono' ? `> ${dateFull}` : dateFull}
     </p>
   ) : null
 
   return (
     <div
       ref={ref}
+      data-clock-capped={sizeCapped ? '1' : undefined}
+      data-clock-font-size={fontSize.toFixed(0)}
       className={cn(
-        'flex h-full w-full select-none items-center justify-center overflow-hidden rounded-2xl px-3 py-2',
+        'flex h-full w-full select-none items-center justify-center overflow-hidden rounded-xl px-3 py-2',
         vertical ? 'flex-col' : 'flex-row'
       )}
     >

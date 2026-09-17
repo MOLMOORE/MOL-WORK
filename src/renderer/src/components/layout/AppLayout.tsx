@@ -7,9 +7,6 @@ import { DueAlertWatcher } from '../task/DueAlertWatcher'
 export function AppLayout(): JSX.Element {
   return (
     <div className="relative flex h-full w-full overflow-hidden bg-background">
-      <div className="pointer-events-none absolute inset-0 aurora" />
-      <div className="pointer-events-none absolute inset-0 grid-overlay opacity-[0.35]" />
-
       <Sidebar />
 
       <div className="relative z-10 flex min-w-0 flex-1 flex-col">

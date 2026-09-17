@@ -4,6 +4,7 @@ import { Button } from '../ui/Button'
 import { Modal } from '../ui/Overlay'
 import { Switch } from '../ui/Field'
 import { api } from '../../lib/ipc'
+import { APP_NAME } from '@shared/constants'
 import { useAppStore } from '../../stores/appStore'
 
 /** 点击窗口右上角“X”后的行为选择弹窗：进入后台或真正关闭，可勾选“不再提醒”记住选择 */
@@ -12,8 +13,6 @@ export function CloseBehaviorDialog(): JSX.Element | null {
   const [remember, setRemember] = useState(false)
   const [busy, setBusy] = useState(false)
   const pushToast = useAppStore((state) => state.pushToast)
-  const userName = useAppStore((state) => state.settings?.userName)
-  const appName = `${(userName ?? 'MOL').trim() || 'MOL'}的工作站`
 
   useEffect(() => {
     const off = api.onCloseRequest(() => setOpen(true))
@@ -46,7 +45,7 @@ export function CloseBehaviorDialog(): JSX.Element | null {
     <Modal
       open={open}
       onClose={() => setOpen(false)}
-      title={`关闭${appName}`}
+      title={`关闭 ${APP_NAME}`}
       description="选择窗口关闭后的行为：后台运行会保留在系统托盘，提醒依然有效"
       width="max-w-lg"
       footer={
@@ -62,9 +61,9 @@ export function CloseBehaviorDialog(): JSX.Element | null {
           type="button"
           disabled={busy}
           onClick={() => void choose('background')}
-          className="flex items-start gap-3 rounded-xl border border-border/70 bg-muted/25 p-4 text-left transition-all hover:border-primary/50 hover:bg-primary/5 disabled:opacity-50"
+          className="flex items-start gap-3 rounded-xl border border-border bg-muted/25 p-4 text-left transition-all hover:border-primary/50 hover:bg-primary/5 disabled:opacity-50"
         >
-          <MoonStar className="mt-0.5 h-5 w-5 shrink-0 text-[#A5B4FC]" />
+          <MoonStar className="mt-0.5 h-5 w-5 shrink-0 text-tint-primary" />
           <span className="min-w-0 flex-1">
             <span className="block text-xs font-semibold text-foreground">进入后台运行（推荐）</span>
             <span className="mt-0.5 block text-[11px] leading-relaxed text-muted-foreground">
@@ -77,9 +76,9 @@ export function CloseBehaviorDialog(): JSX.Element | null {
           type="button"
           disabled={busy}
           onClick={() => void choose('exit')}
-          className="flex items-start gap-3 rounded-xl border border-border/70 bg-muted/25 p-4 text-left transition-all hover:border-danger/50 hover:bg-danger/5 disabled:opacity-50"
+          className="flex items-start gap-3 rounded-xl border border-border bg-muted/25 p-4 text-left transition-all hover:border-danger/50 hover:bg-danger/5 disabled:opacity-50"
         >
-          <DoorOpen className="mt-0.5 h-5 w-5 shrink-0 text-[#FCA5A5]" />
+          <DoorOpen className="mt-0.5 h-5 w-5 shrink-0 text-tint-danger" />
           <span className="min-w-0 flex-1">
             <span className="block text-xs font-semibold text-foreground">真正关闭软件</span>
             <span className="mt-0.5 block text-[11px] leading-relaxed text-muted-foreground">
@@ -88,7 +87,7 @@ export function CloseBehaviorDialog(): JSX.Element | null {
           </span>
         </button>
 
-        <div className="rounded-xl border border-border/70 bg-muted/25 p-3">
+        <div className="rounded-xl border border-border bg-muted/25 p-3">
           <Switch checked={remember} onChange={setRemember} label="不再提醒（以后一直按此次选择执行，可在设置中更改）" />
         </div>
       </div>

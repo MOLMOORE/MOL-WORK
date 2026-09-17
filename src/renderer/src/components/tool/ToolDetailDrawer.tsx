@@ -122,14 +122,14 @@ export function ToolDetailDrawer({ manifest, open, onClose }: ToolDetailDrawerPr
     >
       <div className="flex flex-col gap-5">
         {!manifest.enabled ? (
-          <div className="rounded-xl border border-warning/40 bg-warning/10 p-3 text-[11px] leading-relaxed text-[#FCD34D]">
+          <div className="rounded-xl border border-warning/40 bg-warning/10 p-3 text-[11px] leading-relaxed text-tint-warning">
             该工具已被停用，启用后才能执行。
           </div>
         ) : null}
 
         {missing.length > 0 ? (
           <div className="rounded-xl border border-danger/40 bg-danger/10 p-3">
-            <p className="flex items-center gap-1.5 text-[11px] font-medium text-[#FCA5A5]">
+            <p className="flex items-center gap-1.5 text-[11px] font-medium text-tint-danger">
               <AlertTriangle className="h-3 w-3" />
               外部依赖缺失，执行将返回安装指引
             </p>
@@ -151,7 +151,7 @@ export function ToolDetailDrawer({ manifest, open, onClose }: ToolDetailDrawerPr
         <ToolRunnerForm fields={fields} value={payload} errors={errors} disabled={isRunning} onChange={handleChange} />
 
         {result ? (
-          <div className="rounded-xl border border-border/70 bg-muted/25 p-4">
+          <div className="rounded-xl border border-border bg-muted/25 p-4">
             <div className="flex items-center justify-between gap-2">
               <span className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
                 {result.ok ? (
@@ -169,7 +169,7 @@ export function ToolDetailDrawer({ manifest, open, onClose }: ToolDetailDrawerPr
             </div>
 
             {result.run.error ? (
-              <pre className="mt-3 max-h-40 overflow-auto whitespace-pre-wrap rounded-lg bg-background/70 p-2.5 text-[11px] leading-relaxed text-[#FCA5A5]">
+              <pre className="mt-3 max-h-40 overflow-auto whitespace-pre-wrap rounded-lg bg-background/70 p-2.5 text-[11px] leading-relaxed text-tint-danger">
                 {result.run.error}
               </pre>
             ) : null}
@@ -224,7 +224,7 @@ export function ToolDetailDrawer({ manifest, open, onClose }: ToolDetailDrawerPr
               {toolHistory.map((item) => (
                 <div
                   key={item.id}
-                  className="flex items-center justify-between gap-2 rounded-lg border border-border/60 bg-muted/20 px-2.5 py-1.5"
+                  className="flex items-center justify-between gap-2 rounded-lg border border-border bg-muted/20 px-2.5 py-1.5"
                 >
                   <div className="min-w-0">
                     <p className="truncate text-[11px] text-foreground">{item.resultSummary ?? item.inputSummary}</p>

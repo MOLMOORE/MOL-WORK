@@ -118,7 +118,7 @@ export function ToolsPage(): JSX.Element {
                 setStatDetail(null)
                 select(tool.id)
               }}
-              className="flex items-center gap-3 rounded-xl border border-border/70 bg-muted/25 p-3 text-left transition-colors hover:border-primary/40 hover:bg-muted/40"
+              className="flex items-center gap-3 rounded-xl border border-border bg-muted/25 p-3 text-left transition-colors hover:border-primary/40 hover:bg-muted/40"
             >
               <ToolIcon name={tool.icon} size="sm" color={TOOL_CATEGORY_META[tool.category]?.color} />
               <span className="min-w-0 flex-1">
@@ -135,7 +135,7 @@ export function ToolsPage(): JSX.Element {
       return (
         <div className="flex max-h-[58vh] flex-col gap-2 overflow-y-auto pr-1">
           {dependencies.map((dependency) => (
-            <div key={dependency.id} className="rounded-xl border border-border/70 bg-muted/25 p-3">
+            <div key={dependency.id} className="rounded-xl border border-border bg-muted/25 p-3">
               <div className="flex items-center justify-between gap-2">
                 <span className="text-xs font-medium text-foreground">{dependency.label}</span>
                 <Badge tone={dependency.available ? 'success' : 'warning'} dot>
@@ -164,7 +164,7 @@ export function ToolsPage(): JSX.Element {
     return (
       <div className="flex max-h-[58vh] flex-col gap-2 overflow-y-auto pr-1">
         {list.slice(0, 40).map((run) => (
-          <div key={run.id} className="rounded-xl border border-border/70 bg-muted/25 p-3">
+          <div key={run.id} className="rounded-xl border border-border bg-muted/25 p-3">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <p className="flex items-center gap-2 text-xs font-medium text-foreground">
@@ -329,7 +329,7 @@ export function ToolsPage(): JSX.Element {
         />
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
           {dependencies.map((dependency) => (
-            <div key={dependency.id} className="rounded-xl border border-border/70 bg-muted/25 p-3">
+            <div key={dependency.id} className="rounded-xl border border-border bg-muted/25 p-3">
               <div className="flex items-center justify-between gap-2">
                 <span className="flex items-center gap-1.5 text-xs font-medium text-foreground">
                   {dependency.available ? (
@@ -467,7 +467,7 @@ export function ToolsPage(): JSX.Element {
                     </div>
                   )}
 
-                  <div className="mt-3 flex items-center justify-between gap-2 border-t border-border/60 pt-3">
+                  <div className="mt-3 flex items-center justify-between gap-2 border-t border-border pt-3">
                     <div className="flex items-center gap-1.5">
                       <Button
                         size="xs"
@@ -525,7 +525,7 @@ export function ToolsPage(): JSX.Element {
         ) : (
           <div className="flex max-h-[420px] flex-col gap-2 overflow-y-auto pr-1">
             {history.slice(0, 40).map((run) => (
-              <div key={run.id} className="rounded-xl border border-border/70 bg-muted/25 p-3">
+              <div key={run.id} className="rounded-xl border border-border bg-muted/25 p-3">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className="flex items-center gap-2 text-xs font-medium text-foreground">

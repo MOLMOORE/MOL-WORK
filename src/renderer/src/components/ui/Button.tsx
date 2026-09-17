@@ -6,12 +6,12 @@ type Size = 'xs' | 'sm' | 'md' | 'lg'
 
 const VARIANTS: Record<Variant, string> = {
   primary:
-    'bg-gradient-to-r from-[#6366F1] to-[#7C3AED] text-white shadow-[0_10px_30px_-14px_rgba(99,102,241,0.9)] hover:brightness-110 active:brightness-95',
+    'bg-primary text-primary-foreground hover:bg-primary/90 active:bg-primary',
   secondary: 'bg-muted text-foreground hover:bg-muted/70 border border-border',
   ghost: 'bg-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground',
   outline: 'bg-transparent border border-border text-foreground hover:border-primary/60 hover:bg-primary/10',
-  danger: 'bg-danger/90 text-white hover:bg-danger',
-  success: 'bg-success/90 text-white hover:bg-success'
+  danger: 'bg-danger text-white hover:bg-danger/90',
+  success: 'bg-success text-white hover:bg-success/90'
 }
 
 const SIZES: Record<Size, string> = {

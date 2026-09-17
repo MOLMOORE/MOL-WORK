@@ -2,46 +2,204 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ==========================================================================
+   主题令牌
+   配色 = 「中性色旋钮 + 强调色旋钮」两组变量推导。
+   深浅色由 [data-theme] 决定，配色方案由 [data-preset] 决定，两者互不干扰，
+   新增一套主题只需覆盖几个旋钮，不必重写全部颜色。
+   ========================================================================== */
 @layer base {
-  :root {
-    --background: 222 47% 7%;
-    --surface: 222 33% 11%;
-    --card: 222 28% 15%;
-    --border: 222 20% 24%;
-    --input: 222 24% 20%;
-    --ring: 239 84% 67%;
-    --foreground: 210 40% 98%;
-    --muted: 222 24% 18%;
-    --muted-foreground: 215 20% 68%;
-    --primary: 239 84% 67%;
-    --primary-foreground: 0 0% 100%;
-    --accent: 262 83% 58%;
-    --accent-foreground: 0 0% 100%;
-    --success: 142 71% 45%;
-    --warning: 38 92% 50%;
-    --danger: 0 84% 60%;
-    --info: 187 92% 69%;
+  :root,
+  [data-theme='light'] {
+    /* 旋钮默认值 = 素白简约（浅色） */
+    --p-h: 212;            /* 强调色色相 */
+    --p-s: 85%;            /* 强调色饱和 */
+    --p-l: 52%;            /* 强调色明度 */
+    --p-l-text: 40%;       /* 着色标签上的文字 */
+    --p-on: 0 0% 100%;     /* 强调色填充上的文字 */
+    --n-h: 220;            /* 中性色色相 */
+    --n-s: 14%;            /* 中性色饱和 */
+    --n-s-fg: 16%;
+    --n-s-muted: 12%;
+    --n-l-page: 98%;       /* 页面底 */
+    --n-l-surface: 100%;   /* 顶栏 / 侧栏 */
+    --n-l-card: 100%;      /* 卡片 */
+    --n-l-input: 97%;      /* 输入底 */
+    --n-l-muted: 95%;      /* 次级底 */
+    --n-l-border: 89%;     /* 描边 */
+    --n-fg: 20%;           /* 正文 */
+    --n-fg-muted: 46%;     /* 次要文字 */
+    --shadow-card: 0 1px 2px rgba(16, 24, 40, 0.05);
+    --shadow-pop: 0 12px 32px -12px rgba(16, 24, 40, 0.18);
+
+    /* 状态色：色相固定，明度随深浅色切换 */
+    --success: 152 52% 38%;
+    --success-text: 152 56% 30%;
+    --warning: 34 88% 44%;
+    --warning-text: 32 82% 36%;
+    --danger: 2 74% 52%;
+    --danger-text: 2 70% 46%;
+    --info: 199 78% 44%;
+    --info-text: 200 72% 36%;
+
+    /* 图表色：1 号跟随强调色，其余固定 */
+    --chart-1: var(--p-h) var(--p-s) var(--p-l);
+    --chart-2: 152 52% 42%;
+    --chart-3: 34 88% 48%;
+    --chart-4: 199 78% 48%;
+    --chart-5: 268 52% 56%;
   }
 
-  [data-theme='light'] {
-    --background: 220 33% 97%;
-    --surface: 0 0% 100%;
-    --card: 0 0% 100%;
-    --border: 220 16% 86%;
-    --input: 220 20% 94%;
-    --ring: 239 84% 60%;
-    --foreground: 222 47% 11%;
-    --muted: 220 20% 94%;
-    --muted-foreground: 220 12% 42%;
-    --primary: 239 84% 60%;
-    --primary-foreground: 0 0% 100%;
-    --accent: 262 76% 55%;
-    --accent-foreground: 0 0% 100%;
-    --success: 142 66% 38%;
-    --warning: 32 92% 44%;
-    --danger: 0 76% 52%;
-    --info: 194 78% 40%;
+  /* 深色底：同一套旋钮换成深色明度 */
+  [data-theme='dark'] {
+    --p-l: 64%;
+    --p-l-text: 74%;
+    --n-s: 11%;
+    --n-s-fg: 9%;
+    --n-s-muted: 10%;
+    --n-l-page: 9%;
+    --n-l-surface: 12%;
+    --n-l-card: 13%;
+    --n-l-input: 16%;
+    --n-l-muted: 17%;
+    --n-l-border: 22%;
+    --n-fg: 93%;
+    --n-fg-muted: 63%;
+    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow-pop: 0 16px 40px -16px rgba(0, 0, 0, 0.7);
+
+    --success: 152 48% 44%;
+    --success-text: 152 52% 66%;
+    --warning: 36 90% 54%;
+    --warning-text: 38 92% 68%;
+    --danger: 2 76% 60%;
+    --danger-text: 2 82% 74%;
+    --info: 199 82% 54%;
+    --info-text: 199 88% 70%;
+
+    --chart-2: 152 46% 50%;
+    --chart-3: 36 88% 56%;
+    --chart-4: 199 78% 58%;
+    --chart-5: 268 60% 68%;
   }
+
+  /* 派生令牌：任何带 data-theme 的元素（含设置页的主题预览卡）都按自己身上的旋钮重算一遍 */
+  :root,
+  [data-theme='light'],
+  [data-theme='dark'],
+  .themed {
+    /* 推导：语义色 */
+    --background: var(--n-h) var(--n-s) var(--n-l-page);
+    --surface: var(--n-h) var(--n-s) var(--n-l-surface);
+    --card: var(--n-h) var(--n-s) var(--n-l-card);
+    --border: var(--n-h) var(--n-s) var(--n-l-border);
+    --input: var(--n-h) var(--n-s) var(--n-l-input);
+    --ring: var(--p-h) var(--p-s) var(--p-l);
+    --foreground: var(--n-h) var(--n-s-fg) var(--n-fg);
+    --muted: var(--n-h) var(--n-s-muted) var(--n-l-muted);
+    --muted-foreground: var(--n-h) var(--n-s) var(--n-fg-muted);
+    --primary: var(--p-h) var(--p-s) var(--p-l);
+    --primary-foreground: var(--p-on);
+    --accent: var(--p-h) var(--p-s) var(--p-l);
+    --accent-foreground: var(--p-on);
+    --tint-primary: var(--p-h) var(--p-s) var(--p-l-text);
+
+  }
+
+  /* ========================== 预设配色方案 ========================== */
+
+  /* 素白简约（默认）：冷中性 + 克制蓝，细描边、无渐变无光晕 */
+  [data-preset='minimal'] {
+    --p-h: 212; --p-s: 85%; --n-h: 220; --n-s: 14%;
+  }
+  [data-preset='minimal'][data-theme='dark'] { --n-s: 11%; }
+
+  /* 极简黑白：完全去色，只靠明度分层 */
+  [data-preset='mono'] {
+    --p-h: 0; --p-s: 0%; --n-h: 0; --n-s: 0%; --n-s-fg: 0%; --n-s-muted: 0%;
+  }
+  [data-preset='mono'][data-theme='dark'] {
+    --p-l: 96%; --p-l-text: 96%; --p-on: 0 0% 9%;
+    --n-l-page: 8%; --n-l-surface: 11%; --n-l-card: 12%; --n-l-input: 15%;
+    --n-l-muted: 16%; --n-l-border: 21%;
+  }
+  [data-preset='mono'][data-theme='light'] {
+    --p-l: 14%; --p-l-text: 14%; --p-on: 0 0% 100%;
+  }
+
+  /* 宣纸暖白：暖米底 + 松绿 */
+  [data-preset='paper'] {
+    --p-h: 158; --p-s: 46%; --n-h: 40; --n-s: 24%; --n-s-fg: 18%; --n-s-muted: 20%;
+  }
+  [data-preset='paper'][data-theme='light'] {
+    --p-l: 34%; --p-l-text: 28%;
+    --n-l-page: 97%; --n-l-surface: 99%; --n-l-card: 100%; --n-l-input: 96%;
+    --n-l-muted: 94%; --n-l-border: 88%;
+  }
+  [data-preset='paper'][data-theme='dark'] { --n-l-page: 10%; --n-l-card: 13%; }
+
+  /* 靛青：清冷蓝绿，信息密度高的工作台 */
+  [data-preset='ocean'] {
+    --p-h: 196; --p-s: 78%; --n-h: 202; --n-s: 18%;
+  }
+  [data-preset='ocean'][data-theme='light'] { --p-l: 40%; --p-l-text: 32%; }
+  [data-preset='ocean'][data-theme='dark'] { --n-l-page: 10%; --n-l-surface: 13%; --n-l-card: 14%; }
+
+  /* 苔原：低饱和草绿，长时间阅读最省眼 */
+  [data-preset='moss'] {
+    --p-h: 145; --p-s: 44%; --n-h: 128; --n-s: 12%;
+  }
+  [data-preset='moss'][data-theme='light'] { --p-l: 34%; --p-l-text: 28%; --n-l-page: 98%; }
+  [data-preset='moss'][data-theme='dark'] { --n-l-page: 10%; --n-l-card: 13%; }
+
+  /* 暮沙：暖沙底 + 赤陶橙 */
+  [data-preset='sand'] {
+    --p-h: 22; --p-s: 74%; --n-h: 32; --n-s: 22%; --n-s-fg: 20%;
+  }
+  [data-preset='sand'][data-theme='light'] { --p-l: 46%; --p-l-text: 38%; --n-l-page: 97%; }
+  [data-preset='sand'][data-theme='dark'] { --n-l-page: 10%; --n-l-card: 13%; }
+
+  /* 石墨：纯中性深灰，克制的工业感 */
+  [data-preset='graphite'] {
+    --p-h: 210; --p-s: 12%; --n-h: 210; --n-s: 8%; --n-s-fg: 6%;
+  }
+  [data-preset='graphite'][data-theme='dark'] {
+    --p-l: 82%; --p-l-text: 84%; --p-on: 210 8% 10%;
+    --n-l-page: 10%; --n-l-surface: 13%; --n-l-card: 14%; --n-l-input: 17%;
+    --n-l-muted: 18%; --n-l-border: 23%;
+  }
+  [data-preset='graphite'][data-theme='light'] { --p-l: 30%; --p-l-text: 26%; }
+
+  /* 午夜靛蓝：深蓝底 + 亮靛强调 */
+  [data-preset='midnight'] {
+    --p-h: 226; --p-s: 84%; --n-h: 228; --n-s: 24%;
+  }
+  [data-preset='midnight'][data-theme='dark'] {
+    --n-l-page: 8%; --n-l-surface: 12%; --n-l-card: 14%; --n-l-input: 18%;
+    --n-l-muted: 19%; --n-l-border: 25%;
+  }
+  [data-preset='midnight'][data-theme='light'] { --p-l: 48%; --p-l-text: 42%; }
+
+  /* 紫棠：暗紫底 + 兰紫强调 */
+  [data-preset='plum'] {
+    --p-h: 268; --p-s: 66%; --n-h: 272; --n-s: 16%;
+  }
+  [data-preset='plum'][data-theme='dark'] {
+    --n-l-page: 9%; --n-l-surface: 12%; --n-l-card: 14%; --n-l-input: 18%;
+    --n-l-muted: 19%; --n-l-border: 24%;
+  }
+  [data-preset='plum'][data-theme='light'] { --p-l: 50%; --p-l-text: 42%; }
+
+  /* 墨绿夜色：近黑的墨绿底 */
+  [data-preset='forest'] {
+    --p-h: 152; --p-s: 48%; --n-h: 160; --n-s: 14%;
+  }
+  [data-preset='forest'][data-theme='dark'] {
+    --p-l: 58%; --p-l-text: 66%; --p-on: 160 20% 8%;
+    --n-l-page: 9%; --n-l-surface: 12%; --n-l-card: 13%; --n-l-input: 17%;
+    --n-l-muted: 18%; --n-l-border: 23%;
+  }
+  [data-preset='forest'][data-theme='light'] { --p-l: 32%; --p-l-text: 26%; }
 
   * {
     border-color: hsl(var(--border));
@@ -57,6 +215,8 @@
     @apply bg-background text-foreground antialiased;
     font-family: Inter, 'PingFang SC', 'Microsoft YaHei', system-ui, -apple-system, sans-serif;
     overflow: hidden;
+    /* 换主题时整体淡入淡出，避免生硬跳色 */
+    transition: background-color 180ms ease, color 180ms ease;
   }
 
   ::-webkit-scrollbar {
@@ -69,11 +229,11 @@
   ::-webkit-scrollbar-thumb {
     background: hsl(var(--border));
     border-radius: 999px;
-    border: 2px solid transparent;
+    border: 3px solid transparent;
     background-clip: content-box;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: hsl(var(--muted-foreground) / 0.6);
+    background: hsl(var(--muted-foreground) / 0.5);
     background-clip: content-box;
   }
 
@@ -91,44 +251,33 @@
   }
 
   ::selection {
-    background: hsl(var(--primary) / 0.35);
+    background: hsl(var(--primary) / 0.24);
   }
 }
 
 @layer components {
-  /* 模块卡片：实底、无毛玻璃采样，悬停时不做位移与发光（避免出现「模糊」观感） */
+  /* 卡片：实底 + 1px 细描边 + 极轻投影 */
   .glass-card {
-    @apply rounded-2xl border border-border/70 bg-card shadow-card transition-colors duration-200;
+    @apply rounded-xl border border-border bg-card shadow-card transition-colors duration-200;
   }
 
   .glass-card-hover {
-    @apply glass-card hover:border-primary/50;
-  }
-
-  .gradient-text {
-    @apply bg-gradient-to-r from-[#6366F1] via-[#7C3AED] to-[#22D3EE] bg-clip-text text-transparent;
+    @apply glass-card hover:border-primary/45;
   }
 
   .field-base {
-    @apply w-full rounded-xl border border-border bg-input/60 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/70 transition-all duration-150 focus:border-primary/70 focus:bg-input focus:ring-2 focus:ring-primary/25 disabled:cursor-not-allowed disabled:opacity-50;
+    @apply w-full rounded-md border border-border bg-input px-3 py-2 text-sm text-foreground
+      placeholder:text-muted-foreground/70 transition-colors duration-150
+      focus:border-primary focus:ring-2 focus:ring-primary/20
+      disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  /* 分段控件：取代原来的渐变胶囊 */
+  .seg-base {
+    @apply inline-flex items-center gap-1 rounded-lg border border-border bg-muted p-0.5;
   }
 
   .page-enter {
     animation: fade-in 240ms ease-out;
-  }
-
-  .aurora {
-    background:
-      radial-gradient(900px 420px at 12% -10%, hsl(var(--primary) / 0.22), transparent 60%),
-      radial-gradient(700px 380px at 88% 0%, hsl(var(--accent) / 0.18), transparent 62%),
-      radial-gradient(600px 320px at 60% 110%, hsl(var(--info) / 0.12), transparent 65%);
-  }
-
-  .grid-overlay {
-    background-image:
-      linear-gradient(hsl(var(--border) / 0.35) 1px, transparent 1px),
-      linear-gradient(90deg, hsl(var(--border) / 0.35) 1px, transparent 1px);
-    background-size: 44px 44px;
-    mask-image: radial-gradient(circle at 30% 20%, black, transparent 75%);
   }
 }

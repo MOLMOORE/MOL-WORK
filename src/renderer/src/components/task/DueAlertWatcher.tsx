@@ -135,9 +135,8 @@ export function DueAlertWatcher(): JSX.Element | null {
         const total = currentIds.size
         if (total > 0 && (hasNew || !notifiedRef.current) && inBackground) {
           const first = [...dueList, ...needRemind][0]
-          const appName = `${(useAppStore.getState().settings?.userName ?? 'MOL').trim() || 'MOL'}的工作站`
           void api.app.notify(
-            `截止时间提醒 · ${appName}`,
+            `截止时间提醒 · ${APP_NAME}`,
             `${total} 项事项到期待处理${first ? `：${first.title}` : ''}，点击回到应用处理`
           )
           notifiedRef.current = true
@@ -227,7 +226,7 @@ export function DueAlertWatcher(): JSX.Element | null {
       key={`${task.id}-${task.dueAt}`}
       className={cn(
         'rounded-xl border p-3',
-        task.isPriority ? 'border-danger/60 bg-danger/10' : overdue ? 'border-warning/50 bg-warning/5' : 'border-border/70 bg-muted/25'
+        task.isPriority ? 'border-danger/60 bg-danger/10' : overdue ? 'border-warning/50 bg-warning/5' : 'border-border bg-muted/25'
       )}
     >
       <div className="flex items-start gap-3">
@@ -269,7 +268,7 @@ export function DueAlertWatcher(): JSX.Element | null {
             type="button"
             disabled={busyId === task.id}
             onClick={() => void handleDefer(task, option.seconds)}
-            className="rounded-lg border border-primary/40 bg-primary/10 px-2 py-1 text-[10px] font-medium text-[#A5B4FC] transition-all hover:bg-primary/20 disabled:opacity-50"
+            className="rounded-lg border border-primary/40 bg-primary/10 px-2 py-1 text-[10px] font-medium text-tint-primary transition-all hover:bg-primary/20 disabled:opacity-50"
           >
             {option.label}
           </button>
@@ -289,7 +288,7 @@ export function DueAlertWatcher(): JSX.Element | null {
           className={cn(
             'inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[10px] font-medium transition-all',
             dialTask?.id === task.id
-              ? 'border-info/60 bg-info/20 text-[#67E8F9]'
+              ? 'border-info/60 bg-info/20 text-tint-info'
               : 'border-border bg-muted/40 text-muted-foreground hover:text-foreground'
           )}
         >
@@ -300,7 +299,7 @@ export function DueAlertWatcher(): JSX.Element | null {
           type="button"
           disabled={busyId === task.id}
           onClick={() => setSnoozeAsk(task)}
-          className="rounded-lg border border-danger/60 bg-danger/15 px-2 py-1 text-[10px] font-medium text-[#FCA5A5] transition-all hover:bg-danger/25 disabled:opacity-50"
+          className="rounded-lg border border-danger/60 bg-danger/15 px-2 py-1 text-[10px] font-medium text-tint-danger transition-all hover:bg-danger/25 disabled:opacity-50"
         >
           稍后提醒
         </button>

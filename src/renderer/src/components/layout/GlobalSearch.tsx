@@ -6,12 +6,12 @@ import { api } from '../../lib/ipc'
 import { cn } from '../../lib/utils'
 
 const KIND_META: Record<SearchHit['kind'], { label: string; icon: typeof ListChecks; tone: string }> = {
-  task: { label: '任务', icon: ListChecks, tone: 'text-[#A5B4FC] bg-primary/15' },
-  note: { label: '笔记', icon: FileText, tone: 'text-[#67E8F9] bg-info/15' },
-  tool: { label: '工具', icon: Repeat, tone: 'text-[#FCD34D] bg-warning/15' },
-  review: { label: '复习', icon: Layers3, tone: 'text-[#86EFAC] bg-success/15' },
-  event: { label: '日程', icon: CalendarClock, tone: 'text-[#FCA5A5] bg-danger/15' },
-  project: { label: '项目', icon: Layers3, tone: 'text-[#A5B4FC] bg-primary/15' }
+  task: { label: '任务', icon: ListChecks, tone: 'text-tint-primary bg-primary/15' },
+  note: { label: '笔记', icon: FileText, tone: 'text-tint-info bg-info/15' },
+  tool: { label: '工具', icon: Repeat, tone: 'text-tint-warning bg-warning/15' },
+  review: { label: '复习', icon: Layers3, tone: 'text-tint-success bg-success/15' },
+  event: { label: '日程', icon: CalendarClock, tone: 'text-tint-danger bg-danger/15' },
+  project: { label: '项目', icon: Layers3, tone: 'text-tint-primary bg-primary/15' }
 }
 
 export function GlobalSearch(): JSX.Element {
@@ -94,8 +94,8 @@ export function GlobalSearch(): JSX.Element {
     <div ref={containerRef} className="relative w-full max-w-[520px]">
       <div
         className={cn(
-          'flex h-9 items-center gap-2 rounded-xl border bg-input/60 px-3 transition-all duration-200',
-          open && hasQuery ? 'border-primary/60 bg-input shadow-glow' : 'border-border'
+          'flex h-9 items-center gap-2 rounded-lg border bg-input px-3 transition-all duration-200',
+          open && hasQuery ? 'border-primary bg-input shadow-pop' : 'border-border'
         )}
       >
         {loading ? (
@@ -122,7 +122,7 @@ export function GlobalSearch(): JSX.Element {
       </div>
 
       {open && hasQuery ? (
-        <div className="absolute left-0 right-0 top-11 z-40 max-h-[440px] overflow-y-auto rounded-2xl border border-border/80 bg-surface/95 p-2 shadow-2xl backdrop-blur-2xl animate-scale-in">
+        <div className="absolute left-0 right-0 top-11 z-40 max-h-[440px] overflow-y-auto rounded-2xl border border-border bg-surface p-2 shadow-pop animate-scale-in">
           {hits.length === 0 && !loading ? (
             <p className="px-3 py-6 text-center text-xs text-muted-foreground">没有匹配结果，换个关键词试试</p>
           ) : null}

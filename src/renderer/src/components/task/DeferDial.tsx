@@ -69,8 +69,8 @@ export function ClockDial({ value, max, label, majorLabels = [], onChange, size 
       >
         <defs>
           <linearGradient id="clockDialGradient" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%" stopColor="#6366F1" />
-            <stop offset="100%" stopColor="#22D3EE" />
+            <stop offset="0%" stopColor="hsl(var(--primary))" />
+            <stop offset="100%" stopColor="hsl(var(--primary))" />
           </linearGradient>
           <radialGradient id="clockFaceGradient" cx="50%" cy="38%" r="75%">
             <stop offset="0%" stopColor="hsl(var(--card))" />
@@ -134,18 +134,16 @@ export function ClockDial({ value, max, label, majorLabels = [], onChange, size 
           <polygon
             points={`${center - 3},${center + needleTail} ${center - 1.4},${center - needle * 0.3} ${center},${center - needle} ${center + 1.4},${center - needle * 0.3} ${center + 3},${center + needleTail}`}
             fill="url(#clockDialGradient)"
-            stroke="rgba(255,255,255,0.35)"
-            strokeWidth={0.6}
           />
         </g>
         {/* 中心金属帽 */}
         <circle cx={center} cy={center} r={6.5} fill="hsl(var(--surface))" stroke="hsl(var(--muted-foreground))" strokeWidth={1.4} />
-        <circle cx={center} cy={center} r={2.4} fill="#6366F1" />
+        <circle cx={center} cy={center} r={2.4} fill="hsl(var(--primary))" />
         {/* 顶部把手（拖动点视觉强化） */}
-        <circle cx={knob.x} cy={knob.y} r={4.5} fill="#6366F1" opacity={0.9} stroke="white" strokeWidth={1.5} />
+        <circle cx={knob.x} cy={knob.y} r={4.5} fill="hsl(var(--primary))" stroke="hsl(var(--card))" strokeWidth={1.5} />
       </svg>
       <span className="text-[11px] font-medium text-foreground">
-        {label} <span className="tabular-nums text-[#A5B4FC]">{value}</span>
+        {label} <span className="tabular-nums text-tint-primary">{value}</span>
       </span>
     </div>
   )

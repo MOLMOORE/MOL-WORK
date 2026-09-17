@@ -9,6 +9,7 @@ import { NotesPage } from './pages/NotesPage'
 import { ToolsPage } from './pages/ToolsPage'
 import { StatsPage } from './pages/StatsPage'
 import { SettingsPage } from './pages/SettingsPage'
+import { APP_NAME } from '@shared/constants'
 import { useAppStore } from './stores/appStore'
 import { useTaskStore } from './stores/taskStore'
 import { Spinner } from './components/ui/Feedback'
@@ -16,7 +17,6 @@ import { Spinner } from './components/ui/Feedback'
 export default function App(): JSX.Element {
   const ready = useAppStore((state) => state.ready)
   const init = useAppStore((state) => state.init)
-  const userName = useAppStore((state) => state.settings?.userName)
   const loadProjects = useTaskStore((state) => state.loadProjects)
 
   useEffect(() => {
@@ -24,17 +24,16 @@ export default function App(): JSX.Element {
     void loadProjects()
   }, [init, loadProjects])
 
-  // 软件名 = 「XX的工作站」：窗口标题与文档标题随称呼实时变化
-  const appName = `${(userName ?? 'MOL').trim() || 'MOL'}的工作站`
+  // 文档标题与安装包、托盘、通知统一使用软件名
   useEffect(() => {
-    document.title = appName
-  }, [appName])
+    document.title = APP_NAME
+  }, [])
 
   if (!ready) {
     return (
       <div className="flex h-full items-center justify-center gap-3 bg-background text-muted-foreground">
         <Spinner className="h-5 w-5" />
-        <span className="text-sm">正在加载{appName}…</span>
+        <span className="text-sm">正在加载 {APP_NAME}…</span>
       </div>
     )
   }

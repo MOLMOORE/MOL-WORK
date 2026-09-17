@@ -9,6 +9,7 @@ import { readSettings } from './services/settings.service'
 import { catchUpOnStartup, startScheduler, stopScheduler } from './services/scheduler.service'
 import { emitToRenderer } from './services/bus'
 import { IPC_EVENTS } from '@shared/types/ipc'
+import { APP_NAME } from '@shared/constants'
 import { logger } from './utils/logger'
 
 let mainWindow: BrowserWindow | null = null
@@ -55,7 +56,7 @@ function createTray(): void {
     logger.error('托盘创建失败（后台运行时请通过任务栏窗口回到应用）', error)
     return
   }
-  tray.setToolTip('个人工作站（后台运行中）')
+  tray.setToolTip(`${APP_NAME}（后台运行中）`)
   tray.setContextMenu(
     Menu.buildFromTemplate([
       {
@@ -100,9 +101,9 @@ function createWindow(): void {
     minWidth: 1100,
     minHeight: 720,
     show: false,
-    backgroundColor: '#0B0F1A',
+    backgroundColor: '#141619',
     autoHideMenuBar: true,
-    title: '个人工作站',
+    title: APP_NAME,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,
