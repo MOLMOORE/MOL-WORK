@@ -50,7 +50,7 @@ export function TopBar(): JSX.Element {
 
   return (
     <>
-    <header className="relative z-40 flex h-14 shrink-0 items-center gap-4 border-b border-border bg-surface px-5">
+    <header className="app-topbar relative z-40 flex h-14 shrink-0 items-center gap-4 border-b border-border bg-surface px-5">
       <div className="min-w-[170px] max-w-[240px] shrink-0">
         <h1 className="truncate text-sm font-semibold tracking-tight text-foreground">{meta.title}</h1>
         <p className="truncate text-[11px] text-muted-foreground">{meta.subtitle}</p>

@@ -26,7 +26,7 @@ export interface SectionHeaderProps {
 
 export function SectionHeader({ title, description, action, className }: SectionHeaderProps): JSX.Element {
   return (
-    <div className={cn('mb-4 flex items-start justify-between gap-4', className)}>
+    <div className={cn('section-header mb-4 flex items-start justify-between gap-4', className)}>
       <div className="min-w-0">
         <h2 className="section-title text-base font-semibold tracking-tight text-foreground">{title}</h2>
         {description ? <p className="mt-0.5 text-xs text-muted-foreground">{description}</p> : null}

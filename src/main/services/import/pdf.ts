@@ -59,6 +59,25 @@ function loadPdfJs(): PdfLibrary {
   return library
 }
 
+/** 只解析目录结构取页数，不做文本抽取（导入时给列表卡片用） */
+export async function pdfPageCount(data: Buffer): Promise<number> {
+  try {
+    const library = loadPdfJs()
+    const doc = await library.getDocument({
+      data: new Uint8Array(data),
+      verbosity: 0,
+      isEvalSupported: false,
+      cMapUrl: pdfAssetDir('cmaps'),
+      cMapPacked: true
+    }).promise
+    const pages = doc.numPages
+    await doc.destroy?.()?.catch?.(() => undefined)
+    return pages
+  } catch {
+    return 0
+  }
+}
+
 interface TextLine {
   text: string
   size: number

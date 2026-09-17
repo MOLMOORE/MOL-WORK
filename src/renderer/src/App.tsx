@@ -6,6 +6,7 @@ import { DashboardPage } from './pages/DashboardPage'
 import { TasksPage } from './pages/TasksPage'
 import { PomodoroPage } from './pages/PomodoroPage'
 import { NotesPage } from './pages/NotesPage'
+import { ReaderPage } from './pages/ReaderPage'
 import { ToolsPage } from './pages/ToolsPage'
 import { StatsPage } from './pages/StatsPage'
 import { SettingsPage } from './pages/SettingsPage'
@@ -52,6 +53,8 @@ export default function App(): JSX.Element {
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
+        {/* 阅读界面：像一本书一样全屏打开，不套应用外壳 */}
+        <Route path="/reader/:noteId" element={<ReaderPage />} />
       </Routes>
       {/* 点击窗口 X 后的进入后台/真正关闭选择弹窗 */}
       <CloseBehaviorDialog />

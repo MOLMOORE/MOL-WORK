@@ -5,9 +5,12 @@ import type {
   DependencyStatus,
   FocusSession,
   Note,
+  NoteDocInfo,
   NoteImportOptions,
   NoteImportSummary,
   NoteInput,
+  NoteMark,
+  NoteMarkInput,
   OverviewData,
   ProcrastinationItem,
   ProcrastinationReport,
@@ -113,6 +116,20 @@ export interface WorkstationApi {
     importPick(options?: NoteImportOptions): Promise<NoteImportSummary>
     /** 导入指定路径的文件（拖拽进窗口时用） */
     importFiles(paths: string[], options?: NoteImportOptions): Promise<NoteImportSummary>
+    /** 阅读器取文档：PDF 字节 / 自包含 HTML / 纯文本 */
+    doc(id: number): Promise<NoteDocInfo>
+    /** 记录阅读进度（页码），首次打开时顺带回填页数 */
+    progress(id: number, page: number, pageCount?: number): Promise<Note>
+    /** 读书笔记：书签 / 重点页 / 注释 */
+    marks(noteId: number): Promise<NoteMark[]>
+    saveMark(input: NoteMarkInput): Promise<NoteMark>
+    removeMark(id: number): Promise<void>
+    /** 用系统默认程序打开原始文件 */
+    openSource(id: number): Promise<string>
+    /** 在资源管理器里定位原始文件 */
+    revealSource(id: number): Promise<void>
+    /** 取 pdf.js 的字形映射 / 标准字体字节（渲染进程读不到 asar 内的文件） */
+    pdfAsset(kind: 'cmaps' | 'standard_fonts', name: string): Promise<Uint8Array | null>
   }
   schedule: {
     range(from: string, to: string): Promise<ScheduleEvent[]>

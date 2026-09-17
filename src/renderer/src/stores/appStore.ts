@@ -5,7 +5,8 @@ import type {
   FontSize,
   OverviewData,
   ThemeMode,
-  ThemePreset
+  ThemePreset,
+  ThemeSkin
 } from '@shared/types/domain'
 import type { ReminderPayload } from '@shared/types/ipc'
 import { FONT_SIZE_META } from '@shared/constants'
@@ -45,11 +46,20 @@ export function resolveTheme(theme: ThemeMode): 'dark' | 'light' {
   return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
 }
 
-/** 应用主题：深浅色 + 预设配色方案一起落到 <html> 的 data 属性上，CSS 变量随即生效 */
-export function applyTheme(theme: ThemeMode, preset: ThemePreset = 'minimal'): void {
+/**
+ * 应用主题：深浅色 + 皮肤 + 风格一起落到 <html> 的 data 属性上，CSS 变量随即生效。
+ * 皮肤（data-skin）是顶层概念，会重排界面结构；风格（data-preset）只在「默认主题」下生效，
+ * 切到其他皮肤时把风格临时归一到 minimal，避免旧风格的规则串台（用户挑的风格仍记在设置里）。
+ */
+export function applyTheme(
+  theme: ThemeMode,
+  preset: ThemePreset = 'minimal',
+  skin: ThemeSkin = 'default'
+): void {
   const root = document.documentElement
   root.dataset.theme = resolveTheme(theme)
-  root.dataset.preset = preset
+  root.dataset.skin = skin
+  root.dataset.preset = skin === 'default' ? preset : 'minimal'
 }
 
 /** 当前生效的深浅色（供图表取色等场景使用） */
@@ -71,13 +81,14 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   init: async () => {
     const settings = await api.app.getSettings()
-    applyTheme(settings.theme, settings.themePreset)
+    applyTheme(settings.theme, settings.themePreset, settings.themeSkin)
     applyFontSize(settings.fontSize)
     set({ settings })
     // 主题设为「跟随系统」时，实时响应系统深浅色变化
     if (window.matchMedia) {
       window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
-        if (get().settings?.theme === 'system') applyTheme('system', get().settings?.themePreset)
+        if (get().settings?.theme === 'system')
+          applyTheme('system', get().settings?.themePreset, get().settings?.themeSkin)
       })
     }
     await Promise.all([get().refreshOverview(), get().refreshDependencies()])
@@ -105,7 +116,8 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   updateSettings: async (patch) => {
     const settings = await api.app.updateSettings(patch)
-    if (patch.theme !== undefined || patch.themePreset !== undefined) applyTheme(settings.theme, settings.themePreset)
+    if (patch.theme !== undefined || patch.themePreset !== undefined || patch.themeSkin !== undefined)
+      applyTheme(settings.theme, settings.themePreset, settings.themeSkin)
     if (patch.fontSize !== undefined) applyFontSize(settings.fontSize)
     set({ settings })
   },

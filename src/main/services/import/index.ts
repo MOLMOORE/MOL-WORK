@@ -11,10 +11,13 @@ import { runCommand } from '../../utils/command'
 import { resolveBinary } from '../../utils/binaries'
 import { logger } from '../../utils/logger'
 import { IMPORT_EXTENSIONS } from '@shared/constants'
+import type { NoteDocKind, NoteViewMode } from '@shared/types/domain'
 import { decodeText, htmlToMarkdown, rtfToText, tidyMarkdown } from './text.util'
 import { extractDocx, extractEpub, extractOdf, extractPptx, extractXlsx } from './ooxml'
-import { extractPdf } from './pdf'
+import { extractPdf, pdfPageCount } from './pdf'
 import { convertLegacyOffice, csvToMarkdown } from './legacy-office'
+import { convertToPdf } from './to-pdf'
+import { bundleEpubFile, bundleHtmlFile } from './html-bundle'
 
 export { IMPORT_EXTENSIONS }
 
@@ -29,6 +32,20 @@ export interface ParsedDocument {
   engine: string
   pages: number | null
   chars: number
+  /** 正文抽取为空 / 不完整时的提示（有渲染件时不算失败，只是搜不到字） */
+  warning: string
+}
+
+/** 导入后的完整结果：正文 + 阅读模式 + 书库渲染件 */
+export interface PreparedDocument extends ParsedDocument {
+  viewMode: NoteViewMode
+  docKind: NoteDocKind | null
+  /** 渲染件字节（PDF 或自包含 HTML），无则为 null */
+  docBuffer: Buffer | null
+  /** 渲染件是怎么来的，如 原生 PDF / Microsoft PowerPoint / 网页打包 */
+  docEngine: string
+  pageCount: number
+  readonly: boolean
 }
 
 /** 单个文件的大小上限：超过则拒绝，避免把主进程卡死 */
@@ -75,7 +92,8 @@ async function convertWithPandoc(filePath: string): Promise<ParsedDocument | nul
     content,
     engine: 'Pandoc',
     pages: null,
-    chars: content.replace(/\s/g, '').length
+    chars: content.replace(/\s/g, '').length,
+    warning: ''
   }
 }
 
@@ -92,16 +110,17 @@ export async function parseDocument(filePath: string): Promise<ParsedDocument> {
   const read = (): Buffer => readFileSync(filePath)
   const finish = (content: string, engine: string, title = '', pages: number | null = null): ParsedDocument => {
     const cleaned = tidyMarkdown(content)
-    if (cleaned.replace(/\s/g, '').length < 8) {
-      throw new Error(`${engine} 没有读到文字内容${ext === '.pdf' ? '（可能是扫描版 PDF，图片文字需要 OCR）' : ''}`)
-    }
+    const empty = cleaned.replace(/\s/g, '').length < 8
     return {
       ...base,
       title: title.trim() !== '' ? title.trim() : base.title,
       content: cleaned,
       engine,
       pages,
-      chars: cleaned.replace(/\s/g, '').length
+      chars: cleaned.replace(/\s/g, '').length,
+      warning: empty
+        ? `${engine} 没有读到可检索的文字${ext === '.pdf' ? '（可能是扫描版 / 图片型 PDF）' : ''}，正文仍可正常翻阅`
+        : ''
     }
   }
 
@@ -225,4 +244,94 @@ function prettyJson(raw: string): string {
   } catch {
     return raw
   }
+}
+
+/** 可以直接当文本编辑的格式 */
+const TEXT_EXTS = [
+  '.md', '.markdown', '.mdown', '.mkd', '.txt', '.text', '.log',
+  '.csv', '.tsv', '.json', '.xml', '.yml', '.yaml', '.toml', '.ini', '.sql',
+  '.py', '.js', '.ts', '.java', '.c', '.cpp', '.h', '.go', '.rs', '.sh', '.bat', '.ps1'
+]
+/** 需要按原版式逐页显示的格式（转不成 PDF 时退回文字模式） */
+const PAGINATED_EXTS = [
+  '.pdf', '.doc', '.docx', '.rtf', '.wps', '.odt',
+  '.ppt', '.pptx', '.pps', '.ppsx', '.pot', '.odp',
+  '.xls', '.xlsx', '.xlsm', '.ods'
+]
+/** 本来就有排版、直接打包成自包含 HTML 的格式 */
+const RICH_EXTS = ['.html', '.htm', '.xhtml', '.shtml', '.epub']
+/** 文字类：即使有原版式渲染件，正文仍允许继续编辑（其余只看） */
+const EDITABLE_DOC_EXTS = ['.doc', '.docx', '.rtf', '.wps', '.odt']
+
+/**
+ * 导入用的完整解析：先抽正文（用于列表摘要与全局搜索），
+ * 再按格式决定阅读模式并生成书库渲染件——
+ * PDF / Office 走原版式书页，网页 / EPUB 走自包含 HTML，纯文本类保持可编辑。
+ */
+export async function prepareDocument(filePath: string): Promise<PreparedDocument> {
+  const doc = await parseDocument(filePath)
+  const ext = extname(filePath).toLowerCase()
+  const attach = (patch: Partial<PreparedDocument>): PreparedDocument => ({
+    ...doc,
+    viewMode: 'text',
+    docKind: null,
+    docBuffer: null,
+    docEngine: '',
+    pageCount: doc.pages ?? 0,
+    readonly: false,
+    ...patch
+  })
+
+  if (ext === '.pdf') {
+    const buffer = readFileSync(filePath)
+    return attach({
+      viewMode: 'pages',
+      docKind: 'pdf',
+      docBuffer: buffer,
+      docEngine: '原生 PDF',
+      pageCount: doc.pages ?? (await pdfPageCount(buffer)),
+      readonly: true
+    })
+  }
+
+  if (RICH_EXTS.includes(ext)) {
+    const bundled = ext === '.epub' ? await bundleEpubFile(filePath) : bundleHtmlFile(filePath)
+    if (bundled) {
+      return attach({
+        title: bundled.title || doc.title,
+        viewMode: 'rich',
+        docKind: 'html',
+        docBuffer: Buffer.from(bundled.html, 'utf8'),
+        docEngine: bundled.engine,
+        pageCount: 0,
+        readonly: true
+      })
+    }
+    if (doc.warning) throw new Error(doc.warning)
+    return attach({ viewMode: 'text', readonly: true })
+  }
+
+  if (PAGINATED_EXTS.includes(ext)) {
+    const pdf = await convertToPdf(filePath)
+    if (pdf) {
+      // Word 类给原版式的同时保留正文可编辑；PPT / Excel 只读
+      return attach({
+        viewMode: 'pages',
+        docKind: 'pdf',
+        docBuffer: pdf.buffer,
+        docEngine: pdf.engine,
+        pageCount: await pdfPageCount(pdf.buffer),
+        readonly: !EDITABLE_DOC_EXTS.includes(ext)
+      })
+    }
+    if (doc.warning) {
+      throw new Error(
+        `${doc.format} 既无法转成原版式页面（本机没有 LibreOffice / Microsoft Office），也没解析出文字。${doc.warning}`
+      )
+    }
+    return attach({ viewMode: 'text', readonly: !EDITABLE_DOC_EXTS.includes(ext) })
+  }
+
+  if (doc.warning) throw new Error(doc.warning)
+  return attach({ viewMode: TEXT_EXTS.includes(ext) ? 'text' : 'text', readonly: false })
 }

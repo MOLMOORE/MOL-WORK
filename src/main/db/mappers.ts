@@ -4,6 +4,7 @@ import type {
   FocusSession,
   Note,
   NoteKind,
+  NoteMark,
   Project,
   ProjectKind,
   ReviewItem,
@@ -130,6 +131,13 @@ export interface NoteRow {
   content: string
   file_path: string | null
   tags: string
+  view_mode?: string | null
+  doc_kind?: string | null
+  doc_path?: string | null
+  page_count?: number | bigint | null
+  last_page?: number | bigint | null
+  source_format?: string | null
+  readonly?: number | bigint | null
   created_at: string
   updated_at: string
   task_title?: string | null
@@ -145,9 +153,44 @@ export function mapNote(row: NoteRow): Note {
     content: str(row.content),
     filePath: nullableStr(row.file_path),
     tags: parseTags(row.tags),
+    viewMode: (str(row.view_mode, 'text') as Note['viewMode']) === 'pages' || str(row.view_mode, 'text') === 'rich'
+      ? (str(row.view_mode, 'text') as Note['viewMode'])
+      : 'text',
+    docKind: (nullableStr(row.doc_kind) ?? null) as Note['docKind'],
+    docPath: nullableStr(row.doc_path),
+    pageCount: toNumber(row.page_count ?? 0),
+    lastPage: toNumber(row.last_page ?? 1, 1),
+    sourceFormat: nullableStr(row.source_format),
+    readonly: toNumber(row.readonly ?? 0) > 0,
     createdAt: str(row.created_at),
     updatedAt: str(row.updated_at),
     taskTitle: nullableStr(row.task_title)
+  }
+}
+
+export interface NoteMarkRow {
+  id: number | bigint
+  note_id: number | bigint
+  kind: string
+  page: number | bigint
+  label: string
+  quote: string
+  body: string
+  color: string
+  created_at: string
+}
+
+export function mapNoteMark(row: NoteMarkRow): NoteMark {
+  return {
+    id: toNumber(row.id),
+    noteId: toNumber(row.note_id),
+    kind: row.kind as NoteMark['kind'],
+    page: toNumber(row.page),
+    label: str(row.label),
+    quote: str(row.quote),
+    body: str(row.body),
+    color: str(row.color),
+    createdAt: str(row.created_at)
   }
 }
 

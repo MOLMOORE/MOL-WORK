@@ -10,7 +10,8 @@ import type {
   TaskStatus,
   ToolCategory,
   EventType,
-  ThemePreset
+  ThemePreset,
+  ThemeSkin
 } from './types/domain'
 
 /** 软件名：侧边栏字标、窗口标题、托盘提示与系统通知统一使用 */
@@ -19,10 +20,104 @@ export const APP_NAME = 'MOL-WORK'
 export type ThemeGroup = 'palette' | 'style'
 
 /**
+ * 主题皮肤（顶层）：与「默认主题」下的风格并列，每种皮肤会重排界面结构。
+ * layout 描述导航与模块摆放，shape 决定设置页预览缩略图的圆角语言。
+ */
+export const THEME_SKINS: {
+  key: ThemeSkin
+  label: string
+  hint: string
+  /** 该皮肤原本的深浅色底，用于「跟随系统」与预览 */
+  nativeMode: 'dark' | 'light'
+  layout: string
+  shape: 'soft' | 'sharp' | 'pill'
+  swatch: { dark: [string, string, string]; light: [string, string, string] }
+}[] = [
+  {
+    key: 'default',
+    label: '默认主题',
+    hint: '左侧栏 + 顶栏 + 卡片看板。选它之后可在下方继续挑 18 种风格（配色 / 观感）',
+    nativeMode: 'light',
+    layout: '侧边导航 · 卡片看板',
+    shape: 'soft',
+    swatch: { light: ['#F9FAFB', '#FFFFFF', '#1D7EED'], dark: ['#141619', '#1D2024', '#559EF1'] }
+  },
+  {
+    key: 'magazine',
+    label: '纸间杂志',
+    hint: '导航抬到顶部变成刊头，卡片去掉描边改用细线与留白，正文换衬线字并首字下沉，像翻一本杂志',
+    nativeMode: 'light',
+    layout: '顶部刊头 · 分栏正文',
+    shape: 'sharp',
+    swatch: { light: ['#F7F4EE', '#FFFFFF', '#9C3B2C'], dark: ['#191713', '#211E19', '#E0795F'] }
+  },
+  {
+    key: 'glass',
+    label: '琉璃极光',
+    hint: '侧栏浮起成胶囊，卡片改半透明毛玻璃，页面底是缓慢流动的极光渐变，圆角与柔影整体放大',
+    nativeMode: 'dark',
+    layout: '悬浮胶囊侧栏 · 毛玻璃卡片',
+    shape: 'pill',
+    swatch: { light: ['#EEF3FB', '#FFFFFF', '#5B6CFF'], dark: ['#12141F', '#1B1F33', '#8AA0FF'] }
+  },
+  {
+    key: 'terminal',
+    label: '荧光终端',
+    hint: '全等宽字体、ASCII 双线面板、底部状态行与扫描线，荧光绿磷光，整个软件变成一台终端',
+    nativeMode: 'dark',
+    layout: '终端侧栏 · 底部状态行',
+    shape: 'sharp',
+    swatch: { light: ['#F4F6F2', '#FFFFFF', '#0A6B3A'], dark: ['#050906', '#0A1410', '#3DDC84'] }
+  },
+  {
+    key: 'brutalism',
+    label: '粗野主义',
+    hint: '导航改成顶部块状标签，3px 实描边 + 6px 硬投影，标题全部大写加粗，色块直接铺在页面上',
+    nativeMode: 'light',
+    layout: '顶部块状标签 · 硬投影色块',
+    shape: 'sharp',
+    swatch: { light: ['#F3F0E7', '#FFFFFF', '#FF3D00'], dark: ['#141414', '#1F1F1F', '#FFD400'] }
+  },
+  {
+    key: 'hud',
+    label: '数据驾驶舱',
+    hint: '直角面板配四角括号与细准线，页面铺网格，标签改窄体大写字距，底部一条遥测状态栏',
+    nativeMode: 'dark',
+    layout: '窄图标侧栏 · 遥测状态栏',
+    shape: 'sharp',
+    swatch: { light: ['#F1F5F9', '#FFFFFF', '#0369A1'], dark: ['#060C15', '#0B1523', '#22D3EE'] }
+  },
+  {
+    key: 'soft',
+    label: '奶油拟物',
+    hint: '描边全部消失，改用一明一暗双向柔光把模块「顶」出奶油底，控件一律胶囊形，配色降饱和',
+    nativeMode: 'light',
+    layout: '内嵌侧栏 · 浮雕卡片',
+    shape: 'pill',
+    swatch: { light: ['#EFEAE4', '#F6F2ED', '#B4846C'], dark: ['#211E1C', '#2A2624', '#D6A489'] }
+  },
+  {
+    key: 'retro',
+    label: '复古桌面',
+    hint: '每张卡片长出蓝色渐变标题栏，窗口式立体斜边与方块滚动条，顶栏变成标题栏，底部一排状态格',
+    nativeMode: 'light',
+    layout: '标题栏卡片 · 分格状态栏',
+    shape: 'sharp',
+    swatch: { light: ['#C8C8C4', '#E6E6E2', '#0A2A8C'], dark: ['#1C1C1E', '#2A2A2E', '#7EA2FF'] }
+  }
+]
+
+/** 皮肤 key -> 中文名 */
+export function themeSkinLabel(skin: ThemeSkin | undefined): string {
+  return THEME_SKINS.find((item) => item.key === (skin ?? 'default'))?.label ?? '默认主题'
+}
+
+/**
  * 预设主题清单。
- * - group='palette'：默认主题的 10 种配色，只改颜色旋钮，版式与默认完全一致；
- * - group='style'：在配色之外还改圆角 / 描边 / 阴影 / 字体 / 页面底纹的独立风格，
- *   配色值取自各主题的官方规范（Nord、Dracula、Gruvbox、Catppuccin、Tokyo Night 等）。
+ * 这 18 种全部属于「默认主题」，只有选中默认主题时才可选：
+ * - group='palette'（配色风格）：10 种，只改颜色旋钮，版式与默认完全一致；
+ * - group='style'（观感风格）：8 种，在配色之外还改圆角 / 描边 / 阴影 / 字体 / 页面底纹，
+ *   配色值取自各风格的官方规范（Nord、Dracula、Gruvbox、Catppuccin、Tokyo Night 等）。
  * preview 三元组 = [页面底, 卡片底, 强调色]，由 styles/index.css 里的同名旋钮换算而来。
  */
 export const THEME_PRESETS: {
@@ -182,12 +277,12 @@ export const THEME_PRESETS: {
 
 export const THEME_GROUP_META: Record<ThemeGroup, { label: string; description: string }> = {
   palette: {
-    label: '默认配色',
-    description: '版式与默认主题完全一致，只换中性色与强调色'
+    label: '配色风格',
+    description: '界面结构与默认主题完全一致，只换中性色与强调色'
   },
   style: {
-    label: '风格主题',
-    description: '在配色之外一起换圆角、描边、阴影、字体与页面底纹，风格差异明显'
+    label: '观感风格',
+    description: '在配色之外一起换圆角、描边、阴影、字体与页面底纹，观感差异明显'
   }
 }
 
@@ -381,6 +476,7 @@ export const SM2_MAX_INTERVAL_DAYS = 365
 
 export const DEFAULT_SETTINGS: AppSettings = {
   theme: 'dark',
+  themeSkin: 'default',
   themePreset: 'minimal',
   fontSize: 'md',
   userName: 'MOL',
@@ -446,13 +542,13 @@ export const IMPORT_EXTENSIONS: string[] = [
 ]
 
 /** 导入格式分组说明（设置页与笔记导入弹窗展示） */
-export const IMPORT_FORMAT_GROUPS: { label: string; formats: string }[] = [
-  { label: '文档', formats: 'PDF · DOCX · DOC · ODT · RTF · WPS' },
-  { label: '演示', formats: 'PPTX · PPT · ODP' },
-  { label: '表格', formats: 'XLSX · XLS · CSV · TSV' },
-  { label: '网页与电子书', formats: 'HTML · EPUB · XML' },
-  { label: '纯文本与代码', formats: 'MD · TXT · JSON · YAML · LOG · 源代码' },
-  { label: '需本机 Pandoc', formats: 'RST · ORG · TEX · IPYNB · DOCBOOK' }
+export const IMPORT_FORMAT_GROUPS: { label: string; formats: string; mode: string }[] = [
+  { label: '文档', formats: 'PDF · DOCX · DOC · ODT · RTF · WPS', mode: '原版式书页，只读' },
+  { label: '演示', formats: 'PPTX · PPT · ODP', mode: '原版式书页（含图示与备注），只读' },
+  { label: '表格', formats: 'XLSX · XLS · CSV · TSV', mode: '原版式书页 / 表格文字，只读' },
+  { label: '网页与电子书', formats: 'HTML · EPUB · XML', mode: '原排版成书（图片内联），只读' },
+  { label: '纯文本与代码', formats: 'MD · TXT · JSON · YAML · LOG · 源代码', mode: '可编辑正文' },
+  { label: '需本机 Pandoc', formats: 'RST · ORG · TEX · IPYNB · DOCBOOK', mode: '转成可编辑文字' }
 ]
 
 /** 拖拽 / 选择文件时用的 accept 串 */

@@ -15,7 +15,7 @@ import {
   Timer,
   Trash2
 } from 'lucide-react'
-import type { AppSettings, ClockDateFormat, ClockLayout, ThemePreset } from '@shared/types/domain'
+import type { AppSettings, ClockDateFormat, ClockLayout, ThemePreset, ThemeSkin } from '@shared/types/domain'
 import {
   CLOCK_DATE_FORMATS,
   CLOCK_DATE_SIZE_TIERS,
@@ -27,7 +27,9 @@ import {
   FONT_SIZE_META,
   THEME_GROUP_META,
   THEME_PRESETS,
+  THEME_SKINS,
   themePresetsOf,
+  themeSkinLabel,
   nearestTier,
   resolveClockSettings,
   type ThemeGroup
@@ -45,7 +47,7 @@ import { cn, todayKey } from '../lib/utils'
 
 /** 设置分区：列表页纵向排列，点击进入详情修改 */
 const SECTIONS: { key: string; title: string; description: string; icon: typeof Palette }[] = [
-  { key: 'general', title: '外观与通用', description: '称呼、10 套默认配色 + 8 套风格主题、深浅色与字号', icon: Palette },
+  { key: 'general', title: '外观与通用', description: '称呼、8 款主题皮肤（默认主题下再挑 18 种风格）、深浅色与字号', icon: Palette },
   { key: 'review', title: '复习与计划', description: '复习算法、每日上限、工作时段与自动排程', icon: Repeat },
   { key: 'notify', title: '提醒与通知', description: '提醒提前量与截止提醒提示音', icon: Bell },
   { key: 'pomodoro', title: '番茄钟', description: '专注时长、休息节奏与阶段提示音', icon: Timer },
@@ -171,7 +173,57 @@ function OptionRow(props: {
   )
 }
 
-/** 主题选择：先「默认配色」后「风格主题」，每张卡片用真实 CSS 变量渲染一个迷你窗口，所见即所得 */
+/**
+ * 主题（皮肤）选择：8 款皮肤与「默认主题」并列，每张卡用同一份迷你界面 markup，
+ * 由 index.css 里的 [data-skin] 规则各自摆出不同结构（导航位置 / 卡片造型 / 状态栏）。
+ */
+function SkinPicker(props: {
+  value: ThemeSkin
+  mode: 'dark' | 'light'
+  onChange: (value: ThemeSkin) => void
+}): JSX.Element {
+  const { value, mode, onChange } = props
+  return (
+    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+      {THEME_SKINS.map((skin) => {
+        const selected = skin.key === value
+        return (
+          <button
+            key={skin.key}
+            type="button"
+            title={skin.hint}
+            onClick={() => onChange(skin.key)}
+            className={cn(
+              'rounded-lg border p-1.5 text-left transition-colors',
+              selected ? 'border-primary ring-2 ring-primary/25' : 'border-border hover:border-muted-foreground/60'
+            )}
+          >
+            <span className="themed skin-thumb block" data-skin={skin.key} data-theme={mode}>
+              <span className="st-top block" />
+              <span className="st-wrap flex">
+                <span className="st-side">
+                  <i />
+                  <i />
+                  <i />
+                </span>
+                <span className="st-main">
+                  <span className="st-card" />
+                  <span className="st-card" />
+                  <span className="st-card" />
+                </span>
+              </span>
+              <span className="st-foot block" />
+            </span>
+            <p className="mt-1.5 truncate text-xs font-medium text-foreground">{skin.label}</p>
+            <p className="truncate text-[10px] text-muted-foreground">{skin.layout}</p>
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+/** 默认主题下的风格选择：先「配色风格」后「观感风格」，每张卡片用真实 CSS 变量渲染一个迷你窗口 */
 function ThemePicker(props: {
   value: ThemePreset
   mode: 'dark' | 'light'
@@ -219,6 +271,7 @@ function ThemeGrid(props: {
             <span
               className="themed app-shell block overflow-hidden rounded-md border border-border"
               data-preset={preset.key}
+              data-skin="default"
               data-theme={mode}
               style={{ borderWidth: 'var(--border-w)', backgroundImage: 'var(--page-bg-image)' }}
             >
@@ -242,7 +295,8 @@ function ThemeGrid(props: {
                 </span>
               </span>
             </span>
-            <span className="mt-1.5 block truncate text-[11px] font-medium text-foreground">{preset.label}</span>
+            <p className="mt-1.5 truncate text-[11px] font-medium text-foreground">{preset.label}</p>
+            <p className="truncate text-[10px] text-muted-foreground">{preset.hint.split('，')[0]}</p>
           </button>
         )
       })}
@@ -258,13 +312,14 @@ const CHANGELOG: { version: string; date: string; items: string[] }[] = [
     items: [
       '修复时钟「笔画粗细」六档只有两档生效：系统自带的中文黑体只有常规与粗体两个字重，导致中等=常规、粗与特粗退回半粗；现内置 Inter / JetBrains Mono 可变字体（wght 100-900），细、常规、中等、半粗、粗、特粗各自对应一个真实字重',
       '时钟日期格式选「英文」时星期同步改为英文（Sep 17, 2026 · Thu），不再出现英文日期配中文星期',
-      '主题体系重构为两类：10 套「默认配色」保持版式一致只换颜色，并逐套拉开色相与饱和度差异；新增 8 套「风格主题」',
-      '新增风格主题：北欧极光 Nord、德古拉 Dracula、复古木纹 Gruvbox、卡布奇诺 Catppuccin、东京夜色 Tokyo Night、赛博霓虹 SynthWave、粗野主义 Neo-brutalism、荧光终端 CRT，配色取自各主题官方规范',
-      '风格主题改的是版式而不只是颜色：圆角体系、描边宽度、阴影与硬投影、字体（等宽 / 无衬线）、页面底纹与渐变、标题大小写与时钟辉光都随主题切换，设置页预览卡同步反映',
-      '笔记支持导入外部文档：PDF、DOCX / DOC、PPTX / PPT、XLSX / XLS、EPUB、ODT / ODS / ODP、HTML、RTF、Markdown、纯文本、CSV / TSV、JSON 与常见源代码文件',
-      '导入引擎全部内置离线可用：PDF 走内置 pdf.js（按字号还原标题层级与页码），Office 新格式走内置 OOXML 解析（标题 / 粗斜体 / 列表 / 表格 / 超链接 / 演讲者备注 / 多工作表），老式二进制 .doc/.ppt/.xls 自动改用本机 LibreOffice 或 Office 读取',
-      '导入支持多选与拖拽进窗口、GBK / UTF-8 / UTF-16 编码自动识别、超长文档截断保护，可选按一级标题拆分成多条笔记，并记录来源文件一键回开原文件',
-      '外部工具依赖页新增「笔记导入」支持格式说明；未装 Pandoc 时小众格式（RST / ORG / TEX / IPYNB）会给出明确提示'
+      '主题体系改为两层：顶层是「主题皮肤」，共 8 款并列可选；默认主题之下再挂 18 种「风格」（10 种配色风格 + 8 种观感风格），选中默认主题才能挑风格，切去别的皮肤时风格自动收起、切回即恢复',
+      '新增 7 款与默认主题并列的皮肤，改的是界面结构而不只换色：纸间杂志（导航成顶部刊头、卡片改细线留白、正文衬线并首字下沉）、琉璃极光（悬浮胶囊侧栏 + 毛玻璃卡片 + 流动极光底）、荧光终端（全等宽 + ASCII 双线面板 + 行号侧栏 + 底部状态行 + 扫描线）、粗野主义（顶部块状标签 + 3px 描边 + 硬投影）、数据驾驶舱（窄图标侧栏 + 四角括号 + 网格底 + 遥测状态栏）、奶油拟物（无描边双向柔光浮雕 + 全圆角）、复古桌面（卡片带窗口标题栏 + 立体斜边 + 方块滚动条 + 分格状态栏）',
+      '设置页主题选择改为「主题」+「默认主题 · 风格」两层，皮肤预览卡用同一份迷你界面由皮肤规则各自重排，导航位置 / 卡片造型 / 状态栏差异一眼可见',
+      '导入不再一律转 Markdown：PDF / PPT / Excel / Word 等按原版式成书（图片、表格、排版都在）且只读，网页与 EPUB 打包成自包含 HTML 按原排版成书，只有 Markdown / TXT / 代码等文本类保留编辑模式；渲染件统一收进书库，原文件被移走也照样能翻',
+      '新增独立全屏阅读界面：点任意一条笔记即翻书进入，页面自适应原文件尺寸，支持适宽 / 适页 / 100% 等比缩放与单页 / 双页 / 连续三种摆放',
+      '翻页做了 5 种动效（直切 / 淡入 / 推移 / 覆盖 / 仿真翻书），键盘全套：← → PgUp PgDn 空格 Home End 缩放 + − 0、B 书签、S 重点页、E 注释、Ctrl+F 查找、Esc 返回',
+      '每份资料像一本书：目录（读 PDF 书签 / HTML 标题 / Markdown 标题）、页面缩略图、全文逐页查找、书签、重点页、带原文摘录的页内注释，并自动记住读到第几页',
+      '文本类阅读界面提供字号控制与就地编辑；只读资料在笔记页只展示供搜索用的抽取文字并给出说明，不再被误当成可编辑正文'
     ]
   },
   {
@@ -580,22 +635,40 @@ export function SettingsPage(): JSX.Element {
             </div>
             <div className="grid gap-2.5 rounded-lg border border-border bg-muted/25 p-3">
               <div className="flex items-center justify-between gap-2">
-                <p className="text-xs font-medium text-muted-foreground">主题配色</p>
-                <span className="text-[11px] text-foreground">
-                  {THEME_PRESETS.find((item) => item.key === draft.themePreset)?.label ?? '素白简约'}
-                </span>
+                <p className="text-xs font-medium text-muted-foreground">主题</p>
+                <span className="text-[11px] text-foreground">{themeSkinLabel(draft.themeSkin)}</span>
               </div>
-              <ThemePicker
-                value={draft.themePreset ?? 'minimal'}
+              <SkinPicker
+                value={draft.themeSkin ?? 'default'}
                 mode={mode}
-                onChange={(key) => void patch({ themePreset: key })}
+                onChange={(key) => void patch({ themeSkin: key })}
               />
               <p className="text-[11px] leading-relaxed text-muted-foreground/80">
-                {THEME_PRESETS.find((item) => item.key === draft.themePreset)?.hint ?? ''}。
-                默认配色只换颜色；风格主题连圆角、描边、阴影、字体与页面底纹一起换。
-                两者都与深浅色互不影响，上面显示的是当前{mode === 'dark' ? '深色' : '浅色'}下的效果。
+                {THEME_SKINS.find((item) => item.key === (draft.themeSkin ?? 'default'))?.hint ?? ''}。
+                皮肤改的是界面结构（导航位置、卡片造型、字体、底纹、状态栏），不只换颜色；上面显示的是当前
+                {mode === 'dark' ? '深色' : '浅色'}下的效果。
               </p>
             </div>
+            {draft.themeSkin === 'default' ? (
+              <div className="grid gap-2.5 rounded-lg border border-border bg-muted/25 p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-xs font-medium text-muted-foreground">默认主题 · 风格</p>
+                  <span className="text-[11px] text-foreground">
+                    {THEME_PRESETS.find((item) => item.key === draft.themePreset)?.label ?? '素白简约'}
+                  </span>
+                </div>
+                <ThemePicker
+                  value={draft.themePreset ?? 'minimal'}
+                  mode={mode}
+                  onChange={(key) => void patch({ themePreset: key })}
+                />
+                <p className="text-[11px] leading-relaxed text-muted-foreground/80">
+                  {THEME_PRESETS.find((item) => item.key === draft.themePreset)?.hint ?? ''}。
+                  配色风格只换颜色；观感风格连圆角、描边、阴影、字体与页面底纹一起换。
+                  两者都与深浅色互不影响，切换上方「主题」到其他皮肤时这套风格会暂时收起，回到默认主题即恢复。
+                </p>
+              </div>
+            ) : null}
             <div className="grid gap-2 rounded-lg border border-border bg-muted/25 p-3">
               <p className="text-xs font-medium text-muted-foreground">字体大小</p>
               <Tabs

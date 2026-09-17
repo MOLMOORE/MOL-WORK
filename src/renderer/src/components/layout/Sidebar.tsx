@@ -17,7 +17,7 @@ import { APP_NAME } from '@shared/constants'
 import { useAppStore } from '../../stores/appStore'
 import { cn } from '../../lib/utils'
 
-const NAV_ITEMS = [
+export const NAV_ITEMS = [
   { to: '/', label: '仪表盘', icon: LayoutDashboard, end: true },
   { to: '/tasks', label: '任务日程', icon: ListChecks },
   { to: '/pomodoro', label: '番茄钟', icon: Timer },
@@ -44,7 +44,7 @@ export function Sidebar(): JSX.Element {
   return (
     <aside
       className={cn(
-        'relative z-20 flex h-full shrink-0 flex-col border-r border-border bg-surface transition-all duration-250',
+        'app-sidebar relative z-20 flex h-full shrink-0 flex-col border-r border-border bg-surface transition-all duration-250',
         collapsed ? 'w-[76px]' : 'w-[222px]'
       )}
     >
@@ -53,7 +53,7 @@ export function Sidebar(): JSX.Element {
         <img src={appIcon} alt={APP_NAME} draggable={false} className="h-9 w-9 shrink-0 select-none" />
         {!collapsed ? (
           /* 简约字标：主行是软件名，副行用细线引出用户称呼 */
-          <div className="min-w-0 leading-none">
+          <div className="brand-text min-w-0 leading-none">
             <p className="truncate text-[13px] font-bold uppercase tracking-[0.18em] text-foreground">
               {APP_NAME}
             </p>
@@ -77,10 +77,10 @@ export function Sidebar(): JSX.Element {
               title={item.label}
               className={({ isActive }) =>
                 cn(
-                  'group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all duration-150',
+                  'app-nav-item group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all duration-150',
                   collapsed && 'justify-center px-0',
                   isActive
-                    ? 'bg-muted font-medium text-foreground'
+                    ? 'is-active bg-muted font-medium text-foreground'
                     : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
                 )
               }
@@ -93,9 +93,9 @@ export function Sidebar(): JSX.Element {
                   <Icon className={cn('h-4 w-4 shrink-0', isActive && 'text-tint-primary')} />
                   {!collapsed ? (
                     <>
-                      <span className="flex-1 truncate">{item.label}</span>
+                      <span className="nav-label flex-1 truncate">{item.label}</span>
                       {count !== null ? (
-                        <span className="rounded-full bg-primary/25 px-1.5 py-0.5 text-[10px] font-medium text-tint-primary">
+                        <span className="nav-label rounded-full bg-primary/25 px-1.5 py-0.5 text-[10px] font-medium text-tint-primary">
                           {count}
                         </span>
                       ) : null}
@@ -108,7 +108,7 @@ export function Sidebar(): JSX.Element {
         })}
       </nav>
 
-      <div className="flex flex-col gap-1 px-3 pb-4">
+      <div className="sidebar-only flex flex-col gap-1 px-3 pb-4">
         <button
           type="button"
           onClick={() => void updateSettings({ theme: settings?.theme === 'dark' ? 'light' : 'dark' })}

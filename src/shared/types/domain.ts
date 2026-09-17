@@ -3,6 +3,17 @@
 export type TaskStatus = 'todo' | 'doing' | 'blocked' | 'done'
 export type ProjectKind = 'course' | 'project'
 export type NoteKind = 'note' | 'material' | 'flashcard'
+/**
+ * 笔记的阅读模式（导入时按文件格式自动判定）：
+ * - text   可编辑文本：Markdown / 纯文本 / 代码 / CSV 等，进阅读器后可以改
+ * - pages  只读书页：PDF、Word、PPT、Excel 等，按原文件版式逐页显示（含图片与排版）
+ * - rich   只读富文本：网页与 EPUB，按原 HTML 排版分页显示
+ */
+export type NoteViewMode = 'text' | 'pages' | 'rich'
+/** 书库里的渲染文件类型（没有渲染件时为 null） */
+export type NoteDocKind = 'pdf' | 'html' | null
+/** 读书笔记标记：书签 / 重点页 / 注释 */
+export type NoteMarkKind = 'bookmark' | 'star' | 'note'
 export type EventType = 'task' | 'review' | 'reminder' | 'focus'
 export type ReviewStatus = 'active' | 'suspended' | 'mastered'
 /** 0=重来 1=困难 2=一般 3=简单 */
@@ -11,10 +22,10 @@ export type ToolCategory = 'image' | 'audio' | 'video' | 'doc' | 'download' | 'e
 export type DependencyId = 'pandoc' | 'ffmpeg' | 'yt-dlp' | 'playwright'
 export type ThemeMode = 'dark' | 'light' | 'system'
 /**
- * 预设主题，分两类：
- * - 配色方案：默认主题的 10 种配色，只换颜色，不换结构；
- * - 风格主题：在配色之外还改圆角、描边、阴影、字体与页面底纹。
- * 两类都与深浅色正交，任意主题都能在深色 / 浅色下使用。
+ * 「默认主题」下的风格（配色 / 观感）清单，共 18 种。
+ * 1.2.4 起历史上那些独立命名的主题全部收编为默认主题的风格：
+ * 选中「默认主题」后才能挑风格；风格只改颜色与观感，不改界面结构。
+ * 全部风格与深浅色正交，任意风格都能在深色 / 浅色下使用。
  */
 export type ThemePreset =
   /* 默认主题的 10 种配色 */
@@ -37,6 +48,27 @@ export type ThemePreset =
   | 'synthwave'
   | 'brutalism'
   | 'terminal'
+/**
+ * 主题皮肤（顶层）。与「默认主题」下的风格并列，皮肤会重排界面结构：
+ * 侧栏位置、导航形态、卡片造型、字体、页面底纹与状态栏一起变。
+ * - default   默认主题：左侧栏 + 顶栏 + 卡片看板，风格由 themePreset 决定
+ * - magazine  纸间杂志：导航抬到顶部成刊头，卡片改细线留白，正文衬线 + 首字下沉
+ * - glass     琉璃极光：悬浮胶囊侧栏 + 毛玻璃卡片 + 极光渐变底
+ * - terminal  荧光终端：全等宽字体 + ASCII 面板 + 底部状态行 + 扫描线
+ * - brutalism 粗野主义：顶部块状标签导航 + 3px 描边 + 硬投影
+ * - hud       数据驾驶舱：直角面板 + 四角括号 + 网格底纹 + 遥测状态栏
+ * - soft      奶油拟物：无描边 + 双向柔光浮雕 + 全圆角
+ * - retro     复古桌面：卡片带窗口标题栏 + 立体斜边 + 分格状态栏
+ */
+export type ThemeSkin =
+  | 'default'
+  | 'magazine'
+  | 'glass'
+  | 'terminal'
+  | 'brutalism'
+  | 'hud'
+  | 'soft'
+  | 'retro'
 export type FontSize = 'sm' | 'md' | 'lg' | 'xl'
 export type PomodoroPhase = 'focus' | 'shortBreak' | 'longBreak'
 /**
@@ -149,6 +181,20 @@ export interface Note {
   content: string
   filePath: string | null
   tags: string[]
+  /** 阅读模式：文本可编辑，书页 / 富文本只看 */
+  viewMode: NoteViewMode
+  /** 书库渲染文件类型 */
+  docKind: NoteDocKind
+  /** 书库渲染文件的绝对路径（<userData>/library/<noteId>/document.xxx） */
+  docPath: string | null
+  /** 书页总页数（文本笔记为 0） */
+  pageCount: number
+  /** 上次读到的页码，重新打开时回到这里 */
+  lastPage: number
+  /** 来源格式，如 PDF / PPTX / EPUB */
+  sourceFormat: string | null
+  /** 是否只读（导入的资料默认只读，文本类可解除） */
+  readonly: boolean
   createdAt: string
   updatedAt: string
   taskTitle?: string | null
@@ -166,6 +212,59 @@ export interface NoteInput {
   tags?: string[]
   /** 是否生成/更新遗忘曲线复习条目 */
   enableReview?: boolean
+  viewMode?: NoteViewMode
+  docKind?: NoteDocKind
+  docPath?: string | null
+  pageCount?: number
+  lastPage?: number
+  sourceFormat?: string | null
+  readonly?: boolean
+}
+
+/** 读书笔记：书签 / 重点页 / 页内注释，统一挂在笔记的某一页上 */
+export interface NoteMark {
+  id: number
+  noteId: number
+  kind: NoteMarkKind
+  /** 所在页码；文本类笔记没有分页，固定为 0 */
+  page: number
+  /** 书签 / 重点页的显示名 */
+  label: string
+  /** 摘录原文（注释可从「本页文字」里选中文本带入） */
+  quote: string
+  /** 注释正文 */
+  body: string
+  /** 标记颜色（留空走强调色） */
+  color: string
+  createdAt: string
+}
+
+export interface NoteMarkInput {
+  id?: number
+  noteId: number
+  kind: NoteMarkKind
+  page?: number
+  label?: string
+  quote?: string
+  body?: string
+  color?: string
+}
+
+/** 阅读器需要的文档信息：渲染件类型 + 页数 + 上次阅读位置 */
+export interface NoteDocInfo {
+  note: Note
+  viewMode: NoteViewMode
+  docKind: NoteDocKind
+  pageCount: number
+  /** PDF 字节（viewMode=pages 且 docKind=pdf） */
+  data: Uint8Array | null
+  /** 自包含 HTML（viewMode=rich） */
+  html: string | null
+  /** 文本模式的正文 */
+  text: string
+  sourcePath: string | null
+  sourceFormat: string | null
+  readonly: boolean
 }
 
 /** 导入外部文档为笔记时的选项 */
@@ -191,6 +290,12 @@ export interface NoteImportItem {
   format?: string
   chars?: number
   engine?: string
+  /** 导入后采用的阅读模式 */
+  viewMode?: NoteViewMode
+  /** 书页页数（PDF 已知时给出） */
+  pageCount?: number
+  /** 正文抽取不完整时的提示 */
+  warning?: string
 }
 
 export interface NoteImportSummary {
@@ -497,7 +602,9 @@ export interface OverviewData {
 
 export interface AppSettings {
   theme: ThemeMode
-  /** 预设配色方案（主题） */
+  /** 主题皮肤（顶层）；只有在「默认主题」下才由 themePreset 决定风格 */
+  themeSkin: ThemeSkin
+  /** 「默认主题」下的风格（配色 / 观感） */
   themePreset: ThemePreset
   fontSize: FontSize
   userName: string

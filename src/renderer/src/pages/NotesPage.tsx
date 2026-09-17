@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { Eye, FileText, Layers, Paperclip, Pencil, Plus, Save, Search, Trash2, Upload } from 'lucide-react'
+import { BookOpen, Eye, FileText, Layers, Paperclip, Pencil, Plus, Save, Search, Trash2, Upload } from 'lucide-react'
 import type { NoteImportOptions, NoteImportSummary, NoteKind, ReviewRating } from '@shared/types/domain'
 import { IMPORT_FORMAT_GROUPS } from '@shared/constants'
 import { Card, SectionHeader } from '../components/ui/Card'
@@ -19,6 +19,9 @@ import { useTaskStore } from '../stores/taskStore'
 import { useAppStore } from '../stores/appStore'
 import { api } from '../lib/ipc'
 import { addDays, cn, formatDateTime, formatDay, relativeDay } from '../lib/utils'
+
+/** 三种阅读模式的中文名：列表与编辑器共用 */
+const VIEW_MODE_LABEL: Record<string, string> = { text: '文本', pages: '书页', rich: '排版' }
 
 const KIND_TABS: { key: NoteKind | 'all'; label: string }[] = [
   { key: 'all', label: '全部' },
@@ -108,6 +111,11 @@ export function NotesPage(): JSX.Element {
     pushToast({ title: '笔记已保存', description: enableReview ? '复习计划已同步更新' : '未纳入复习计划', tone: 'success' })
   }
 
+  /** 点开一条笔记就是翻开这本书：进入独立的阅读界面 */
+  const openReader = (id: number): void => {
+    navigate('/reader/' + id)
+  }
+
   const handleCreate = async (): Promise<void> => {
     if (newTitle.trim() === '') {
       pushToast({ title: '请填写笔记标题', tone: 'warning' })
@@ -142,15 +150,17 @@ export function NotesPage(): JSX.Element {
 
   const reportImport = async (summary: NoteImportSummary): Promise<void> => {
     const failed = summary.items.filter((item) => !item.ok)
+    const ok = summary.items.filter((item) => item.ok)
+    const asBook = ok.filter((item) => item.viewMode !== 'text').length
     if (summary.created.length > 0) {
       await load()
-      await select(summary.created[0].id)
       await refreshOverview()
       pushToast({
-        title: `已导入 ${summary.items.filter((item) => item.ok).length} 个文件，生成 ${summary.created.length} 条笔记`,
-        description: `最新一条：${summary.created[0].title}`,
+        title: `已导入 ${ok.length} 个文件，生成 ${summary.created.length} 条笔记`,
+        description: asBook > 0 ? `${asBook} 个按原版式成书，正在翻开第一条` : '正在翻开第一条',
         tone: 'success'
       })
+      navigate('/reader/' + summary.created[0].id)
     }
     failed.slice(0, 4).forEach((item) => {
       pushToast({ title: `导入失败：${item.file}`, description: item.reason ?? '未知错误', tone: 'danger' })
@@ -316,9 +326,40 @@ export function NotesPage(): JSX.Element {
                 </div>
                 <p className="mt-2 truncate text-xs font-medium text-foreground">{note.title}</p>
                 <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-muted-foreground">
-                  {note.content.replace(/[#>*`]/g, '').slice(0, 80) || '暂无正文'}
+                  {note.viewMode === 'text'
+                    ? note.content.replace(/[#>*`]/g, '').slice(0, 80) || '暂无正文'
+                    : `按 ${note.sourceFormat ?? '原文件'} 原版式显示，图片与排版都在`}
                 </p>
-                {note.taskTitle ? <p className="mt-1.5 truncate text-[10px] text-muted-foreground">任务：{note.taskTitle}</p> : null}
+                <div className="mt-1.5 flex items-center gap-2 text-[10px] text-muted-foreground">
+                  <span className="rounded bg-muted px-1.5 py-0.5">{VIEW_MODE_LABEL[note.viewMode] ?? '文本'}</span>
+                  {note.pageCount > 0 ? <span className="tabular-nums">{note.pageCount} 页</span> : null}
+                  {note.readonly ? <span>只读</span> : null}
+                  {note.lastPage > 1 && note.viewMode !== 'text' ? (
+                    <span className="tabular-nums">读到 {note.lastPage}</span>
+                  ) : null}
+                  <span className="ml-auto flex shrink-0 items-center gap-1.5">
+                    {note.taskTitle ? <span className="max-w-[90px] truncate">任务：{note.taskTitle}</span> : null}
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      title="在右侧编辑区改正文"
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        void select(note.id)
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter') {
+                          event.stopPropagation()
+                          void select(note.id)
+                        }
+                      }}
+                      className="rounded p-0.5 transition-colors hover:bg-muted hover:text-foreground"
+                    >
+                      <Pencil className="h-3 w-3" />
+                    </span>
+                    <BookOpen className="h-3 w-3" />
+                  </span>
+                </div>
               </button>
             ))
           )}
@@ -326,7 +367,7 @@ export function NotesPage(): JSX.Element {
       </Card>
       {dropping ? (
         <div className="pointer-events-none absolute inset-0 z-10 grid place-items-center rounded-xl border-2 border-dashed border-primary/70 bg-primary/10 text-xs font-medium text-tint-primary">
-          松手即导入（PDF / Word / PPT / 网页 / 文本）
+          松手即导入：PDF / Word / PPT / Excel / EPUB / 网页 / 文本按原版式成书，纯文本与 Markdown 可编辑
         </div>
       ) : null}
     </div>
@@ -346,21 +387,37 @@ export function NotesPage(): JSX.Element {
           node: (
             <Card className="flex h-full flex-col overflow-y-auto">
               <SectionHeader
-                title="编辑笔记"
-                description={`最近更新 ${current.updatedAt.replace('T', ' ').slice(0, 16)}`}
+                title={current.readonly ? '笔记正文' : '编辑笔记'}
+                description={
+                  current.viewMode === 'text'
+                    ? `文本 · 最近更新 ${current.updatedAt.replace('T', ' ').slice(0, 16)}`
+                    : `${VIEW_MODE_LABEL[current.viewMode]} · ${current.pageCount > 0 ? `${current.pageCount} 页 · ` : ''}只读原版式`
+                }
                 action={
                   <>
                     <Button
                       size="sm"
                       variant="secondary"
-                      icon={preview ? <Pencil className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                      onClick={() => setPreview((value) => !value)}
+                      icon={<BookOpen className="h-3.5 w-3.5" />}
+                      onClick={() => openReader(current.id)}
                     >
-                      {preview ? '继续编辑' : '预览'}
+                      打开阅读
                     </Button>
-                    <Button size="sm" variant="primary" icon={<Save className="h-3.5 w-3.5" />} loading={saving} onClick={handleSave}>
-                      保存
-                    </Button>
+                    {!current.readonly ? (
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        icon={preview ? <Pencil className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                        onClick={() => setPreview((value) => !value)}
+                      >
+                        {preview ? '继续编辑' : '预览'}
+                      </Button>
+                    ) : null}
+                    {!current.readonly ? (
+                      <Button size="sm" variant="primary" icon={<Save className="h-3.5 w-3.5" />} loading={saving} onClick={handleSave}>
+                        保存
+                      </Button>
+                    ) : null}
                     <IconButton label="删除笔记" tone="danger" onClick={() => setConfirmId(current.id)}>
                       <Trash2 className="h-3.5 w-3.5" />
                     </IconButton>
@@ -391,7 +448,7 @@ export function NotesPage(): JSX.Element {
                   <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-muted/25 px-3 py-1.5 text-[11px] text-muted-foreground">
                     <Paperclip className="h-3.5 w-3.5 shrink-0" />
                     <span className="min-w-0 flex-1 truncate" title={current.filePath}>
-                      导入自 {current.filePath}
+                      原件 {current.filePath}
                     </span>
                     <Button size="sm" variant="ghost" onClick={() => void api.app.openPath(current.filePath as string)}>
                       打开源文件
@@ -402,7 +459,7 @@ export function NotesPage(): JSX.Element {
                   </div>
                 ) : null}
 
-                {preview ? (
+                {preview || current.readonly ? (
                   <div className="prose-invert max-h-[420px] overflow-y-auto rounded-xl border border-border bg-muted/20 p-4 text-sm leading-relaxed text-foreground">
                     <ReactMarkdown remarkPlugins={[remarkGfm]}>{draftContent || '_暂无正文_'}</ReactMarkdown>
                   </div>
@@ -415,6 +472,12 @@ export function NotesPage(): JSX.Element {
                     className="font-mono text-[13px]"
                   />
                 )}
+                {current.readonly ? (
+                  <p className="text-[11px] leading-relaxed text-muted-foreground">
+                    这份资料按原版式只读保存（图片、表格、排版都在），这里显示的是供搜索与摘要用的抽取文字。
+                    要记想法请点「打开阅读」，在书里加书签、重点页与注释。
+                  </p>
+                ) : null}
               </div>
             </Card>
           )
@@ -463,8 +526,8 @@ export function NotesPage(): JSX.Element {
             <Card className="flex h-full items-center justify-center">
             <EmptyState
               icon={<FileText className="h-6 w-6" />}
-              title="选择左侧笔记开始编辑"
-              description="笔记与资料可挂在任务下，保存后自动按遗忘曲线安排复习"
+              title="点左侧任意一条即可翻开阅读"
+              description="阅读界面支持目录、缩略图、书签、重点页与注释；文本类笔记可在这里继续编辑正文"
               action={
                 <Button variant="primary" size="sm" icon={<Plus className="h-3.5 w-3.5" />} onClick={() => setCreateOpen(true)}>
                   新建笔记
@@ -536,9 +599,10 @@ export function NotesPage(): JSX.Element {
             className="absolute inset-0 cursor-default bg-black/40"
           />
           <div className="relative z-10 w-full max-w-lg rounded-xl border border-border bg-surface p-5 shadow-pop animate-scale-in">
-            <p className="text-sm font-semibold text-foreground">导入外部文档</p>
+            <p className="text-sm font-semibold text-foreground">把文档导成一本可翻的书</p>
             <p className="mt-0.5 text-xs text-muted-foreground">
-              解析在本地完成，不上传、不依赖外部软件；导入后按 Markdown 正文保存，可继续编辑。
+              全程在本地完成、不上传。PDF / PPT / Excel 等按原版式逐页显示（图片与排版都保留、只读）；
+              Word 能转 PDF 时同样原版式，否则退回可编辑文字；Markdown / TXT / 代码等文本类保持可编辑。
             </p>
             <div className="mt-4 grid gap-4">
               <Field label="归属任务" hint="留空则只作为独立资料保存">
@@ -576,11 +640,13 @@ export function NotesPage(): JSX.Element {
                 {IMPORT_FORMAT_GROUPS.map((group) => (
                   <p key={group.label} className="text-[11px] leading-relaxed text-muted-foreground/90">
                     <span className="text-foreground">{group.label}</span>：{group.formats}
+                    <span className="ml-1 text-muted-foreground/70">— {group.mode}</span>
                   </p>
                 ))}
                 <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground/70">
-                  老式 .doc / .ppt / .xls 需要本机装有 Microsoft Office 或 LibreOffice；扫描版 PDF（纯图片）无法提取文字。
-                  也可以把文件直接拖到左侧笔记列表上。
+                  转成原版式页面需要本机装有 LibreOffice 或 Microsoft Office（PDF 与网页 / EPUB 不需要）；
+                  没有转换器时会自动退回「抽取文字」，仍能读但版式与图片会丢。扫描版 PDF 可以正常翻阅，只是搜不到字。
+                  也可以把文件直接拖到左侧笔记列表上，一次多个。
                 </p>
               </div>
             </div>

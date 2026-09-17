@@ -8,9 +8,12 @@ import type {
   DependencyStatus,
   FocusSession,
   Note,
+  NoteDocInfo,
   NoteImportOptions,
   NoteImportSummary,
   NoteInput,
+  NoteMark,
+  NoteMarkInput,
   OverviewData,
   ProcrastinationItem,
   ProcrastinationReport,
@@ -101,7 +104,17 @@ const api: WorkstationApi = {
     remove: (id: number) => invoke<void>('note:remove', id),
     importPick: (options?: NoteImportOptions) => invoke<NoteImportSummary>('note:import-pick', options),
     importFiles: (paths: string[], options?: NoteImportOptions) =>
-      invoke<NoteImportSummary>('note:import-files', paths, options)
+      invoke<NoteImportSummary>('note:import-files', paths, options),
+    doc: (id: number) => invoke<NoteDocInfo>('note:doc', id),
+    progress: (id: number, page: number, pageCount?: number) =>
+      invoke<Note>('note:progress', id, page, pageCount),
+    marks: (noteId: number) => invoke<NoteMark[]>('note:marks', noteId),
+    saveMark: (input: NoteMarkInput) => invoke<NoteMark>('note:mark-save', input),
+    removeMark: (id: number) => invoke<void>('note:mark-remove', id),
+    openSource: (id: number) => invoke<string>('note:open-source', id),
+    revealSource: (id: number) => invoke<void>('note:reveal-source', id),
+    pdfAsset: (kind: 'cmaps' | 'standard_fonts', name: string) =>
+      invoke<Uint8Array | null>('note:pdf-asset', kind, name)
   },
   schedule: {
     range: (from: string, to: string) => invoke<ScheduleEvent[]>('schedule:range', from, to),
