@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { AlarmClock, AlarmClockOff, Hourglass, Star, Timer } from 'lucide-react'
 import type { Task } from '@shared/types/domain'
+import { APP_NAME } from '@shared/constants'
 import { Badge } from '../ui/Feedback'
 import { Button } from '../ui/Button'
 import { ConfirmDialog, Modal } from '../ui/Overlay'

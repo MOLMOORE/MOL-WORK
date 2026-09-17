@@ -17,6 +17,9 @@
 
 ### 笔记与复习
 - Markdown 编辑配实时预览，笔记可以挂到某个任务上作为资料
+- 导入外部文档为笔记 / 资料：PDF、DOCX / DOC、PPTX / PPT、XLSX / XLS、EPUB、ODT / ODS / ODP、HTML、RTF、WPS、Markdown、纯文本、CSV / TSV、JSON 与常见源代码
+- 解析全部在本地完成：PDF 用内置 pdf.js 抽取文本并按字号还原标题层级、标注页码；Word / PPT / Excel 新格式用内置 OOXML 解析器还原标题、粗斜体、列表、表格、超链接、演讲者备注与多工作表；老式二进制 .doc / .ppt / .xls 自动改走本机 LibreOffice 或 Microsoft Office
+- 支持一次多选、也可以把文件直接拖进笔记列表；自动识别 UTF-8 / GBK / UTF-16 编码，超长正文截断保护，可按一级标题把长文档拆成多条笔记，笔记里保留来源文件并可一键打开
 - 保存笔记自动生成复习条目。复习引擎两种模式可选：SM-2 自适应（按 ease / interval / repetitions / lapses / stage 调间隔）和艾宾浩斯固定间隔
 - 复习到期后自动写入次日日程，到点提醒，复习评分按五档回到曲线
 
@@ -60,8 +63,11 @@
 ### 界面布局与主题
 - 页面由可拖拽、可缩放的模块方块组成，支持拖动排布、一键排列、清空、保存为自定义默认布局
 - 时钟方块有数字翻转、极简、环形、指针、点阵、堆叠、终端等风格，横向纵向摆放和字形形状都能调
-- 时钟的字号、笔画、宽高、字距、日期格式都按档位调节，不做无级滑块
-- 10 套主题配色：素白简约（默认）、极简黑白、宣纸暖白、靛青、苔原、暮沙、石墨、午夜靛蓝、紫棠、墨绿夜色，每套都能切深浅两种模式
+- 时钟的字号、笔画、宽高、字距、日期格式都按档位调节，不做无级滑块；笔画六档（细 / 常规 / 中等 / 半粗 / 粗 / 特粗）由内置可变字体驱动，每档都是真实字重
+- 日期格式选「英文」时星期同步用英文显示，不出现中英混排
+- 18 套主题，分两类，每套都能切深浅两种模式：
+  - 默认配色（10 套，版式与默认一致只换颜色）：素白简约、极简黑白、宣纸暖白、靛青、苔原、暮沙、石墨、午夜靛蓝、紫棠、墨绿夜色
+  - 风格主题（8 套，配色之外连圆角、描边、阴影、字体、页面底纹一起换）：北欧极光 Nord、德古拉 Dracula、复古木纹 Gruvbox、卡布奇诺 Catppuccin、东京夜色 Tokyo Night、赛博霓虹 SynthWave、粗野主义 Neo-brutalism、荧光终端 CRT
 - 界面整体字号可调
 
 ## 技术栈
@@ -134,7 +140,7 @@ pip install --user yt-dlp imageio-ffmpeg pypandoc_binary
 
 ```powershell
 npm run dist
-# 产物：release\PersonalWorkstation-Setup-1.2.3.exe（约 94 MB，NSIS 可选安装目录）
+# 产物：release\PersonalWorkstation-Setup-1.2.4.exe（约 95 MB，NSIS 可选安装目录）
 ```
 
 electron-builder 需要下载 Electron 与 NSIS 二进制，网络不通时换国内镜像：
@@ -148,6 +154,7 @@ npm run dist
 几个会影响打包结果的点：
 - 数据库用的是 Electron 内置 node:sqlite，没有原生模块，配置里 `npmRebuild: false` 跳过依赖重建
 - `playwright` / `playwright-core` 通过 `asarUnpack` 解包到磁盘，否则打包后起不了 Chromium
+- 笔记导入依赖 `pdfjs-dist`（只保留 legacy 构建 + 中文字形映射 cmaps + 标准字体）、`jszip` 与 `fast-xml-parser`，其余目录已在 `files` 里排除，三项合计让安装包只增约 2 MB
 - 图标是 `build/icon.png`（透明底）、`build/icon.ico`（7 个尺寸）和 `build/tray.png`（16×16 单色），改完执行 `npm run make-icon` 重新生成
 - `build/installer.nsh` 在 customInstall 里刷新图标缓存，避免升级后桌面还是旧图标
 - 打包产物也能跑自检：`$env:WORKSTATION_SELFTEST='1'; .\release\win-unpacked\个人工作站.exe`
@@ -158,6 +165,9 @@ npm run dist
 
 ## 已知边界
 
+- 扫描版 PDF（整页是图片）导进来没有文字，需要先做 OCR；纯图片型 PPT 同理
+- 老式二进制 .doc / .ppt / .xls 依赖本机装有 Microsoft Office 或 LibreOffice，两者都没有时请先另存为 .docx / .pptx / .xlsx
+- 文档导入只取文字与结构（标题 / 列表 / 表格 / 链接），不搬运内嵌图片；超长正文按 30 万字上限截断
 - 安装包没有代码签名，Windows SmartScreen 第一次运行会提示未知发布者
 - 网络下载能不能成功取决于目标站点可达性
 - 数据库迁移按版本号顺序追加，打开旧数据文件时会就地升级并先备份

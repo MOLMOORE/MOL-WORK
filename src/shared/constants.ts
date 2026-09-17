@@ -16,15 +16,20 @@ import type {
 /** 软件名：侧边栏字标、窗口标题、托盘提示与系统通知统一使用 */
 export const APP_NAME = 'MOL-WORK'
 
+export type ThemeGroup = 'palette' | 'style'
+
 /**
- * 预设主题（配色方案）。
- * 每个主题的具体颜色写在 src/renderer/src/styles/index.css 的 [data-preset='xxx'] 旋钮块里，
- * 这里只登记名称、说明与预览色卡（预览色卡由 CSS 同源的 HSL 值换算而来）。
+ * 预设主题清单。
+ * - group='palette'：默认主题的 10 种配色，只改颜色旋钮，版式与默认完全一致；
+ * - group='style'：在配色之外还改圆角 / 描边 / 阴影 / 字体 / 页面底纹的独立风格，
+ *   配色值取自各主题的官方规范（Nord、Dracula、Gruvbox、Catppuccin、Tokyo Night 等）。
+ * preview 三元组 = [页面底, 卡片底, 强调色]，由 styles/index.css 里的同名旋钮换算而来。
  */
 export const THEME_PRESETS: {
   key: ThemePreset
   label: string
   hint: string
+  group: ThemeGroup
   /** 该主题原本的深浅色底色，用于「跟随系统」与预览 */
   nativeMode: 'dark' | 'light'
   preview: { dark: [string, string, string]; light: [string, string, string] }
@@ -33,13 +38,15 @@ export const THEME_PRESETS: {
     key: 'minimal',
     label: '素白简约',
     hint: '冷中性灰白 + 克制的蓝，细描边、无渐变无光晕，默认主题',
+    group: 'palette',
     nativeMode: 'light',
     preview: { light: ['#F9FAFB', '#FFFFFF', '#1D7EED'], dark: ['#141619', '#1D2024', '#559EF1'] }
   },
   {
     key: 'mono',
     label: '极简黑白',
-    hint: '完全去色，只靠明度与描边分层，最克制的排版',
+    hint: '完全去色，只靠明度与描边分层，最克制的一套',
+    group: 'palette',
     nativeMode: 'light',
     preview: { light: ['#FAFAFA', '#FFFFFF', '#242424'], dark: ['#141414', '#1F1F1F', '#F5F5F5'] }
   },
@@ -47,34 +54,39 @@ export const THEME_PRESETS: {
     key: 'paper',
     label: '宣纸暖白',
     hint: '暖米色纸底 + 松绿，长时间阅读不刺眼',
+    group: 'palette',
     nativeMode: 'light',
     preview: { light: ['#F9F8F6', '#FFFFFF', '#2F7E61'], dark: ['#1F1B13', '#24201A', '#4FBF95'] }
   },
   {
     key: 'ocean',
     label: '靛青',
-    hint: '清冷蓝绿，适合信息密度高的工作台',
+    hint: '清冷青蓝，适合信息密度高的工作台',
+    group: 'palette',
     nativeMode: 'light',
-    preview: { light: ['#FAFCFD', '#FFFFFF', '#178BB6'], dark: ['#141819', '#1D2224', '#3EB6DE'] }
+    preview: { light: ['#FAFCFD', '#FFFFFF', '#0E88B8'], dark: ['#141819', '#1D2224', '#3EB6DE'] }
   },
   {
     key: 'moss',
     label: '苔原',
-    hint: '低饱和草绿，最省眼的一套',
+    hint: '草绿强调 + 微绿中性，最省眼的一套',
+    group: 'palette',
     nativeMode: 'light',
-    preview: { light: ['#F9FBF9', '#FFFFFF', '#307D52'], dark: ['#141815', '#1D221E', '#5CC08A'] }
+    preview: { light: ['#F9FBF9', '#FFFFFF', '#2E834F'], dark: ['#141815', '#1D221E', '#5CC08A'] }
   },
   {
     key: 'sand',
     label: '暮沙',
-    hint: '暖沙底 + 赤陶橙，偏纸质暖调',
+    hint: '暖沙底 + 赤陶橙，纸质暖调',
+    group: 'palette',
     nativeMode: 'light',
-    preview: { light: ['#FAF7F3', '#FFFFFF', '#CC5E1F'], dark: ['#1A1611', '#211C17', '#E8813F'] }
+    preview: { light: ['#FAF7F3', '#FFFFFF', '#D25A17'], dark: ['#1A1611', '#211C17', '#E8813F'] }
   },
   {
     key: 'graphite',
     label: '石墨',
-    hint: '纯中性深灰，强调色只用亮灰，克制的工业感',
+    hint: '纯中性深灰，强调色只用亮灰，工业感',
+    group: 'palette',
     nativeMode: 'dark',
     preview: { light: ['#F7F8F9', '#FFFFFF', '#4A5158'], dark: ['#1A1C1E', '#222528', '#CFD4D8'] }
   },
@@ -82,25 +94,106 @@ export const THEME_PRESETS: {
     key: 'midnight',
     label: '午夜靛蓝',
     hint: '深蓝夜色 + 亮靛强调，夜间久用',
+    group: 'palette',
     nativeMode: 'dark',
-    preview: { light: ['#F7F8FD', '#FFFFFF', '#567AF0'], dark: ['#0F1119', '#1B1F2B', '#567AF0'] }
+    preview: { light: ['#F7F8FD', '#FFFFFF', '#4A6EF5'], dark: ['#0F1119', '#1B1F2B', '#567AF0'] }
   },
   {
     key: 'plum',
     label: '紫棠',
-    hint: '暗紫底 + 兰紫强调，保留上一版的紫色气质',
+    hint: '暗紫底 + 兰紫强调，冷艳但不刺眼',
+    group: 'palette',
     nativeMode: 'dark',
-    preview: { light: ['#FAF7FD', '#FFFFFF', '#7A2BD4'], dark: ['#151018', '#1F1924', '#7A2BD4'] }
+    preview: { light: ['#FAF7FD', '#FFFFFF', '#8A2BE2'], dark: ['#151018', '#1F1924', '#A65CF0'] }
   },
   {
     key: 'forest',
     label: '墨绿夜色',
-    hint: '近黑的墨绿底 + 草绿强调，深色里的暖一点的选择',
+    hint: '近黑的墨绿底 + 草绿强调，深色里偏暖的选择',
+    group: 'palette',
     nativeMode: 'dark',
     preview: { light: ['#F6FAF8', '#FFFFFF', '#2F8A63'], dark: ['#0D1512', '#141E1A', '#60C797'] }
+  },
+  {
+    key: 'nord',
+    label: '北欧极光',
+    hint: 'Polar Night 深蓝灰 + Frost 冰蓝，扁平无投影（Nord 官方配色）',
+    group: 'style',
+    nativeMode: 'dark',
+    preview: { light: ['#ECEFF4', '#E5E9F0', '#5E81AC'], dark: ['#2E3440', '#3B4252', '#88C0D0'] }
+  },
+  {
+    key: 'dracula',
+    label: '德古拉',
+    hint: '暗紫灰底 + 粉 / 紫 / 青三色，卡片带霓虹描边（Dracula 官方配色）',
+    group: 'style',
+    nativeMode: 'dark',
+    preview: { light: ['#F8F8F2', '#FFFFFF', '#BD93F9'], dark: ['#282A36', '#343746', '#FF79C6'] }
+  },
+  {
+    key: 'gruvbox',
+    label: '复古木纹',
+    hint: '暖褐底 + 姜黄赭红，直角与双线描边，像旧终端打印（Gruvbox 官方配色）',
+    group: 'style',
+    nativeMode: 'dark',
+    preview: { light: ['#FBF1C7', '#F2E5BC', '#AF3A00'], dark: ['#282828', '#3C3836', '#FABD2F'] }
+  },
+  {
+    key: 'catppuccin',
+    label: '卡布奇诺',
+    hint: '豆沙紫中性 + 大圆角软阴影，最柔和的一套（Catppuccin Mocha / Latte）',
+    group: 'style',
+    nativeMode: 'dark',
+    preview: { light: ['#EFF1F5', '#F5F6FC', '#8839EF'], dark: ['#1E1E2E', '#313244', '#CBA6F7'] }
+  },
+  {
+    key: 'tokyonight',
+    label: '东京夜色',
+    hint: '墨蓝底 + 靛青紫，卡片顶部一道渐变光带（Tokyo Night 官方配色）',
+    group: 'style',
+    nativeMode: 'dark',
+    preview: { light: ['#EAF1F8', '#FFFFFF', '#1A5CAB'], dark: ['#1A1B26', '#24283B', '#7AA2F7'] }
+  },
+  {
+    key: 'synthwave',
+    label: '赛博霓虹',
+    hint: '渐变夜色页面底 + 半透明卡片与霓虹辉光（SynthWave ’84 风格）',
+    group: 'style',
+    nativeMode: 'dark',
+    preview: { light: ['#FDE7F3', '#FFFFFF', '#D4267E'], dark: ['#1A1029', '#2A1B45', '#FF7EDB'] }
+  },
+  {
+    key: 'brutalism',
+    label: '粗野主义',
+    hint: '2px 黑描边 + 硬投影 + 直角大写标题（Neo-brutalism 风格）',
+    group: 'style',
+    nativeMode: 'light',
+    preview: { light: ['#FFF9E6', '#FFFFFF', '#FFD400'], dark: ['#111111', '#1B1B1B', '#FFD400'] }
+  },
+  {
+    key: 'terminal',
+    label: '荧光终端',
+    hint: '纯黑底 + 荧光绿等宽字与扫描线，整站 CRT 终端观感',
+    group: 'style',
+    nativeMode: 'dark',
+    preview: { light: ['#F2F5F2', '#FFFFFF', '#0A6B34'], dark: ['#050D07', '#0A1810', '#33FF66'] }
   }
 ]
 
+export const THEME_GROUP_META: Record<ThemeGroup, { label: string; description: string }> = {
+  palette: {
+    label: '默认配色',
+    description: '版式与默认主题完全一致，只换中性色与强调色'
+  },
+  style: {
+    label: '风格主题',
+    description: '在配色之外一起换圆角、描边、阴影、字体与页面底纹，风格差异明显'
+  }
+}
+
+export function themePresetsOf(group: ThemeGroup): typeof THEME_PRESETS {
+  return THEME_PRESETS.filter((item) => item.group === group)
+}
 /** 主题预览取哪套底色：跟随当前生效的深浅色 */
 export function themePreview(preset: ThemePreset, mode: 'dark' | 'light'): [string, string, string] {
   const meta = THEME_PRESETS.find((item) => item.key === preset) ?? THEME_PRESETS[0]
@@ -229,7 +322,7 @@ export const CLOCK_DATE_FORMATS: { key: ClockDateFormat; label: string; sample: 
   { key: 'slash', label: '斜杠', sample: '2026/9/17' },
   { key: 'dash', label: '短横', sample: '2026-09-17' },
   { key: 'dot', label: '缩写', sample: '09.17' },
-  { key: 'en', label: '英文', sample: 'Sep 17, 2026' }
+  { key: 'en', label: '英文', sample: 'Sep 17, 2026 · Thu' }
 ]
 
 /** 取最接近的档位：老版本用滑块存下的任意数值，读到时按最近档位显示 */
@@ -262,6 +355,20 @@ export function formatClockDate(date: Date, format: ClockDateFormat): string {
 }
 
 const MONTH_EN = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+const WEEKDAY_CN = ['日', '一', '二', '三', '四', '五', '六']
+const WEEKDAY_EN = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+const WEEKDAY_EN_FULL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+
+/**
+ * 星期文本：日期格式选「英文」时星期同步显示为英文（其余格式仍用「星期X」），
+ * 避免出现「Sep 17, 2026 · 星期四」这种中英混排。
+ */
+export function formatClockWeekday(date: Date, format: ClockDateFormat, full = false): string {
+  const index = date.getDay()
+  if (format === 'en') return full ? WEEKDAY_EN_FULL[index] : WEEKDAY_EN[index]
+  return `星期${WEEKDAY_CN[index]}`
+}
 
 /** 艾宾浩斯固定复习间隔（天），作为 SM-2 的回退方案 */
 export const EBBINGHAUS_INTERVALS = [1, 2, 4, 7, 15, 30, 60, 120]
@@ -324,5 +431,31 @@ export function resolveClockSettings(
   }
   return { style, layout: safeLayout }
 }
+
+/** 笔记导入支持的扩展名：文件选择框、拖拽判定与格式说明共用同一份清单 */
+export const IMPORT_EXTENSIONS: string[] = [
+  '.pdf', '.docx', '.doc', '.odt', '.rtf', '.wps',
+  '.pptx', '.ppt', '.odp',
+  '.xlsx', '.xlsm', '.xls', '.csv', '.tsv',
+  '.html', '.htm', '.xhtml', '.shtml', '.epub',
+  '.md', '.markdown', '.mdown', '.mkd', '.txt', '.text', '.log',
+  '.json', '.xml', '.yml', '.yaml', '.toml', '.ini', '.sql',
+  '.py', '.js', '.ts', '.java', '.c', '.cpp', '.h', '.go', '.rs', '.sh', '.bat', '.ps1',
+  '.rst', '.org', '.tex', '.latex', '.opml', '.docbook', '.dbk', '.mediawiki', '.twiki', '.dokuwiki',
+  '.creole', '.txt2tags', '.bib', '.ipynb', '.pps', '.pot'
+]
+
+/** 导入格式分组说明（设置页与笔记导入弹窗展示） */
+export const IMPORT_FORMAT_GROUPS: { label: string; formats: string }[] = [
+  { label: '文档', formats: 'PDF · DOCX · DOC · ODT · RTF · WPS' },
+  { label: '演示', formats: 'PPTX · PPT · ODP' },
+  { label: '表格', formats: 'XLSX · XLS · CSV · TSV' },
+  { label: '网页与电子书', formats: 'HTML · EPUB · XML' },
+  { label: '纯文本与代码', formats: 'MD · TXT · JSON · YAML · LOG · 源代码' },
+  { label: '需本机 Pandoc', formats: 'RST · ORG · TEX · IPYNB · DOCBOOK' }
+]
+
+/** 拖拽 / 选择文件时用的 accept 串 */
+export const IMPORT_ACCEPT_ATTR = IMPORT_EXTENSIONS.join(',')
 
 export const SEARCH_MIN_TRIGRAM_LENGTH = 3

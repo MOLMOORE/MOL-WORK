@@ -44,13 +44,13 @@ module.exports = {
           5: 'hsl(var(--chart-5))'
         }
       },
-      /* 简约风：整体收紧圆角，去掉大圆角的「玩具感」 */
+      /* 简约风：整体收紧圆角。具体数值走主题变量，风格主题（直角 / 大圆角）才能整体生效 */
       borderRadius: {
-        '2xl': '12px',
-        xl: '10px',
-        lg: '8px',
-        md: '6px',
-        sm: '4px'
+        '2xl': 'var(--r-2xl, 12px)',
+        xl: 'var(--r-xl, 10px)',
+        lg: 'var(--r-lg, 8px)',
+        md: 'var(--r-md, 6px)',
+        sm: 'var(--r-sm, 4px)'
       },
       fontFamily: {
         sans: ['Inter', 'PingFang SC', 'Microsoft YaHei', 'system-ui', 'sans-serif']

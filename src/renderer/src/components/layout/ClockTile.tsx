@@ -8,11 +8,12 @@ import {
   CLOCK_WEIGHT_TIERS,
   CLOCK_WIDTH_TIERS,
   formatClockDate,
+  formatClockWeekday,
   nearestTier,
   resolveClockSettings
 } from '@shared/constants'
 import { FlipDigit } from '../ui/FlipDigit'
-import { cn, dateKey, weekdayCN } from '../../lib/utils'
+import { cn } from '../../lib/utils'
 import { useAppStore } from '../../stores/appStore'
 
 function pad(value: number): string {
@@ -87,9 +88,10 @@ export function ClockTile({ style, layout }: ClockTileProps): JSX.Element {
   const hhmm = time.slice(0, 5)
   const ss = time.slice(6)
   // 日期行：格式 / 星期 / 是否显示，全部可在设置里改
-  const dateText = formatClockDate(now, settings?.clockDateFormat ?? 'cn')
+  const dateFormat = settings?.clockDateFormat ?? 'cn'
+  const dateText = formatClockDate(now, dateFormat)
   const dateFull =
-    settings?.clockShowWeekday === false ? dateText : `${dateText} · ${weekdayCN(dateKey(now))}`
+    settings?.clockShowWeekday === false ? dateText : `${dateText} · ${formatClockWeekday(now, dateFormat)}`
   const vertical = place === 'date-top' || place === 'date-bottom'
   const dateFirst = place === 'date-top' || place === 'date-left'
 
@@ -99,8 +101,9 @@ export function ClockTile({ style, layout }: ClockTileProps): JSX.Element {
   const scaleY = nearestTier(settings?.clockHeightScale ?? 100, CLOCK_HEIGHT_TIERS) / 100
   const spacingEm = nearestTier(settings?.clockLetterSpacing ?? 0, CLOCK_SPACING_TIERS) / 100
   const metrics = STYLE_METRICS[mode]
-  // 字距与字重都会让整串变宽，一并计入所需宽度
-  const units = metrics.units + Math.max(0, spacingEm) * 7 + (weight - 400) / 100 * 0.06
+  // 字距与字重都会让整串变宽，一并计入所需宽度（每高 100 约宽 2%）
+  const weightFactor = 1 + ((weight - 400) / 100) * 0.02
+  const units = (metrics.units + Math.max(0, spacingEm) * 7) * weightFactor
 
   // ---- 自适应字号：先按高度、再按宽度取小，最后除以拉伸系数 ----------------
   const innerW = Math.max(0, w - 24)
@@ -138,7 +141,7 @@ export function ClockTile({ style, layout }: ClockTileProps): JSX.Element {
 
   if (mode === 'flip') {
     timeBlock = (
-      <p className={cn('flex items-baseline tabular-nums tracking-tight text-foreground')} style={timeStyle}>
+      <p className={cn('flex items-baseline tabular-nums text-foreground')} style={timeStyle}>
         {time.split('').map((char, index) => (
           <FlipDigit key={`${index}-${char}`} char={char} />
         ))}
@@ -250,7 +253,8 @@ export function ClockTile({ style, layout }: ClockTileProps): JSX.Element {
       data-clock-capped={sizeCapped ? '1' : undefined}
       data-clock-font-size={fontSize.toFixed(0)}
       className={cn(
-        'flex h-full w-full select-none items-center justify-center overflow-hidden rounded-xl px-3 py-2',
+        'clock-face flex h-full w-full select-none items-center justify-center overflow-hidden rounded-xl px-3 py-2',
+        mode === 'mono' && 'clock-face-mono',
         vertical ? 'flex-col' : 'flex-row'
       )}
     >

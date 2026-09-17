@@ -10,8 +10,14 @@ export type ReviewRating = 0 | 1 | 2 | 3
 export type ToolCategory = 'image' | 'audio' | 'video' | 'doc' | 'download' | 'extract' | 'calc' | 'flashcard'
 export type DependencyId = 'pandoc' | 'ffmpeg' | 'yt-dlp' | 'playwright'
 export type ThemeMode = 'dark' | 'light' | 'system'
-/** 预设配色方案（主题）：决定中性色与强调色，与深浅色正交，两者自由组合 */
+/**
+ * 预设主题，分两类：
+ * - 配色方案：默认主题的 10 种配色，只换颜色，不换结构；
+ * - 风格主题：在配色之外还改圆角、描边、阴影、字体与页面底纹。
+ * 两类都与深浅色正交，任意主题都能在深色 / 浅色下使用。
+ */
 export type ThemePreset =
+  /* 默认主题的 10 种配色 */
   | 'minimal'
   | 'mono'
   | 'paper'
@@ -22,6 +28,15 @@ export type ThemePreset =
   | 'midnight'
   | 'plum'
   | 'forest'
+  /* 独立风格主题 */
+  | 'nord'
+  | 'dracula'
+  | 'gruvbox'
+  | 'catppuccin'
+  | 'tokyonight'
+  | 'synthwave'
+  | 'brutalism'
+  | 'terminal'
 export type FontSize = 'sm' | 'md' | 'lg' | 'xl'
 export type PomodoroPhase = 'focus' | 'shortBreak' | 'longBreak'
 /**
@@ -151,6 +166,36 @@ export interface NoteInput {
   tags?: string[]
   /** 是否生成/更新遗忘曲线复习条目 */
   enableReview?: boolean
+}
+
+/** 导入外部文档为笔记时的选项 */
+export interface NoteImportOptions {
+  /** 归属任务（不传则不关联） */
+  taskId?: number | null
+  /** 归属项目，缺省时跟随任务 */
+  projectId?: number | null
+  /** 导入为哪种类型，默认「资料」 */
+  kind?: NoteKind
+  /** 是否按一级标题把长文档拆成多条笔记 */
+  splitByHeading?: boolean
+}
+
+/** 单个文件的导入结果 */
+export interface NoteImportItem {
+  file: string
+  ok: boolean
+  /** 失败原因（ok=false 时有值） */
+  reason?: string
+  /** 成功时生成的笔记 id（拆分后可能多条） */
+  noteIds?: number[]
+  format?: string
+  chars?: number
+  engine?: string
+}
+
+export interface NoteImportSummary {
+  created: Note[]
+  items: NoteImportItem[]
 }
 
 export interface ScheduleEvent {

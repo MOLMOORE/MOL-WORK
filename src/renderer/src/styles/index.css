@@ -3,34 +3,77 @@
 @tailwind utilities;
 
 /* ==========================================================================
+   时钟专用可变字体
+   系统自带的中文黑体（微软雅黑 / 苹方）只有 400 与 700 两档字重，
+   所以 300/400/500 会画成一样粗、600/700/800 会被合成同一档。
+   这里内置 Inter 与 JetBrains Mono 的可变字体（wght 轴 100-900），
+   笔画粗细的 6 个档位才真正各自对应一个可感知的粗细。
+   字体来源：@fontsource-variable/inter、@fontsource-variable/jetbrains-mono（OFL 许可）。
+   ========================================================================== */
+@font-face {
+  font-family: 'MW Clock Sans';
+  src: url('../assets/fonts/inter-variable-latin.woff2') format('woff2');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'MW Clock Mono';
+  src: url('../assets/fonts/jetbrains-mono-variable-latin.woff2') format('woff2');
+  font-weight: 100 800;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* ==========================================================================
    主题令牌
-   配色 = 「中性色旋钮 + 强调色旋钮」两组变量推导。
-   深浅色由 [data-theme] 决定，配色方案由 [data-preset] 决定，两者互不干扰，
-   新增一套主题只需覆盖几个旋钮，不必重写全部颜色。
+   颜色 = 「中性色旋钮 + 强调色旋钮」两组变量推导；
+   深浅色由 [data-theme] 决定，主题由 [data-preset] 决定，两者互不干扰。
+   「默认配色」类主题只覆盖颜色旋钮；
+   「风格主题」额外覆盖结构旋钮（圆角 / 描边宽度 / 阴影 / 字体 / 页面底纹 / 辉光）。
    ========================================================================== */
 @layer base {
   :root,
   [data-theme='light'] {
-    /* 旋钮默认值 = 素白简约（浅色） */
-    --p-h: 212;            /* 强调色色相 */
-    --p-s: 85%;            /* 强调色饱和 */
-    --p-l: 52%;            /* 强调色明度 */
-    --p-l-text: 40%;       /* 着色标签上的文字 */
-    --p-on: 0 0% 100%;     /* 强调色填充上的文字 */
-    --n-h: 220;            /* 中性色色相 */
-    --n-s: 14%;            /* 中性色饱和 */
+    /* 强调色与中性色（默认值 = 素白简约·浅色） */
+    --p-h: 212;
+    --p-s: 85%;
+    --p-l: 52%;
+    --p-l-text: 40%;
+    --p-on: 0 0% 100%;
+    --n-h: 220;
+    --n-s: 14%;
     --n-s-fg: 16%;
     --n-s-muted: 12%;
-    --n-l-page: 98%;       /* 页面底 */
-    --n-l-surface: 100%;   /* 顶栏 / 侧栏 */
-    --n-l-card: 100%;      /* 卡片 */
-    --n-l-input: 97%;      /* 输入底 */
-    --n-l-muted: 95%;      /* 次级底 */
-    --n-l-border: 89%;     /* 描边 */
-    --n-fg: 20%;           /* 正文 */
-    --n-fg-muted: 46%;     /* 次要文字 */
+    --n-l-page: 98%;
+    --n-l-surface: 100%;
+    --n-l-card: 100%;
+    --n-l-input: 97%;
+    --n-l-muted: 95%;
+    --n-l-border: 89%;
+    --n-fg: 20%;
+    --n-fg-muted: 46%;
     --shadow-card: 0 1px 2px rgba(16, 24, 40, 0.05);
     --shadow-pop: 0 12px 32px -12px rgba(16, 24, 40, 0.18);
+
+    /* 结构旋钮：风格主题靠这几个变量改版式观感 */
+    --r-sm: 4px;
+    --r-md: 6px;
+    --r-lg: 8px;
+    --r-xl: 10px;
+    --r-2xl: 12px;
+    --border-w: 1px;
+    --card-alpha: 1;
+    --surface-alpha: 1;
+    --page-bg-image: none;
+    --card-bg-image: none;
+    --font-ui: Inter, 'PingFang SC', 'Microsoft YaHei', system-ui, -apple-system, sans-serif;
+    --clock-font: 'MW Clock Sans', Inter, 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
+    --clock-font-mono: 'MW Clock Mono', ui-monospace, 'Cascadia Mono', Consolas, 'Microsoft YaHei', monospace;
+    --title-transform: none;
+    --title-spacing: -0.01em;
+    --title-weight: 600;
+    --clock-glow: none;
 
     /* 状态色：色相固定，明度随深浅色切换 */
     --success: 152 52% 38%;
@@ -83,15 +126,14 @@
     --chart-5: 268 60% 68%;
   }
 
-  /* 派生令牌：任何带 data-theme 的元素（含设置页的主题预览卡）都按自己身上的旋钮重算一遍 */
+  /* 派生令牌：任何带 data-theme 的元素（含设置页的主题预览卡）都按自己身上的旋钮重算 */
   :root,
   [data-theme='light'],
   [data-theme='dark'],
   .themed {
-    /* 推导：语义色 */
     --background: var(--n-h) var(--n-s) var(--n-l-page);
-    --surface: var(--n-h) var(--n-s) var(--n-l-surface);
-    --card: var(--n-h) var(--n-s) var(--n-l-card);
+    --surface: var(--n-h) var(--n-s) var(--n-l-surface) / var(--surface-alpha);
+    --card: var(--n-h) var(--n-s) var(--n-l-card) / var(--card-alpha);
     --border: var(--n-h) var(--n-s) var(--n-l-border);
     --input: var(--n-h) var(--n-s) var(--n-l-input);
     --ring: var(--p-h) var(--p-s) var(--p-l);
@@ -103,12 +145,11 @@
     --accent: var(--p-h) var(--p-s) var(--p-l);
     --accent-foreground: var(--p-on);
     --tint-primary: var(--p-h) var(--p-s) var(--p-l-text);
-
   }
 
-  /* ========================== 预设配色方案 ========================== */
+  /* ==================== 一、默认主题的 10 种配色（只改颜色） ==================== */
 
-  /* 素白简约（默认）：冷中性 + 克制蓝，细描边、无渐变无光晕 */
+  /* 素白简约（默认）：冷中性 + 克制蓝 */
   [data-preset='minimal'] {
     --p-h: 212; --p-s: 85%; --n-h: 220; --n-s: 14%;
   }
@@ -138,28 +179,28 @@
   }
   [data-preset='paper'][data-theme='dark'] { --n-l-page: 10%; --n-l-card: 13%; }
 
-  /* 靛青：清冷蓝绿，信息密度高的工作台 */
+  /* 靛青：清冷青蓝 */
   [data-preset='ocean'] {
-    --p-h: 196; --p-s: 78%; --n-h: 202; --n-s: 18%;
+    --p-h: 194; --p-s: 86%; --n-h: 202; --n-s: 20%;
   }
-  [data-preset='ocean'][data-theme='light'] { --p-l: 40%; --p-l-text: 32%; }
+  [data-preset='ocean'][data-theme='light'] { --p-l: 39%; --p-l-text: 31%; }
   [data-preset='ocean'][data-theme='dark'] { --n-l-page: 10%; --n-l-surface: 13%; --n-l-card: 14%; }
 
-  /* 苔原：低饱和草绿，长时间阅读最省眼 */
+  /* 苔原：草绿强调，最省眼 */
   [data-preset='moss'] {
-    --p-h: 145; --p-s: 44%; --n-h: 128; --n-s: 12%;
+    --p-h: 142; --p-s: 48%; --n-h: 128; --n-s: 14%;
   }
-  [data-preset='moss'][data-theme='light'] { --p-l: 34%; --p-l-text: 28%; --n-l-page: 98%; }
+  [data-preset='moss'][data-theme='light'] { --p-l: 32%; --p-l-text: 26%; --n-l-page: 98%; }
   [data-preset='moss'][data-theme='dark'] { --n-l-page: 10%; --n-l-card: 13%; }
 
   /* 暮沙：暖沙底 + 赤陶橙 */
   [data-preset='sand'] {
-    --p-h: 22; --p-s: 74%; --n-h: 32; --n-s: 22%; --n-s-fg: 20%;
+    --p-h: 19; --p-s: 80%; --n-h: 32; --n-s: 24%; --n-s-fg: 20%;
   }
-  [data-preset='sand'][data-theme='light'] { --p-l: 46%; --p-l-text: 38%; --n-l-page: 97%; }
+  [data-preset='sand'][data-theme='light'] { --p-l: 45%; --p-l-text: 37%; --n-l-page: 97%; }
   [data-preset='sand'][data-theme='dark'] { --n-l-page: 10%; --n-l-card: 13%; }
 
-  /* 石墨：纯中性深灰，克制的工业感 */
+  /* 石墨：纯中性深灰，强调只用亮灰 */
   [data-preset='graphite'] {
     --p-h: 210; --p-s: 12%; --n-h: 210; --n-s: 8%; --n-s-fg: 6%;
   }
@@ -170,9 +211,9 @@
   }
   [data-preset='graphite'][data-theme='light'] { --p-l: 30%; --p-l-text: 26%; }
 
-  /* 午夜靛蓝：深蓝底 + 亮靛强调 */
+  /* 午夜靛蓝：深蓝夜色 + 亮靛 */
   [data-preset='midnight'] {
-    --p-h: 226; --p-s: 84%; --n-h: 228; --n-s: 24%;
+    --p-h: 226; --p-s: 84%; --n-h: 228; --n-s: 26%;
   }
   [data-preset='midnight'][data-theme='dark'] {
     --n-l-page: 8%; --n-l-surface: 12%; --n-l-card: 14%; --n-l-input: 18%;
@@ -180,19 +221,20 @@
   }
   [data-preset='midnight'][data-theme='light'] { --p-l: 48%; --p-l-text: 42%; }
 
-  /* 紫棠：暗紫底 + 兰紫强调 */
+  /* 紫棠：暗紫底 + 兰紫 */
   [data-preset='plum'] {
-    --p-h: 268; --p-s: 66%; --n-h: 272; --n-s: 16%;
+    --p-h: 268; --p-s: 74%; --n-h: 272; --n-s: 20%;
   }
   [data-preset='plum'][data-theme='dark'] {
+    --p-l: 68%; --p-l-text: 76%;
     --n-l-page: 9%; --n-l-surface: 12%; --n-l-card: 14%; --n-l-input: 18%;
     --n-l-muted: 19%; --n-l-border: 24%;
   }
-  [data-preset='plum'][data-theme='light'] { --p-l: 50%; --p-l-text: 42%; }
+  [data-preset='plum'][data-theme='light'] { --p-l: 46%; --p-l-text: 40%; }
 
   /* 墨绿夜色：近黑的墨绿底 */
   [data-preset='forest'] {
-    --p-h: 152; --p-s: 48%; --n-h: 160; --n-s: 14%;
+    --p-h: 152; --p-s: 48%; --n-h: 160; --n-s: 16%;
   }
   [data-preset='forest'][data-theme='dark'] {
     --p-l: 58%; --p-l-text: 66%; --p-on: 160 20% 8%;
@@ -200,6 +242,253 @@
     --n-l-muted: 18%; --n-l-border: 23%;
   }
   [data-preset='forest'][data-theme='light'] { --p-l: 32%; --p-l-text: 26%; }
+
+  /* ==================== 二、风格主题（配色 + 版式一起换） ==================== */
+
+  /* 北欧极光 Nord：Polar Night + Frost，扁平无投影、小直角 */
+  [data-preset='nord'] {
+    --p-h: 197; --p-s: 43%; --n-h: 217; --n-s: 15%; --n-s-fg: 16%; --n-s-muted: 14%;
+    --r-sm: 2px; --r-md: 3px; --r-lg: 4px; --r-xl: 4px; --r-2xl: 6px;
+    --shadow-card: none;
+    --title-spacing: 0.01em;
+  }
+  [data-preset='nord'][data-theme='dark'] {
+    --p-l: 67%; --p-l-text: 74%; --p-on: 217 25% 18%;
+    --n-l-page: 22%; --n-l-surface: 25%; --n-l-card: 28%; --n-l-input: 32%;
+    --n-l-muted: 33%; --n-l-border: 36%; --n-fg: 93%; --n-fg-muted: 68%;
+    --shadow-pop: 0 18px 40px -18px rgba(0, 0, 0, 0.5);
+  }
+  [data-preset='nord'][data-theme='light'] {
+    --p-h: 214; --p-s: 31%; --p-l: 44%; --p-l-text: 36%;
+    --n-l-page: 93%; --n-l-surface: 95%; --n-l-card: 97%; --n-l-input: 99%;
+    --n-l-muted: 91%; --n-l-border: 85%; --n-fg: 26%; --n-fg-muted: 44%;
+  }
+
+  /* 德古拉 Dracula：暗紫灰 + 粉紫青，卡片带霓虹描边 */
+  [data-preset='dracula'] {
+    --p-h: 326; --p-s: 100%; --n-h: 240; --n-s: 18%; --n-s-fg: 20%; --n-s-muted: 16%;
+    --r-lg: 8px; --r-xl: 10px; --r-2xl: 12px;
+  }
+  [data-preset='dracula'][data-theme='dark'] {
+    --p-l: 74%; --p-l-text: 80%; --p-on: 326 60% 12%;
+    --n-l-page: 16%; --n-l-surface: 19%; --n-l-card: 21%; --n-l-input: 25%;
+    --n-l-muted: 26%; --n-l-border: 36%; --n-fg: 96%; --n-fg-muted: 66%;
+    --shadow-card: 0 0 0 1px hsl(265 89% 78% / 0.14), 0 10px 26px -18px hsl(326 100% 74% / 0.6);
+    --chart-2: 128 76% 62%;
+    --chart-3: 33 100% 69%;
+    --chart-4: 186 93% 70%;
+    --chart-5: 265 89% 78%;
+  }
+  [data-preset='dracula'][data-theme='light'] {
+    --p-h: 265; --p-s: 89%; --p-l: 52%; --p-l-text: 42%;
+    --n-l-page: 97%; --n-l-surface: 99%; --n-l-card: 100%; --n-l-input: 98%;
+    --n-l-muted: 95%; --n-l-border: 88%; --n-fg: 26%; --n-fg-muted: 46%;
+    --shadow-card: 0 0 0 1px hsl(265 89% 78% / 0.18), 0 8px 22px -18px hsl(265 89% 52% / 0.5);
+  }
+  [data-preset='dracula'] .glass-card:hover {
+    border-color: hsl(var(--primary) / 0.6);
+  }
+
+  /* 复古木纹 Gruvbox：暖褐 + 姜黄，直角、双线描边、纸纹底 */
+  [data-preset='gruvbox'] {
+    --p-h: 45; --p-s: 95%; --n-h: 30; --n-s: 18%; --n-s-fg: 14%; --n-s-muted: 14%;
+    --r-sm: 0px; --r-md: 0px; --r-lg: 0px; --r-xl: 0px; --r-2xl: 0px;
+    --title-transform: uppercase;
+    --title-spacing: 0.04em;
+    --title-weight: 700;
+  }
+  [data-preset='gruvbox'][data-theme='dark'] {
+    --p-l: 58%; --p-l-text: 66%; --p-on: 30 20% 10%;
+    --n-l-page: 15%; --n-l-surface: 18%; --n-l-card: 21%; --n-l-input: 24%;
+    --n-l-muted: 25%; --n-l-border: 31%; --n-fg: 87%; --n-fg-muted: 64%;
+    --shadow-card: inset 0 0 0 1px hsl(30 15% 28%);
+    --success: 64 66% 44%; --success-text: 64 66% 60%;
+    --warning: 28 99% 55%; --warning-text: 28 99% 66%;
+    --danger: 4 74% 67%; --danger-text: 4 74% 72%;
+    --info: 169 33% 55%; --info-text: 169 33% 66%;
+  }
+  [data-preset='gruvbox'][data-theme='light'] {
+    --p-h: 17; --p-s: 100%; --p-l: 34%; --p-l-text: 30%; --p-on: 45 90% 95%;
+    --n-l-page: 88%; --n-l-surface: 92%; --n-l-card: 94%; --n-l-input: 96%;
+    --n-l-muted: 90%; --n-l-border: 78%; --n-fg: 22%; --n-fg-muted: 40%;
+    --shadow-card: inset 0 0 0 1px hsl(30 30% 74%);
+  }
+  [data-preset='gruvbox'] {
+    --page-bg-image: repeating-linear-gradient(
+      135deg,
+      hsl(var(--n-h) var(--n-s) 50% / 0.045) 0 2px,
+      transparent 2px 6px
+    );
+  }
+
+  /* 卡布奇诺 Catppuccin：豆沙紫中性 + 大圆角软阴影 */
+  [data-preset='catppuccin'] {
+    --p-h: 267; --p-s: 84%; --n-h: 234; --n-s: 22%; --n-s-fg: 20%; --n-s-muted: 18%;
+    --r-sm: 8px; --r-md: 10px; --r-lg: 14px; --r-xl: 16px; --r-2xl: 20px;
+    --title-weight: 650;
+  }
+  [data-preset='catppuccin'][data-theme='dark'] {
+    --p-l: 78%; --p-l-text: 82%; --p-on: 267 40% 16%;
+    --n-l-page: 15%; --n-l-surface: 18%; --n-l-card: 20%; --n-l-input: 24%;
+    --n-l-muted: 25%; --n-l-border: 31%; --n-fg: 88%; --n-fg-muted: 65%;
+    --shadow-card: 0 6px 20px -14px hsl(234 40% 3% / 0.9);
+    --shadow-pop: 0 24px 60px -22px hsl(234 40% 3% / 0.95);
+  }
+  [data-preset='catppuccin'][data-theme='light'] {
+    --p-h: 266; --p-s: 82%; --p-l: 54%; --p-l-text: 44%;
+    --n-l-page: 94%; --n-l-surface: 96%; --n-l-card: 98%; --n-l-input: 100%;
+    --n-l-muted: 92%; --n-l-border: 86%; --n-fg: 34%; --n-fg-muted: 50%;
+    --shadow-card: 0 6px 18px -14px hsl(234 30% 30% / 0.5);
+  }
+
+  /* 东京夜色 Tokyo Night：墨蓝 + 靛青紫，卡片顶部一道渐变光带 */
+  [data-preset='tokyonight'] {
+    --p-h: 229; --p-s: 89%; --n-h: 233; --n-s: 20%; --n-s-fg: 22%; --n-s-muted: 18%;
+    --r-lg: 8px; --r-xl: 10px;
+  }
+  [data-preset='tokyonight'][data-theme='dark'] {
+    --p-l: 73%; --p-l-text: 78%; --p-on: 229 60% 12%;
+    --n-l-page: 13%; --n-l-surface: 16%; --n-l-card: 18%; --n-l-input: 22%;
+    --n-l-muted: 23%; --n-l-border: 29%; --n-fg: 86%; --n-fg-muted: 62%;
+    --shadow-card: 0 0 24px -18px hsl(229 89% 73% / 0.9);
+    --chart-2: 84 62% 62%;
+    --chart-3: 39 68% 64%;
+    --chart-4: 192 94% 70%;
+    --chart-5: 261 84% 80%;
+  }
+  [data-preset='tokyonight'][data-theme='light'] {
+    --p-h: 213; --p-s: 73%; --p-l: 39%; --p-l-text: 32%;
+    --n-l-page: 93%; --n-l-surface: 96%; --n-l-card: 98%; --n-l-input: 100%;
+    --n-l-muted: 91%; --n-l-border: 84%; --n-fg: 27%; --n-fg-muted: 45%;
+  }
+  [data-preset='tokyonight'] .glass-card {
+    position: relative;
+  }
+  [data-preset='tokyonight'] .glass-card::after {
+    content: '';
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 1px;
+    border-radius: inherit;
+    background: linear-gradient(90deg, transparent, hsl(var(--primary) / 0.6), hsl(261 84% 74% / 0.45), transparent);
+    pointer-events: none;
+  }
+
+  /* 赛博霓虹 SynthWave：渐变夜色页面底 + 半透明卡片 + 霓虹辉光 */
+  [data-preset='synthwave'] {
+    --p-h: 316; --p-s: 95%; --n-h: 268; --n-s: 34%; --n-s-fg: 30%; --n-s-muted: 30%;
+    --r-sm: 3px; --r-md: 4px; --r-lg: 5px; --r-xl: 6px; --r-2xl: 8px;
+    --card-alpha: 0.6;
+    --surface-alpha: 0.72;
+    --title-transform: uppercase;
+    --title-spacing: 0.08em;
+    --title-weight: 700;
+    --clock-glow: 0 0 12px hsl(var(--primary) / 0.6), 0 0 34px hsl(189 92% 55% / 0.4);
+    --page-bg-image:
+      radial-gradient(1100px 520px at 12% -10%, hsl(316 95% 55% / 0.28), transparent 62%),
+      radial-gradient(900px 480px at 88% 4%, hsl(189 92% 55% / 0.2), transparent 60%),
+      linear-gradient(180deg, hsl(258 46% 12%) 0%, hsl(284 50% 15%) 55%, hsl(322 54% 13%) 100%);
+  }
+  [data-preset='synthwave'][data-theme='dark'] {
+    --p-l: 72%; --p-l-text: 80%; --p-on: 316 70% 12%;
+    --n-l-page: 12%; --n-l-surface: 16%; --n-l-card: 20%; --n-l-input: 24%;
+    --n-l-muted: 25%; --n-l-border: 34%; --n-fg: 96%; --n-fg-muted: 70%;
+    --shadow-card: 0 0 0 1px hsl(316 95% 70% / 0.18), 0 18px 40px -24px hsl(316 95% 60% / 0.6);
+  }
+  [data-preset='synthwave'][data-theme='light'] {
+    --p-l: 46%; --p-l-text: 40%;
+    --n-l-page: 95%; --n-l-surface: 97%; --n-l-card: 99%; --n-l-input: 100%;
+    --n-l-muted: 93%; --n-l-border: 85%; --n-fg: 26%; --n-fg-muted: 46%;
+    --card-alpha: 0.86;
+    --surface-alpha: 0.92;
+    --clock-glow: 0 0 10px hsl(var(--primary) / 0.35);
+    --page-bg-image:
+      radial-gradient(900px 480px at 10% -8%, hsl(316 90% 70% / 0.35), transparent 60%),
+      linear-gradient(180deg, hsl(190 90% 96%), hsl(316 80% 96%));
+  }
+  [data-preset='synthwave'] .glass-card {
+    backdrop-filter: blur(8px) saturate(1.25);
+  }
+
+  /* 粗野主义 Neo-brutalism：2px 描边 + 硬投影 + 直角 + 大写粗标题 */
+  [data-preset='brutalism'] {
+    --p-h: 50; --p-s: 100%; --n-h: 45; --n-s: 32%; --n-s-fg: 20%; --n-s-muted: 24%;
+    --r-sm: 0px; --r-md: 0px; --r-lg: 0px; --r-xl: 0px; --r-2xl: 0px;
+    --border-w: 2px;
+    --title-transform: uppercase;
+    --title-spacing: 0.02em;
+    --title-weight: 800;
+    --font-ui: 'Segoe UI', Inter, 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
+  }
+  [data-preset='brutalism'][data-theme='light'] {
+    --p-l: 50%; --p-l-text: 22%; --p-on: 45 40% 8%;
+    --n-l-page: 95%; --n-l-surface: 98%; --n-l-card: 100%; --n-l-input: 100%;
+    --n-l-muted: 93%; --n-l-border: 12%; --n-fg: 8%; --n-fg-muted: 30%;
+    --shadow-card: 4px 4px 0 0 hsl(45 20% 8%);
+    --shadow-pop: 8px 8px 0 0 hsl(45 20% 8% / 0.9);
+  }
+  [data-preset='brutalism'][data-theme='dark'] {
+    --p-l: 62%; --p-l-text: 70%; --p-on: 45 60% 8%;
+    --n-h: 0; --n-s: 0%; --n-s-fg: 0%; --n-s-muted: 0%;
+    --n-l-page: 7%; --n-l-surface: 10%; --n-l-card: 11%; --n-l-input: 14%;
+    --n-l-muted: 16%; --n-l-border: 88%; --n-fg: 96%; --n-fg-muted: 70%;
+    --shadow-card: 4px 4px 0 0 hsl(0 0% 100% / 0.85);
+    --shadow-pop: 8px 8px 0 0 hsl(0 0% 100% / 0.8);
+  }
+  [data-preset='brutalism'] .glass-card,
+  [data-preset='brutalism'] .field-base,
+  [data-preset='brutalism'] .seg-base {
+    border-width: 2px;
+  }
+  [data-preset='brutalism'] .section-title {
+    text-transform: var(--title-transform);
+  }
+
+  /* 荧光终端 CRT：纯黑底 + 荧光绿等宽字 + 扫描线 */
+  [data-preset='terminal'] {
+    --p-h: 140; --p-s: 100%; --n-h: 150; --n-s: 26%; --n-s-fg: 22%; --n-s-muted: 22%;
+    --r-sm: 0px; --r-md: 0px; --r-lg: 0px; --r-xl: 0px; --r-2xl: 0px;
+    --font-ui: 'Cascadia Mono', 'JetBrains Mono', Consolas, 'Courier New', 'Microsoft YaHei', monospace;
+    --clock-font: 'MW Clock Mono', 'Cascadia Mono', Consolas, 'Microsoft YaHei', monospace;
+    --title-transform: uppercase;
+    --title-spacing: 0.06em;
+    --title-weight: 600;
+    --clock-glow: 0 0 10px hsl(var(--primary) / 0.65), 0 0 26px hsl(var(--primary) / 0.35);
+  }
+  [data-preset='terminal'][data-theme='dark'] {
+    --p-l: 60%; --p-l-text: 70%; --p-on: 140 80% 6%;
+    --n-l-page: 4%; --n-l-surface: 6%; --n-l-card: 7%; --n-l-input: 10%;
+    --n-l-muted: 11%; --n-l-border: 18%; --n-fg: 80%; --n-fg-muted: 52%;
+    --shadow-card: 0 0 0 1px hsl(140 100% 60% / 0.12), 0 0 22px -12px hsl(140 100% 60% / 0.6);
+    --success: 140 100% 60%; --success-text: 140 100% 70%;
+    --warning: 60 100% 60%; --warning-text: 60 100% 72%;
+    --danger: 350 95% 62%; --danger-text: 350 100% 74%;
+    --info: 175 90% 55%; --info-text: 175 95% 70%;
+  }
+  [data-preset='terminal'][data-theme='light'] {
+    --p-h: 152; --p-s: 82%; --p-l: 26%; --p-l-text: 24%; --p-on: 150 40% 96%;
+    --n-l-page: 96%; --n-l-surface: 98%; --n-l-card: 100%; --n-l-input: 99%;
+    --n-l-muted: 94%; --n-l-border: 80%; --n-fg: 18%; --n-fg-muted: 40%;
+    --clock-glow: none;
+  }
+  [data-preset='terminal'][data-theme='dark'] body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    pointer-events: none;
+    background: repeating-linear-gradient(
+      0deg,
+      rgba(0, 0, 0, 0.22) 0 1px,
+      transparent 1px 3px
+    );
+    mix-blend-mode: multiply;
+  }
+
+  /* 风格主题里的时钟辉光统一走这个变量 */
+  [data-preset] .clock-face {
+    text-shadow: var(--clock-glow);
+  }
 
   * {
     border-color: hsl(var(--border));
@@ -213,9 +502,8 @@
 
   body {
     @apply bg-background text-foreground antialiased;
-    font-family: Inter, 'PingFang SC', 'Microsoft YaHei', system-ui, -apple-system, sans-serif;
+    font-family: var(--font-ui);
     overflow: hidden;
-    /* 换主题时整体淡入淡出，避免生硬跳色 */
     transition: background-color 180ms ease, color 180ms ease;
   }
 
@@ -256,9 +544,16 @@
 }
 
 @layer components {
-  /* 卡片：实底 + 1px 细描边 + 极轻投影 */
+  /* 应用外壳：风格主题的页面底纹（渐变 / 纸纹 / 扫描线）落在这里 */
+  .app-shell {
+    background-image: var(--page-bg-image);
+  }
+
+  /* 卡片：实底 + 细描边 + 极轻投影；描边宽度与圆角由主题旋钮决定 */
   .glass-card {
     @apply rounded-xl border border-border bg-card shadow-card transition-colors duration-200;
+    border-width: var(--border-w);
+    background-image: var(--card-bg-image);
   }
 
   .glass-card-hover {
@@ -270,11 +565,29 @@
       placeholder:text-muted-foreground/70 transition-colors duration-150
       focus:border-primary focus:ring-2 focus:ring-primary/20
       disabled:cursor-not-allowed disabled:opacity-50;
+    border-width: var(--border-w);
   }
 
-  /* 分段控件：取代原来的渐变胶囊 */
+  /* 分段控件 */
   .seg-base {
     @apply inline-flex items-center gap-1 rounded-lg border border-border bg-muted p-0.5;
+    border-width: var(--border-w);
+  }
+
+  /* 区块标题：风格主题靠 --title-* 旋钮改写字母间距与是否大写 */
+  .section-title {
+    letter-spacing: var(--title-spacing);
+    font-weight: var(--title-weight);
+  }
+
+  /* 时钟方块：使用内置可变字体，笔画粗细 6 档真实可辨 */
+  .clock-face {
+    font-family: var(--clock-font);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .clock-face-mono {
+    font-family: var(--clock-font-mono);
   }
 
   .page-enter {

@@ -5,6 +5,8 @@ import type {
   DependencyStatus,
   FocusSession,
   Note,
+  NoteImportOptions,
+  NoteImportSummary,
   NoteInput,
   OverviewData,
   ProcrastinationItem,
@@ -107,6 +109,10 @@ export interface WorkstationApi {
     get(id: number): Promise<Note>
     save(input: NoteInput): Promise<Note>
     remove(id: number): Promise<void>
+    /** 弹出系统文件选择框（可多选）并导入 */
+    importPick(options?: NoteImportOptions): Promise<NoteImportSummary>
+    /** 导入指定路径的文件（拖拽进窗口时用） */
+    importFiles(paths: string[], options?: NoteImportOptions): Promise<NoteImportSummary>
   }
   schedule: {
     range(from: string, to: string): Promise<ScheduleEvent[]>

@@ -25,9 +25,12 @@ import {
   CLOCK_WEIGHT_TIERS,
   CLOCK_WIDTH_TIERS,
   FONT_SIZE_META,
+  THEME_GROUP_META,
   THEME_PRESETS,
+  themePresetsOf,
   nearestTier,
-  resolveClockSettings
+  resolveClockSettings,
+  type ThemeGroup
 } from '@shared/constants'
 import { Card, SectionHeader } from '../components/ui/Card'
 import { Badge, Spinner } from '../components/ui/Feedback'
@@ -42,7 +45,7 @@ import { cn, todayKey } from '../lib/utils'
 
 /** 设置分区：列表页纵向排列，点击进入详情修改 */
 const SECTIONS: { key: string; title: string; description: string; icon: typeof Palette }[] = [
-  { key: 'general', title: '外观与通用', description: '称呼、主题配色（10 套预设）、深浅色与字号', icon: Palette },
+  { key: 'general', title: '外观与通用', description: '称呼、10 套默认配色 + 8 套风格主题、深浅色与字号', icon: Palette },
   { key: 'review', title: '复习与计划', description: '复习算法、每日上限、工作时段与自动排程', icon: Repeat },
   { key: 'notify', title: '提醒与通知', description: '提醒提前量与截止提醒提示音', icon: Bell },
   { key: 'pomodoro', title: '番茄钟', description: '专注时长、休息节奏与阶段提示音', icon: Timer },
@@ -168,16 +171,39 @@ function OptionRow(props: {
   )
 }
 
-/** 主题配色选择：每张卡片用真实 CSS 变量渲染一个迷你窗口，所见即所得 */
+/** 主题选择：先「默认配色」后「风格主题」，每张卡片用真实 CSS 变量渲染一个迷你窗口，所见即所得 */
 function ThemePicker(props: {
   value: ThemePreset
   mode: 'dark' | 'light'
   onChange: (value: ThemePreset) => void
 }): JSX.Element {
   const { value, mode, onChange } = props
+  const groups: ThemeGroup[] = ['palette', 'style']
+  return (
+    <>
+      {groups.map((group) => (
+        <div key={group} className="grid gap-1.5">
+          <p className="text-[11px] font-medium text-foreground">
+            {THEME_GROUP_META[group].label}
+            <span className="ml-1.5 font-normal text-muted-foreground/80">{THEME_GROUP_META[group].description}</span>
+          </p>
+          <ThemeGrid group={group} value={value} mode={mode} onChange={onChange} />
+        </div>
+      ))}
+    </>
+  )
+}
+
+function ThemeGrid(props: {
+  group: ThemeGroup
+  value: ThemePreset
+  mode: 'dark' | 'light'
+  onChange: (value: ThemePreset) => void
+}): JSX.Element {
+  const { group, value, mode, onChange } = props
   return (
     <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
-      {THEME_PRESETS.map((preset) => {
+      {themePresetsOf(group).map((preset) => {
         const selected = preset.key === value
         return (
           <button
@@ -190,7 +216,12 @@ function ThemePicker(props: {
               selected ? 'border-primary ring-2 ring-primary/25' : 'border-border hover:border-muted-foreground/60'
             )}
           >
-            <span className="themed block overflow-hidden rounded-md border border-border" data-preset={preset.key} data-theme={mode}>
+            <span
+              className="themed app-shell block overflow-hidden rounded-md border border-border"
+              data-preset={preset.key}
+              data-theme={mode}
+              style={{ borderWidth: 'var(--border-w)', backgroundImage: 'var(--page-bg-image)' }}
+            >
               <span className="flex items-center gap-1 px-1.5 py-1" style={{ background: 'hsl(var(--primary))' }}>
                 <span className="h-1.5 w-1.5 rounded-full" style={{ background: 'hsl(var(--primary-foreground))' }} />
                 <span className="h-1 w-6 rounded-full" style={{ background: 'hsl(var(--primary-foreground) / 0.65)' }} />
@@ -201,7 +232,11 @@ function ThemePicker(props: {
                 <span className="mt-1.5 flex gap-1">
                   <span
                     className="h-4 flex-1 rounded"
-                    style={{ background: 'hsl(var(--card))', boxShadow: 'inset 0 0 0 1px hsl(var(--border))' }}
+                    style={{
+                      background: 'hsl(var(--card))',
+                      boxShadow: 'inset 0 0 0 1px hsl(var(--border))',
+                      borderRadius: 'var(--r-lg)'
+                    }}
                   />
                   <span className="h-4 flex-1 rounded" style={{ background: 'hsl(var(--muted))' }} />
                 </span>
@@ -217,6 +252,21 @@ function ThemePicker(props: {
 
 /** 版本更新日志（新版本发布时在最上方追加一条） */
 const CHANGELOG: { version: string; date: string; items: string[] }[] = [
+  {
+    version: '1.2.4',
+    date: '2026-09-17',
+    items: [
+      '修复时钟「笔画粗细」六档只有两档生效：系统自带的中文黑体只有常规与粗体两个字重，导致中等=常规、粗与特粗退回半粗；现内置 Inter / JetBrains Mono 可变字体（wght 100-900），细、常规、中等、半粗、粗、特粗各自对应一个真实字重',
+      '时钟日期格式选「英文」时星期同步改为英文（Sep 17, 2026 · Thu），不再出现英文日期配中文星期',
+      '主题体系重构为两类：10 套「默认配色」保持版式一致只换颜色，并逐套拉开色相与饱和度差异；新增 8 套「风格主题」',
+      '新增风格主题：北欧极光 Nord、德古拉 Dracula、复古木纹 Gruvbox、卡布奇诺 Catppuccin、东京夜色 Tokyo Night、赛博霓虹 SynthWave、粗野主义 Neo-brutalism、荧光终端 CRT，配色取自各主题官方规范',
+      '风格主题改的是版式而不只是颜色：圆角体系、描边宽度、阴影与硬投影、字体（等宽 / 无衬线）、页面底纹与渐变、标题大小写与时钟辉光都随主题切换，设置页预览卡同步反映',
+      '笔记支持导入外部文档：PDF、DOCX / DOC、PPTX / PPT、XLSX / XLS、EPUB、ODT / ODS / ODP、HTML、RTF、Markdown、纯文本、CSV / TSV、JSON 与常见源代码文件',
+      '导入引擎全部内置离线可用：PDF 走内置 pdf.js（按字号还原标题层级与页码），Office 新格式走内置 OOXML 解析（标题 / 粗斜体 / 列表 / 表格 / 超链接 / 演讲者备注 / 多工作表），老式二进制 .doc/.ppt/.xls 自动改用本机 LibreOffice 或 Office 读取',
+      '导入支持多选与拖拽进窗口、GBK / UTF-8 / UTF-16 编码自动识别、超长文档截断保护，可选按一级标题拆分成多条笔记，并记录来源文件一键回开原文件',
+      '外部工具依赖页新增「笔记导入」支持格式说明；未装 Pandoc 时小众格式（RST / ORG / TEX / IPYNB）会给出明确提示'
+    ]
+  },
   {
     version: '1.2.3',
     date: '2026-09-17',
@@ -542,7 +592,8 @@ export function SettingsPage(): JSX.Element {
               />
               <p className="text-[11px] leading-relaxed text-muted-foreground/80">
                 {THEME_PRESETS.find((item) => item.key === draft.themePreset)?.hint ?? ''}。
-                配色与深浅色互不影响，上面显示的是当前{mode === 'dark' ? '深色' : '浅色'}下的效果。
+                默认配色只换颜色；风格主题连圆角、描边、阴影、字体与页面底纹一起换。
+                两者都与深浅色互不影响，上面显示的是当前{mode === 'dark' ? '深色' : '浅色'}下的效果。
               </p>
             </div>
             <div className="grid gap-2 rounded-lg border border-border bg-muted/25 p-3">
@@ -600,7 +651,7 @@ export function SettingsPage(): JSX.Element {
                     label="笔画粗细"
                     value={draft.clockFontWeight ?? 700}
                     tiers={CLOCK_WEIGHT_TIERS}
-                    format={(value) => value}
+                    format={(value) => '字重 ' + value}
                     onChange={(value) => void patch({ clockFontWeight: value })}
                   />
                   <TierRow
@@ -628,6 +679,8 @@ export function SettingsPage(): JSX.Element {
                 <p className="text-[11px] leading-relaxed text-muted-foreground/80">
                   选「自适应」时字号随时块大小变化；选固定档位时，若方块太小，
                   仍按能完整显示的最大尺寸呈现（把方块拖大即可看到该档位的真实效果）。
+                  笔画粗细已内置可变字体，细 / 常规 / 中等 / 半粗 / 粗 / 特粗 六档各对应一个真实字重，
+                  不再出现「中等看着和常规一样、粗和特粗又回到半粗」的情况。
                 </p>
               </div>
 
@@ -680,6 +733,7 @@ export function SettingsPage(): JSX.Element {
                 {CLOCK_STYLES.find((item) => item.key === clockStyle)?.hint ?? ''}
                 {CLOCK_LAYOUTS.find((item) => item.key === clockLayout)?.hint ?? ''}。
                 风格、摆放、形状档位与日期设置彼此独立，任意组合都立即生效。
+                日期格式选「英文」时，星期会跟着变成英文（如 Sep 17, 2026 · Thu）。
               </p>
             </div>
             <div className="grid grid-cols-2 gap-4">

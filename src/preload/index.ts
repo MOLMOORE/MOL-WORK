@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import { IPC_EVENTS } from '@shared/types/ipc'
 import type { CloseRequestPayload, ReminderPayload, WorkstationApi } from '@shared/types/ipc'
 import type {
@@ -8,6 +8,8 @@ import type {
   DependencyStatus,
   FocusSession,
   Note,
+  NoteImportOptions,
+  NoteImportSummary,
   NoteInput,
   OverviewData,
   ProcrastinationItem,
@@ -96,7 +98,10 @@ const api: WorkstationApi = {
     list: (taskId?: number | null) => invoke<Note[]>('note:list', taskId ?? null),
     get: (id: number) => invoke<Note>('note:get', id),
     save: (input: NoteInput) => invoke<Note>('note:save', input),
-    remove: (id: number) => invoke<void>('note:remove', id)
+    remove: (id: number) => invoke<void>('note:remove', id),
+    importPick: (options?: NoteImportOptions) => invoke<NoteImportSummary>('note:import-pick', options),
+    importFiles: (paths: string[], options?: NoteImportOptions) =>
+      invoke<NoteImportSummary>('note:import-files', paths, options)
   },
   schedule: {
     range: (from: string, to: string) => invoke<ScheduleEvent[]>('schedule:range', from, to),
@@ -152,6 +157,17 @@ const api: WorkstationApi = {
 }
 
 contextBridge.exposeInMainWorld('api', api)
+
+/** 拖拽导入用：Electron 32 起 File.path 已移除，只能由 preload 通过 webUtils 取绝对路径 */
+contextBridge.exposeInMainWorld('nativeFiles', {
+  pathForFile: (file: File): string => {
+    try {
+      return webUtils.getPathForFile(file)
+    } catch {
+      return ''
+    }
+  }
+})
 contextBridge.exposeInMainWorld('__workstationEvents', {
   reviewAutoScheduled: (callback: (payload: { date: string; count: number }) => void) =>
     subscribe<{ date: string; count: number }>(IPC_EVENTS.reviewAutoScheduled, callback)

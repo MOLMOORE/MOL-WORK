@@ -15,6 +15,10 @@ files:
   # 托盘图标随包分发（主进程用 app.getAppPath() 读取）
   - build/tray.png
   - '!**/*.map'
+  # 笔记导入用的 pdf.js 只保留 legacy 构建 + 中文字形映射 + 标准字体，其余目录不进安装包
+  - '!**/node_modules/pdfjs-dist/{build,lib,web,types,image_decoders,examples,test,iccs,scripts,codegen,display,src}/**'
+  - '!**/node_modules/pdfjs-dist/legacy/{image_decoders,core,display}/**'
+  - '!**/node_modules/pdfjs-dist/legacy/build/{pdf.min.js,pdf.sandbox.js,pdf.sandbox.min.js,pdf.worker.min.js,pdf.worker.entry.js}'
 
 # Playwright 需要以真实文件形式存在于磁盘上（asar 内无法定位驱动与浏览器）
 asarUnpack:

@@ -2,8 +2,9 @@ import { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { Eye, FileText, Layers, Pencil, Plus, Save, Search, Trash2 } from 'lucide-react'
-import type { NoteKind, ReviewRating } from '@shared/types/domain'
+import { Eye, FileText, Layers, Paperclip, Pencil, Plus, Save, Search, Trash2, Upload } from 'lucide-react'
+import type { NoteImportOptions, NoteImportSummary, NoteKind, ReviewRating } from '@shared/types/domain'
+import { IMPORT_FORMAT_GROUPS } from '@shared/constants'
 import { Card, SectionHeader } from '../components/ui/Card'
 import { Badge, EmptyState, Spinner } from '../components/ui/Feedback'
 import { Button, IconButton } from '../components/ui/Button'
@@ -60,6 +61,13 @@ export function NotesPage(): JSX.Element {
   const [createOpen, setCreateOpen] = useState(false)
   const [newTaskId, setNewTaskId] = useState<number | null>(null)
   const [newTitle, setNewTitle] = useState('')
+  // 导入外部文档（PDF / Word / PPT / 网页 / 纯文本 …）
+  const [importOpen, setImportOpen] = useState(false)
+  const [importing, setImporting] = useState(false)
+  const [dropping, setDropping] = useState(false)
+  const [importTaskId, setImportTaskId] = useState<number | null>(null)
+  const [importKind, setImportKind] = useState<NoteKind>('material')
+  const [importSplit, setImportSplit] = useState(false)
 
   useEffect(() => {
     void load()
@@ -126,6 +134,67 @@ export function NotesPage(): JSX.Element {
     pushToast({ title: `已排入 ${day} 日程`, tone: 'success' })
   }
 
+  const importOptions = (taskId: number | null): NoteImportOptions => ({
+    taskId,
+    kind: importKind,
+    splitByHeading: importSplit
+  })
+
+  const reportImport = async (summary: NoteImportSummary): Promise<void> => {
+    const failed = summary.items.filter((item) => !item.ok)
+    if (summary.created.length > 0) {
+      await load()
+      await select(summary.created[0].id)
+      await refreshOverview()
+      pushToast({
+        title: `已导入 ${summary.items.filter((item) => item.ok).length} 个文件，生成 ${summary.created.length} 条笔记`,
+        description: `最新一条：${summary.created[0].title}`,
+        tone: 'success'
+      })
+    }
+    failed.slice(0, 4).forEach((item) => {
+      pushToast({ title: `导入失败：${item.file}`, description: item.reason ?? '未知错误', tone: 'danger' })
+    })
+    if (failed.length > 4) {
+      pushToast({ title: `还有 ${failed.length - 4} 个文件未导入`, description: '多为老格式或扫描版 PDF，详见逐条提示', tone: 'warning' })
+    }
+  }
+
+  const handlePickImport = async (): Promise<void> => {
+    setImporting(true)
+    try {
+      await reportImport(await api.note.importPick(importOptions(importTaskId)))
+      setImportOpen(false)
+    } catch (error) {
+      pushToast({ title: '导入失败', description: error instanceof Error ? error.message : String(error), tone: 'danger' })
+    } finally {
+      setImporting(false)
+    }
+  }
+
+  const handleDropFiles = async (files: File[]): Promise<void> => {
+    const paths = files
+      .map((file) => window.nativeFiles?.pathForFile(file) ?? '')
+      .filter((path) => path !== '')
+    if (paths.length === 0) {
+      pushToast({ title: '没能取到文件路径', description: '请改用笔记列表右上角的「导入文档」按钮选择文件', tone: 'warning' })
+      return
+    }
+    setImporting(true)
+    try {
+      await reportImport(await api.note.importFiles(paths, importOptions(taskFilter)))
+    } catch (error) {
+      pushToast({ title: '导入失败', description: error instanceof Error ? error.message : String(error), tone: 'danger' })
+    } finally {
+      setImporting(false)
+    }
+  }
+
+  const openImport = (): void => {
+    setImportTaskId(taskFilter)
+    setImportOpen(true)
+  }
+
   const tasksNode = (
       <Card className="flex h-full flex-col">
         <SectionHeader
@@ -168,6 +237,19 @@ export function NotesPage(): JSX.Element {
   )
 
   const listNode = (
+    <div
+      className="relative h-full"
+      onDragOver={(event) => {
+        event.preventDefault()
+        setDropping(true)
+      }}
+      onDragLeave={() => setDropping(false)}
+      onDrop={(event) => {
+        event.preventDefault()
+        setDropping(false)
+        void handleDropFiles(Array.from(event.dataTransfer.files))
+      }}
+    >
       <Card className="flex h-full flex-col">
         <div className="mb-3 flex h-9 items-center gap-2 rounded-xl border border-border bg-input/60 px-3">
           <Search className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
@@ -177,6 +259,16 @@ export function NotesPage(): JSX.Element {
             placeholder="搜索笔记标题或正文"
             className="h-full flex-1 border-0 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/70 focus:outline-none"
           />
+          <Button
+            size="sm"
+            variant="secondary"
+            loading={importing}
+            icon={<Upload className="h-3.5 w-3.5" />}
+            title="导入 PDF / Word / PPT / 网页 / 纯文本等文档"
+            onClick={openImport}
+          >
+            导入
+          </Button>
         </div>
         <Tabs
           size="sm"
@@ -232,6 +324,12 @@ export function NotesPage(): JSX.Element {
           )}
         </div>
       </Card>
+      {dropping ? (
+        <div className="pointer-events-none absolute inset-0 z-10 grid place-items-center rounded-xl border-2 border-dashed border-primary/70 bg-primary/10 text-xs font-medium text-tint-primary">
+          松手即导入（PDF / Word / PPT / 网页 / 文本）
+        </div>
+      ) : null}
+    </div>
   )
 
   const detailNodes: GridEntry[] = current
@@ -288,6 +386,21 @@ export function NotesPage(): JSX.Element {
                     </div>
                   </Field>
                 </div>
+
+                {current.filePath ? (
+                  <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-muted/25 px-3 py-1.5 text-[11px] text-muted-foreground">
+                    <Paperclip className="h-3.5 w-3.5 shrink-0" />
+                    <span className="min-w-0 flex-1 truncate" title={current.filePath}>
+                      导入自 {current.filePath}
+                    </span>
+                    <Button size="sm" variant="ghost" onClick={() => void api.app.openPath(current.filePath as string)}>
+                      打开源文件
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => void api.app.showItemInFolder(current.filePath as string)}>
+                      定位
+                    </Button>
+                  </div>
+                ) : null}
 
                 {preview ? (
                   <div className="prose-invert max-h-[420px] overflow-y-auto rounded-xl border border-border bg-muted/20 p-4 text-sm leading-relaxed text-foreground">
@@ -408,6 +521,75 @@ export function NotesPage(): JSX.Element {
               </Button>
               <Button variant="primary" onClick={handleCreate}>
                 创建
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {importOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
+          <button
+            type="button"
+            aria-label="关闭"
+            onClick={() => setImportOpen(false)}
+            className="absolute inset-0 cursor-default bg-black/40"
+          />
+          <div className="relative z-10 w-full max-w-lg rounded-xl border border-border bg-surface p-5 shadow-pop animate-scale-in">
+            <p className="text-sm font-semibold text-foreground">导入外部文档</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              解析在本地完成，不上传、不依赖外部软件；导入后按 Markdown 正文保存，可继续编辑。
+            </p>
+            <div className="mt-4 grid gap-4">
+              <Field label="归属任务" hint="留空则只作为独立资料保存">
+                <Select
+                  value={importTaskId === null ? '' : String(importTaskId)}
+                  onChange={(event) => setImportTaskId(event.target.value === '' ? null : Number(event.target.value))}
+                >
+                  <option value="">不关联任务</option>
+                  {tasks.map((task) => (
+                    <option key={task.id} value={task.id}>
+                      {task.title}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <div className="grid grid-cols-2 gap-4">
+                <Field label="导入为">
+                  <Select value={importKind} onChange={(event) => setImportKind(event.target.value as NoteKind)}>
+                    <option value="material">资料（不排复习）</option>
+                    <option value="note">笔记（可排复习）</option>
+                  </Select>
+                </Field>
+                <Field label="长文档处理">
+                  <div className="flex h-9 items-center rounded-xl border border-border bg-input/60 px-3">
+                    <Switch
+                      checked={importSplit}
+                      onChange={setImportSplit}
+                      label={importSplit ? '按一级标题拆成多条' : '整篇存为一条'}
+                    />
+                  </div>
+                </Field>
+              </div>
+              <div className="grid gap-1.5 rounded-lg border border-border bg-muted/25 p-3">
+                <p className="text-[11px] font-medium text-muted-foreground">支持的格式</p>
+                {IMPORT_FORMAT_GROUPS.map((group) => (
+                  <p key={group.label} className="text-[11px] leading-relaxed text-muted-foreground/90">
+                    <span className="text-foreground">{group.label}</span>：{group.formats}
+                  </p>
+                ))}
+                <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground/70">
+                  老式 .doc / .ppt / .xls 需要本机装有 Microsoft Office 或 LibreOffice；扫描版 PDF（纯图片）无法提取文字。
+                  也可以把文件直接拖到左侧笔记列表上。
+                </p>
+              </div>
+            </div>
+            <div className="mt-5 flex justify-end gap-2">
+              <Button variant="ghost" onClick={() => setImportOpen(false)}>
+                取消
+              </Button>
+              <Button variant="primary" loading={importing} icon={<Upload className="h-3.5 w-3.5" />} onClick={handlePickImport}>
+                选择文件并导入
               </Button>
             </div>
           </div>

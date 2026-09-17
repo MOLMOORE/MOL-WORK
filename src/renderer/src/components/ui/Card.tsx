@@ -28,7 +28,7 @@ export function SectionHeader({ title, description, action, className }: Section
   return (
     <div className={cn('mb-4 flex items-start justify-between gap-4', className)}>
       <div className="min-w-0">
-        <h2 className="text-base font-semibold tracking-tight text-foreground">{title}</h2>
+        <h2 className="section-title text-base font-semibold tracking-tight text-foreground">{title}</h2>
         {description ? <p className="mt-0.5 text-xs text-muted-foreground">{description}</p> : null}
       </div>
       {action ? <div className="flex shrink-0 items-center gap-2">{action}</div> : null}
