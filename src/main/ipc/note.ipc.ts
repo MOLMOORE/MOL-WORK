@@ -90,6 +90,20 @@ export function registerNoteIpc(): void {
     return summary
   })
 
+  /** 只弹选择框拿路径：导入前先让渲染层问用户填简介与关联任务 / 课程 */
+  handle<string[]>('note:pick-paths', async () => {
+    const result = await dialog.showOpenDialog({
+      title: '选择要导入的笔记或文章',
+      buttonLabel: '下一步',
+      properties: ['openFile', 'multiSelections'],
+      filters: [
+        { name: '支持的文档（PDF / Office / 网页 / 文本）', extensions: IMPORT_EXTENSIONS.map((ext) => ext.slice(1)) },
+        { name: '所有文件', extensions: ['*'] }
+      ]
+    })
+    return result.canceled ? [] : result.filePaths
+  })
+
   handle<NoteImportSummary>('note:import-pick', async (options?: NoteImportOptions) => {
     const result = await dialog.showOpenDialog({
       title: '选择要导入的笔记或文章',

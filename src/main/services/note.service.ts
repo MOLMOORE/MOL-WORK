@@ -22,6 +22,7 @@ export function attachReview(note: Note): NoteWithReview {
   return { ...note, review: getReviewByNote(note.id) ?? null }
 }
 
+/** 列表与详情都带上 projectName / readingMinutes（仓储层的 SELECT 已经算好） */
 export function listNotes(taskId?: number | null, keyword?: string): NoteWithReview[] {
   return repoListNotes(taskId, keyword).map(attachReview)
 }

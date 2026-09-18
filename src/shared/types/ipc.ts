@@ -18,6 +18,7 @@ import type {
   Project,
   ProjectInput,
   ProjectTime,
+  ReadingLogInput,
   ReviewItem,
   ReviewRating,
   ScheduleEvent,
@@ -39,7 +40,8 @@ export const IPC_EVENTS = {
   dataChanged: 'event:data-changed',
   reviewAutoScheduled: 'event:review-auto-scheduled',
   closeRequest: 'event:close-request',
-  noteImport: 'event:note-import-progress'
+  noteImport: 'event:note-import-progress',
+  windowState: 'event:window-state'
 } as const
 
 export interface ReminderPayload {
@@ -52,6 +54,12 @@ export interface ReminderPayload {
 
 export interface CloseRequestPayload {
   at: string
+}
+
+/** 无边框窗口的自绘标题栏需要的窗口状态 */
+export interface WindowStatePayload {
+  maximized: boolean
+  fullscreen: boolean
 }
 
 export interface WorkstationApi {
@@ -116,6 +124,8 @@ export interface WorkstationApi {
     remove(id: number): Promise<void>
     /** 弹出系统文件选择框（可多选）并导入 */
     importPick(options?: NoteImportOptions): Promise<NoteImportSummary>
+    /** 只弹选择框拿路径，不导入：导入前先问用户填简介与关联（v1.2.4 第五轮） */
+    pickPaths(): Promise<string[]>
     /** 导入指定路径的文件（拖拽进窗口时用） */
     importFiles(paths: string[], options?: NoteImportOptions): Promise<NoteImportSummary>
     /** 阅读器取文档：PDF 字节 / 自包含 HTML / 纯文本 */
@@ -157,6 +167,20 @@ export interface WorkstationApi {
     listRange(from: string, to: string): Promise<FocusSession[]>
     /** 记录一段已完成的专注（番茄钟） */
     log(taskId: number | null, minutes: number, note?: string): Promise<FocusSession>
+    /** 阅读计时：把一段阅读时间记到笔记关联的任务 / 项目 / 课程上 */
+    logReading(input: ReadingLogInput): Promise<FocusSession | null>
+    /** 某条笔记已累计的阅读分钟数 */
+    readingMinutes(noteId: number): Promise<number>
+  }
+  /** 无边框窗口的自绘标题栏：窗口控制与全屏 */
+  win: {
+    minimize(): Promise<void>
+    toggleMaximize(): Promise<void>
+    /** 走与原生关闭按钮相同的拦截逻辑（进入后台 / 询问 / 退出） */
+    close(): Promise<void>
+    /** 切换全屏；不传参数表示取反 */
+    setFullscreen(on?: boolean): Promise<WindowStatePayload>
+    getState(): Promise<WindowStatePayload>
   }
   tool: {
     list(): Promise<ToolManifest[]>
@@ -185,4 +209,6 @@ export interface WorkstationApi {
   onCloseRequest(callback: (payload: CloseRequestPayload) => void): () => void
   /** 文档导入进度（进度条） */
   onNoteImportProgress(callback: (payload: NoteImportProgress) => void): () => void
+  /** 窗口状态变化（最大化 / 全屏），自绘标题栏据此更新图标与高度 */
+  onWindowState(callback: (payload: WindowStatePayload) => void): () => void
 }

@@ -310,6 +310,12 @@ const CHANGELOG: { version: string; date: string; items: string[] }[] = [
     version: '1.2.4',
     date: '2026-09-17',
     items: [
+      '第五轮：窗口顶部改成软件自绘的标题栏（去掉系统标题栏与重复的软件名），整条随主题变色，含全屏 / 最小化 / 最大化 / 关闭四个按钮，空白处可拖动、双击最大化还原；F11 全局切全屏，全屏时标题栏自动隐藏',
+      '第五轮：资料可与任意任务、项目 / 课程互相关联，阅读界面按分钟把阅读时长记进所关联任务或课程的专注时间（统计页项目用时同步计入）；拖入或选择文件后先弹确认窗，让用户填资料简介并挑选关联任务 / 课程，不填就留空',
+      '第五轮：详情弹窗改单列自上而下排版，不再出现左右两栏互相重叠；删掉「抽取文字」的展示，换成用户自己填的「资料简介」，并显示读到第几页与本篇已读时长',
+      '第五轮：阅读界面点书页左侧回上一页、右侧翻下一页，放大（可拖动）状态下自动禁用，避免拖动看细节时误触',
+      '第五轮：修翻页收尾抖一下的问题 —— 缓存命中的画布当帧贴上（不再闪空白占位）、相邻页提前预取、动效时长统一 340ms 且退场收到全透明、阴影改渐变、逐页模式不再在翻页瞬间挪滚动条',
+      '第五轮：修三款皮肤的适配问题：复古桌面卡片标题条不再用负边距出血盖住上方内容（设置页遮挡）、数据驾驶舱侧栏导轨可收可放（折叠按钮回到导轨里，默认折叠但一键展开）、荧光终端等主题下网格卡片内容超高时改为可滚动（任务页工具条被切半行）',
       '修复时钟「笔画粗细」六档只有两档生效：系统自带的中文黑体只有常规与粗体两个字重，导致中等=常规、粗与特粗退回半粗；现内置 Inter / JetBrains Mono 可变字体（wght 100-900），细、常规、中等、半粗、粗、特粗各自对应一个真实字重',
       '时钟日期格式选「英文」时星期同步改为英文（Sep 17, 2026 · Thu），不再出现英文日期配中文星期',
       '主题体系改为两层：顶层是「主题皮肤」，共 8 款并列可选；默认主题之下再挂 18 种「风格」（10 种配色风格 + 8 种观感风格），选中默认主题才能挑风格，切去别的皮肤时风格自动收起、切回即恢复',
@@ -840,6 +846,20 @@ export function SettingsPage(): JSX.Element {
                   <option value="exit">直接退出软件</option>
                 </Select>
               </Field>
+            </div>
+            <div className="grid gap-1.5 rounded-xl border border-border bg-muted/25 p-3">
+              <p className="text-xs font-medium text-foreground">窗口标题栏与全屏</p>
+              <p className="text-[11px] leading-relaxed text-muted-foreground">
+                顶部一条是软件自绘的标题栏（不再是系统标题栏，也没有重复的软件名），
+                背景、描边与按钮全部取当前主题的令牌，换主题或深浅色时一起变。
+                空白处可拖动窗口，双击最大化 / 还原，右端依次是全屏、最小化、最大化、关闭。
+              </p>
+              <div className="mt-0.5 grid gap-1 text-[11px] text-muted-foreground sm:grid-cols-2">
+                <p><span className="text-foreground">F11</span> 进入 / 退出全屏（全屏时标题栏自动隐藏）</p>
+                <p><span className="text-foreground">双击标题栏</span> 最大化 / 还原</p>
+                <p><span className="text-foreground">阅读界面 F</span> 同样切全屏，<span className="text-foreground">Esc</span> 退出</p>
+                <p><span className="text-foreground">阅读界面 Ctrl+滚轮</span> 缩放，点书页左右侧翻页</p>
+              </div>
             </div>
             <div className="rounded-xl border border-border bg-muted/25 p-3">
               <Switch

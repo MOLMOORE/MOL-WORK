@@ -341,7 +341,7 @@ const GridItem = memo(function GridItem({
       {/* 内容裁剪在卡片边界内：互换后尺寸变小也不会溢出到相邻卡片，避免边界侵入 */}
       <div
         className={cn(
-          'h-full overflow-hidden rounded-2xl',
+          'mw-grid-node h-full rounded-2xl',
           // 编辑模式：内容不可点击（只能拖拽/缩放），并以轻微颤动提示「可动」
           editable && 'pointer-events-none ring-1 ring-white/25',
           editable && !active && 'animate-jiggle'

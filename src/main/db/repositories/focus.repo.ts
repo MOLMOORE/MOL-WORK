@@ -1,12 +1,14 @@
-import type { FocusSession } from '@shared/types/domain'
+import type { FocusSession, ReadingLogInput } from '@shared/types/domain'
 import { all, insert, run } from '../query'
 import { mapFocus, type FocusRow } from '../mappers'
 import { diffMinutes, nowIso } from '../../utils/time'
 
 const FOCUS_SELECT = `
-SELECT f.*, t.title AS task_title
+SELECT f.*, t.title AS task_title, p.name AS project_name, n.title AS note_title
 FROM focus_sessions f
 LEFT JOIN tasks t ON t.id = f.task_id
+LEFT JOIN projects p ON p.id = COALESCE(f.project_id, t.project_id)
+LEFT JOIN notes n ON n.id = f.note_id
 `
 
 export function startFocus(taskId: number | null, note = ''): FocusSession {
@@ -31,7 +33,13 @@ export function stopFocus(id: number): FocusSession {
 }
 
 /** 直接记录一段已完成的专注（番茄钟结束调用），无需先开再关 */
-export function logFocus(taskId: number | null, minutes: number, note = '', endedAt = nowIso()): FocusSession {
+export function logFocus(
+  taskId: number | null,
+  minutes: number,
+  note = '',
+  endedAt = nowIso(),
+  extra: { projectId?: number | null; noteId?: number | null } = {}
+): FocusSession {
   const safeMinutes = Math.max(1, Math.round(minutes))
   const startedAt = new Date(new Date(endedAt.replace(' ', 'T')).getTime() - safeMinutes * 60000)
   const started = Number.isNaN(startedAt.getTime())
@@ -40,9 +48,11 @@ export function logFocus(taskId: number | null, minutes: number, note = '', ende
         startedAt.getHours()
       ).padStart(2, '0')}:${String(startedAt.getMinutes()).padStart(2, '0')}:${String(startedAt.getSeconds()).padStart(2, '0')}`
   const id = insert(
-    `INSERT INTO focus_sessions (task_id, started_at, ended_at, duration_minutes, note, created_at)
-     VALUES (?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO focus_sessions (task_id, project_id, note_id, started_at, ended_at, duration_minutes, note, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     taskId,
+    extra.projectId ?? null,
+    extra.noteId ?? null,
     started,
     endedAt,
     safeMinutes,
@@ -50,6 +60,31 @@ export function logFocus(taskId: number | null, minutes: number, note = '', ende
     nowIso()
   )
   return getFocus(id) as FocusSession
+}
+
+/**
+ * 阅读计时：读资料的时间算进它关联的任务 / 项目（课程）的专注时间。
+ * 不足一分钟不写库，返回 null 让调用方继续累积。
+ */
+export function logReading(input: ReadingLogInput): FocusSession | null {
+  const minutes = Math.floor(input.minutes)
+  if (minutes < 1) return null
+  return logFocus(
+    input.taskId ?? null,
+    minutes,
+    input.label ?? '阅读资料',
+    nowIso(),
+    { projectId: input.projectId ?? null, noteId: input.noteId }
+  )
+}
+
+/** 某条笔记已累计的阅读分钟数 */
+export function sumReadingMinutes(noteId: number): number {
+  const row = all<{ s: number | null }>(
+    'SELECT SUM(duration_minutes) AS s FROM focus_sessions WHERE note_id = ?',
+    noteId
+  )[0]
+  return row && row.s !== null ? Number(row.s) : 0
 }
 
 export function getFocus(id: number): FocusSession | undefined {
@@ -95,11 +130,11 @@ export function sumFocusMinutes(fromIso: string, toIso: string): number {
 
 export function listFocusByProject(fromIso: string, toIso: string): { project_id: number | null; minutes: number }[] {
   return all<{ project_id: number | null; minutes: number }>(
-    `SELECT t.project_id AS project_id, COALESCE(SUM(f.duration_minutes), 0) AS minutes
+    `SELECT COALESCE(f.project_id, t.project_id) AS project_id, COALESCE(SUM(f.duration_minutes), 0) AS minutes
      FROM focus_sessions f
      LEFT JOIN tasks t ON t.id = f.task_id
      WHERE f.started_at >= ? AND f.started_at <= ?
-     GROUP BY t.project_id`,
+     GROUP BY COALESCE(f.project_id, t.project_id)`,
     fromIso,
     toIso
   ).map((row) => ({ project_id: row.project_id === null ? null : Number(row.project_id), minutes: Number(row.minutes) }))

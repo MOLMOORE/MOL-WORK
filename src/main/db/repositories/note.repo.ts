@@ -7,9 +7,11 @@ import { indexEntity, removeEntity } from './search.repo'
 import { getTask } from './task.repo'
 
 const NOTE_SELECT = `
-SELECT n.*, t.title AS task_title
+SELECT n.*, t.title AS task_title, p.name AS project_name,
+       (SELECT COALESCE(SUM(f.duration_minutes), 0) FROM focus_sessions f WHERE f.note_id = n.id) AS reading_minutes
 FROM notes n
 LEFT JOIN tasks t ON t.id = n.task_id
+LEFT JOIN projects p ON p.id = n.project_id
 `
 
 export function listNotes(taskId?: number | null, keyword?: string): Note[] {
@@ -21,8 +23,8 @@ export function listNotes(taskId?: number | null, keyword?: string): Note[] {
   }
   if (keyword && keyword.trim() !== '') {
     const like = `%${keyword.trim()}%`
-    conditions.push('(n.title LIKE ? OR n.content LIKE ? OR n.tags LIKE ?)')
-    params.push(like, like, like)
+    conditions.push('(n.title LIKE ? OR n.summary LIKE ? OR n.content LIKE ? OR n.tags LIKE ?)')
+    params.push(like, like, like, like)
   }
   const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
   return all<NoteRow>(`${NOTE_SELECT} ${where} ORDER BY n.updated_at DESC`, ...params).map(mapNote)
@@ -38,15 +40,16 @@ export function createNote(input: NoteInput): Note {
   const taskId = input.taskId ?? null
   const task = taskId !== null ? getTask(taskId) : undefined
   const id = insert(
-    `INSERT INTO notes (task_id, project_id, title, kind, content, file_path, tags,
+    `INSERT INTO notes (task_id, project_id, title, kind, content, summary, file_path, tags,
        view_mode, doc_kind, doc_path, page_count, last_page, source_format, readonly,
        created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     taskId,
     input.projectId ?? task?.projectId ?? null,
     input.title.trim(),
     input.kind ?? 'note',
     input.content ?? '',
+    (input.summary ?? '').trim(),
     input.filePath ?? null,
     joinTags(input.tags),
     input.viewMode ?? 'text',
@@ -85,6 +88,10 @@ export function updateNote(id: number, patch: Partial<NoteInput>): Note {
   if (patch.content !== undefined) {
     fields.push('content = ?')
     params.push(patch.content)
+  }
+  if (patch.summary !== undefined) {
+    fields.push('summary = ?')
+    params.push(patch.summary.trim())
   }
   if (patch.filePath !== undefined) {
     fields.push('file_path = ?')
@@ -202,7 +209,7 @@ export function syncSearch(id: number): void {
     refId: id,
     title: note.title,
     body: `${note.content} ${note.tags.join(' ')}`,
-    meta: `${note.kind === 'note' ? '笔记' : note.kind === 'material' ? '资料' : '卡片'} · ${note.taskTitle ?? '未关联任务'}`
+    meta: `${note.kind === 'note' ? '笔记' : note.kind === 'material' ? '资料' : '卡片'} · ${note.taskTitle ?? note.projectName ?? '未关联任务'}`
   })
 }
 

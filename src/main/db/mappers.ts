@@ -129,6 +129,7 @@ export interface NoteRow {
   title: string
   kind: string
   content: string
+  summary?: string | null
   file_path: string | null
   tags: string
   view_mode?: string | null
@@ -141,6 +142,8 @@ export interface NoteRow {
   created_at: string
   updated_at: string
   task_title?: string | null
+  project_name?: string | null
+  reading_minutes?: number | bigint | null
 }
 
 export function mapNote(row: NoteRow): Note {
@@ -151,6 +154,7 @@ export function mapNote(row: NoteRow): Note {
     title: str(row.title),
     kind: str(row.kind, 'note') as NoteKind,
     content: str(row.content),
+    summary: str(row.summary ?? ''),
     filePath: nullableStr(row.file_path),
     tags: parseTags(row.tags),
     viewMode: (str(row.view_mode, 'text') as Note['viewMode']) === 'pages' || str(row.view_mode, 'text') === 'rich'
@@ -164,7 +168,9 @@ export function mapNote(row: NoteRow): Note {
     readonly: toNumber(row.readonly ?? 0) > 0,
     createdAt: str(row.created_at),
     updatedAt: str(row.updated_at),
-    taskTitle: nullableStr(row.task_title)
+    taskTitle: nullableStr(row.task_title),
+    projectName: nullableStr(row.project_name),
+    readingMinutes: toNumber(row.reading_minutes ?? 0)
   }
 }
 
@@ -274,24 +280,32 @@ export function mapEvent(row: EventRow): ScheduleEvent {
 export interface FocusRow {
   id: number | bigint
   task_id: number | bigint | null
+  project_id?: number | bigint | null
+  note_id?: number | bigint | null
   started_at: string
   ended_at: string | null
   duration_minutes: number | bigint
   note: string
   created_at: string
   task_title?: string | null
+  project_name?: string | null
+  note_title?: string | null
 }
 
 export function mapFocus(row: FocusRow): FocusSession {
   return {
     id: toNumber(row.id),
     taskId: row.task_id === null || row.task_id === undefined ? null : toNumber(row.task_id),
+    projectId: row.project_id === null || row.project_id === undefined ? null : toNumber(row.project_id),
+    noteId: row.note_id === null || row.note_id === undefined ? null : toNumber(row.note_id),
     startedAt: str(row.started_at),
     endedAt: nullableStr(row.ended_at),
     durationMinutes: toNumber(row.duration_minutes),
     note: str(row.note),
     createdAt: str(row.created_at),
-    taskTitle: nullableStr(row.task_title)
+    taskTitle: nullableStr(row.task_title),
+    projectName: nullableStr(row.project_name),
+    noteTitle: nullableStr(row.note_title)
   }
 }
 

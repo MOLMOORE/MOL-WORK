@@ -179,6 +179,7 @@ const pending = new Map<string, Promise<HTMLCanvasElement>>()
 const backlog: RenderJob[] = []
 let rendering = false
 let jobSeq = 0
+let canvasSeq = 0
 /** 缓存上限：超了先丢已经不在页面上的旧画布 */
 const MAX_CACHED = 48
 
@@ -192,6 +193,8 @@ function pump(): void {
 }
 
 function remember(key: string, canvas: HTMLCanvasElement): void {
+  // 给每张缓存画布一个唯一标记，宿主节点靠它判断「已经挂过了」，避免重复复制
+  canvas.dataset.token = key + '|' + (canvasSeq += 1)
   pageCache.set(key, canvas)
   if (pageCache.size <= MAX_CACHED) return
   for (const old of [...pageCache.keys()]) {
@@ -244,6 +247,34 @@ export function pageCanvas(
   })
   pending.set(key, task)
   return task
+}
+
+/**
+ * 同步查缓存：命中就当帧给出画布。
+ * 翻页残影与刚翻到的那一页几乎必然已经在缓存里，走异步队列会晚一帧，
+ * 舞台就会闪一下空白 —— 这正是「翻页后页面抖 / 抽一下」的来源。
+ */
+export function peekCanvas(
+  uid: number,
+  pageNumber: number,
+  scale: number,
+  rotation: number
+): HTMLCanvasElement | null {
+  const rounded = Math.round(scale * 100) / 100
+  const key = uid + '|' + pageNumber + '|' + rounded + '|' + rotation
+  const cached = pageCache.get(key)
+  if (!cached) return null
+  pageCache.delete(key)
+  pageCache.set(key, cached)
+  return cached
+}
+
+/** 把画布挂到宿主节点上：同一份缓存画布可能已在别处显示，那就复制一份 */
+export function mountCanvas(host: HTMLElement, source: HTMLCanvasElement): void {
+  if (host.dataset.mounted === source.dataset.token) return
+  while (host.firstChild) host.removeChild(host.firstChild)
+  host.appendChild(source.isConnected ? cloneCanvas(source) : source)
+  host.dataset.mounted = source.dataset.token ?? ''
 }
 
 /** 复制一份画布：同一页同时出现在两处（翻页残影 + 当前页）时用 */

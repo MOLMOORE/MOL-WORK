@@ -30,7 +30,17 @@ import {
 import type { NoteDocInfo, NoteMark, NoteMarkKind } from '@shared/types/domain'
 import { Button, IconButton } from '../components/ui/Button'
 import { Spinner } from '../components/ui/Feedback'
-import { cloneCanvas, forgetPdf, openPdf, pageCanvas, pageSize, pageText, SCREEN_SCALE, type PdfDocInfo } from '../lib/pdf'
+import {
+  forgetPdf,
+  mountCanvas,
+  openPdf,
+  pageCanvas,
+  pageSize,
+  pageText,
+  peekCanvas,
+  SCREEN_SCALE,
+  type PdfDocInfo
+} from '../lib/pdf'
 import { api } from '../lib/ipc'
 import { cn, formatDateTime } from '../lib/utils'
 
@@ -50,8 +60,8 @@ const FLIP_LABELS: { key: FlipEffect; label: string }[] = [
   { key: 'book', label: '翻书' }
 ]
 
-/** 翻页动效时长，与 CSS 里的动画保持一致 */
-const TURN_MS = 420
+/** 翻页动效时长，与 CSS 里五种动效的 340ms 完全一致：残影在动画收尾之后才卸载 */
+const TURN_MS = 340
 
 export function ReaderPage(): JSX.Element {
   const { noteId } = useParams()
@@ -72,6 +82,7 @@ export function ReaderPage(): JSX.Element {
   const [flip, setFlip] = useState<FlipEffect>('book')
   const [panel, setPanel] = useState<PanelTab | null>('outline')
   const [marks, setMarks] = useState<NoteMark[]>([])
+  const [readMinutes, setReadMinutes] = useState(0)
   const [fontSize, setFontSize] = useState(17)
   const [draft, setDraft] = useState('')
   const [editing, setEditing] = useState(false)
@@ -128,6 +139,7 @@ export function ReaderPage(): JSX.Element {
       }
     })()
     void api.note.marks(id).then((list) => !cancelled && setMarks(list))
+    void api.focus.readingMinutes(id).then((minutes) => !cancelled && setReadMinutes(minutes)).catch(() => undefined)
     return () => {
       cancelled = true
     }
@@ -194,6 +206,41 @@ export function ReaderPage(): JSX.Element {
   useEffect(() => {
     stepRef.current = step
   }, [step])
+
+  // ---------- 阅读计时：读了多久就记到关联的任务 / 项目（课程）的专注时间里 ----------
+  const readTarget = useMemo(() => {
+    if (!info) return null
+    const taskId = info.note.taskId ?? null
+    const projectId = info.note.projectId ?? null
+    if (taskId === null && projectId === null) return null
+    return { taskId, projectId, title: info.note.title }
+  }, [info?.note.taskId, info?.note.projectId, info?.note.title])
+
+  useEffect(() => {
+    if (!readTarget) return undefined
+    let seconds = 0
+    const timer = window.setInterval(() => {
+      // 窗口隐藏 / 切到别的标签页时不计入
+      if (document.hidden) return
+      seconds += 15
+      if (seconds < 60) return
+      const minutes = Math.floor(seconds / 60)
+      seconds -= minutes * 60
+      void api.focus
+        .logReading({
+          noteId: id,
+          taskId: readTarget.taskId,
+          projectId: readTarget.projectId,
+          minutes,
+          label: '阅读《' + readTarget.title.slice(0, 20) + '》'
+        })
+        .then((session) => {
+          if (session) setReadMinutes((value) => value + session.durationMinutes)
+        })
+        .catch(() => undefined)
+    }, 15000)
+    return () => window.clearInterval(timer)
+  }, [id, readTarget])
 
   // ---------- 阅读进度：停留 900ms 再落库，避免翻页时频繁写库 ----------
   useEffect(() => {
@@ -363,7 +410,7 @@ export function ReaderPage(): JSX.Element {
         case 'Escape':
           if (composer) setComposer(null)
           else if (panel) setPanel(null)
-          else if (document.fullscreenElement) void document.exitFullscreen()
+          else if (fullscreen) void api.win.setFullscreen(false).catch(() => undefined)
           else navigate(-1)
           break
         default:
@@ -373,7 +420,7 @@ export function ReaderPage(): JSX.Element {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step, goPage, pageCount, panel, composer, info, flip, navigate, page, marks, layout])
+  }, [step, goPage, pageCount, panel, composer, info, flip, navigate, page, marks, layout, fullscreen])
 
   // ---------- 标记 ----------
   const toggleMark = async (kind: NoteMarkKind): Promise<void> => {
@@ -457,6 +504,12 @@ export function ReaderPage(): JSX.Element {
   const zoomPercent = info?.viewMode === 'rich' ? Math.round(zoom * 100) : Math.round((scale / SCREEN_SCALE) * 100)
   /** 只有内容真的比舞台大才需要拖动平移 */
   const canPan = info?.viewMode === 'pages' && (layout === 'continuous' || scale > fitScale + 0.002 || zoom > 1.001)
+  /**
+   * 点书页左右两侧翻页：放大（可拖动）状态下自动收起，
+   * 否则拖动看细节时松手就跳页，会误触。
+   */
+  const canZoneFlip =
+    info !== null && info.viewMode !== 'text' && layout !== 'continuous' && zoom <= 1.02 && !canPan
 
   /** 连续滚动时由舞台回报「现在看到第几页」 */
   const handleActivePage = useCallback(
@@ -582,15 +635,13 @@ export function ReaderPage(): JSX.Element {
     event.stopPropagation()
   }
 
-  // ---------- 全屏（F） ----------
+  // ---------- 全屏：与标题栏按钮、F11 共用窗口级全屏（Esc / F 退出） ----------
   const toggleFullscreen = useCallback((): void => {
-    if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined)
-    else void document.documentElement.requestFullscreen().catch(() => undefined)
+    void api.win.setFullscreen().catch(() => undefined)
   }, [])
   useEffect(() => {
-    const sync = (): void => setFullscreen(Boolean(document.fullscreenElement))
-    document.addEventListener('fullscreenchange', sync)
-    return () => document.removeEventListener('fullscreenchange', sync)
+    void api.win.getState().then((state) => setFullscreen(state.fullscreen)).catch(() => undefined)
+    return api.onWindowState((state) => setFullscreen(state.fullscreen))
   }, [])
 
   /** 连续滚动 / 文本模式下的滚动翻页 */
@@ -830,6 +881,36 @@ export function ReaderPage(): JSX.Element {
                 readonly={info.readonly}
               />
             )}
+
+            {/* 左右点击热区：点右边下一页、点左边上一页（放大后不可用） */}
+            {canZoneFlip ? (
+              <>
+                <button
+                  type="button"
+                  tabIndex={-1}
+                  aria-label="上一页"
+                  title="上一页（点击书页左侧）"
+                  className="mw-pagezone mw-pagezone-left"
+                  onClick={() => step(-1)}
+                >
+                  <span>
+                    <ChevronLeft className="h-4 w-4" />
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  tabIndex={-1}
+                  aria-label="下一页"
+                  title="下一页（点击书页右侧）"
+                  className="mw-pagezone mw-pagezone-right"
+                  onClick={() => step(1)}
+                >
+                  <span>
+                    <ChevronRight className="h-4 w-4" />
+                  </span>
+                </button>
+              </>
+            ) : null}
           </div>
 
           {/* 底部状态条：页码进度与快捷键提示 */}
@@ -840,13 +921,20 @@ export function ReaderPage(): JSX.Element {
             <span className="h-3 w-px bg-border" />
             <span>← → 翻页</span>
             <span>空格 下一页</span>
+            <span>点书页左右侧翻页</span>
             <span>Ctrl+滚轮 缩放</span>
             <span>按住左键拖动</span>
             <span>B 书签</span>
             <span>S 重点</span>
             <span>E 注释</span>
             <span>R 旋转</span>
-            <span>F 全屏</span>
+            <span>F / F11 全屏</span>
+            {readMinutes > 0 ? (
+              <>
+                <span className="h-3 w-px bg-border" />
+                <span className="tabular-nums">本篇已读 {readMinutes} 分钟</span>
+              </>
+            ) : null}
             <span className="ml-auto tabular-nums">{Math.round((page / Math.max(1, pageCount)) * 100)}%</span>
           </footer>
         </main>
@@ -927,6 +1015,19 @@ interface StageProps {
 function PdfStage(props: StageProps): JSX.Element {
   const { pdf, page, pageCount, scale, rotation, layout, turning, onScrollNode, onJump, onActivePage } = props
 
+  /* 预取相邻页：真正翻页时那一页已经在缓存里，动效第一帧就是成品画面，
+     不会再出现「先空白一下再蹦出内容」的抽搐 */
+  const roundedScale = Math.round(scale * 100) / 100
+  useEffect(() => {
+    if (layout === 'continuous') return
+    const stride = layout === 'double' ? 2 : 1
+    const targets = [page + stride, page - stride, page + stride * 2, page - stride * 2]
+    targets.forEach((target, index) => {
+      if (target < 1 || target > pageCount) return
+      void pageCanvas(pdf.doc, pdf.uid, target, roundedScale, rotation, -4 - index).catch(() => undefined)
+    })
+  }, [pdf, page, pageCount, layout, roundedScale, rotation])
+
   if (layout === 'continuous') {
     return (
       <ContinuousPages
@@ -953,7 +1054,7 @@ function PdfStage(props: StageProps): JSX.Element {
       {/* 用 margin:auto 居中：放大超出舞台时上下左右都能滚到，不会被裁掉 */}
       <div className="mw-book-frame">
         <div className={cn('mw-book', turning && 'is-turning', turning?.dir === -1 && 'is-reverse')}>
-          <div className="mw-layer mw-layer-in" key={`in-${page}`}>
+          <div className="mw-layer mw-layer-in">
             {currentPages.map((number) =>
               number >= 1 && number <= pageCount ? (
                 <PdfPageView
@@ -971,7 +1072,7 @@ function PdfStage(props: StageProps): JSX.Element {
             )}
           </div>
           {ghostPages.length > 0 && turning ? (
-            <div className="mw-layer mw-layer-out" key={`out-${turning.from}`}>
+            <div className="mw-layer mw-layer-out">
               {ghostPages.map((number) =>
                 number >= 1 && number <= pageCount ? (
                   <PdfPageView
@@ -1073,6 +1174,18 @@ function PdfPageView(props: {
   const [visible, setVisible] = useState(!lazy)
   const rounded = Math.round(scale * 100) / 100
   const box = pageSize(pdf.baseWidth, pdf.baseHeight, rounded, rotation)
+  const mountKey = pdf.uid + '|' + pageNumber + '|' + rounded + '|' + rotation
+  const mounted = useRef('')
+
+  /* 缓存里已有这一页：这一帧就贴上，不等异步队列（翻页残影靠这个才不闪） */
+  useLayoutEffect(() => {
+    if (!visible || !holder.current) return
+    const cached = peekCanvas(pdf.uid, pageNumber, rounded, rotation)
+    if (!cached) return
+    mountCanvas(holder.current, cached)
+    mounted.current = mountKey
+    setState('ready')
+  }, [visible, mountKey, pdf.uid, pageNumber, rounded, rotation])
   const scrollRoot = useRef<HTMLElement | null>(null)
   if (!scrollRoot.current && typeof document !== 'undefined') {
     scrollRoot.current = boxRef.current?.closest('.reader-scroll, .reader-page-area') ?? null
@@ -1100,16 +1213,15 @@ function PdfPageView(props: {
   }, [lazy, visible])
 
   useEffect(() => {
-    if (!visible) return
+    if (!visible || mounted.current === mountKey) return
     let cancelled = false
     void (async () => {
       try {
-        const source = await pageCanvas(pdf.doc, pdf.uid, pageNumber, rounded, rotation, ghost ? priority - 50 : priority)
+        // 残影是此刻屏幕上唯一可见的画面，优先级最高；当前页其次，预取页排最后
+        const source = await pageCanvas(pdf.doc, pdf.uid, pageNumber, rounded, rotation, ghost ? 45 : priority)
         if (cancelled || !holder.current) return
-        const host = holder.current
-        // 画布可能同时被「残影层」和「当前层」用到：谁后到谁复制一份，避免同一个节点被搬走
-        while (host.firstChild) host.removeChild(host.firstChild)
-        host.appendChild(source.isConnected ? cloneCanvas(source) : source)
+        mountCanvas(holder.current, source)
+        mounted.current = mountKey
         setState('ready')
       } catch {
         if (!cancelled) setState('error')
@@ -1118,11 +1230,14 @@ function PdfPageView(props: {
     return () => {
       cancelled = true
     }
-  }, [pdf, pageNumber, rounded, rotation, visible, ghost, priority])
+  }, [pdf, pageNumber, rounded, rotation, visible, ghost, priority, mountKey])
 
+  /* 只有连续滚动模式需要把当前页滚进视野；逐页模式下这一句会在翻页瞬间
+     把舞台滚动条挪一两像素，看上去就是「页面抖一下」 */
   useEffect(() => {
-    if (active) holder.current?.parentElement?.scrollIntoView({ block: 'nearest' })
-  }, [active])
+    if (!active || !onJump) return
+    holder.current?.parentElement?.scrollIntoView({ block: 'nearest' })
+  }, [active, onJump])
 
   return (
     <div

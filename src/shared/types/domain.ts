@@ -179,6 +179,8 @@ export interface Note {
   title: string
   kind: NoteKind
   content: string
+  /** 资料简介：导入文件时由用户填写，可后补（不再展示自动抽取的正文） */
+  summary: string
   filePath: string | null
   tags: string[]
   /** 阅读模式：文本可编辑，书页 / 富文本只看 */
@@ -198,6 +200,10 @@ export interface Note {
   createdAt: string
   updatedAt: string
   taskTitle?: string | null
+  /** 归属项目 / 课程名（关联到项目而不是任务时用于列表与详情显示） */
+  projectName?: string | null
+  /** 已累计的阅读时长（分钟），由阅读界面按分钟落库后聚合得出 */
+  readingMinutes?: number
   review?: ReviewItem | null
 }
 
@@ -208,6 +214,8 @@ export interface NoteInput {
   title: string
   kind?: NoteKind
   content?: string
+  /** 资料简介（导入时询问用户填写） */
+  summary?: string
   filePath?: string | null
   tags?: string[]
   /** 是否生成/更新遗忘曲线复习条目 */
@@ -273,6 +281,8 @@ export interface NoteImportOptions {
   taskId?: number | null
   /** 归属项目，缺省时跟随任务 */
   projectId?: number | null
+  /** 资料简介：导入前询问用户填写，留空即不填 */
+  summary?: string
   /** 导入为哪种类型，默认「资料」 */
   kind?: NoteKind
   /** 是否按一级标题把长文档拆成多条笔记 */
@@ -373,12 +383,27 @@ export interface ReviewItem {
 export interface FocusSession {
   id: number
   taskId: number | null
+  /** 直接归属的项目 / 课程：没有关联任务时，专注与阅读时间记在项目上 */
+  projectId: number | null
+  /** 阅读时长来源的笔记（专注会话为 null） */
+  noteId: number | null
   startedAt: string
   endedAt: string | null
   durationMinutes: number
   note: string
   createdAt: string
   taskTitle?: string | null
+  projectName?: string | null
+  noteTitle?: string | null
+}
+
+/** 阅读计时落库的入参：把一段阅读时间记到笔记关联的任务 / 项目上 */
+export interface ReadingLogInput {
+  noteId: number
+  taskId?: number | null
+  projectId?: number | null
+  minutes: number
+  label?: string
 }
 
 export type ToolFieldType = 'text' | 'textarea' | 'number' | 'select' | 'checkbox' | 'path' | 'rating'

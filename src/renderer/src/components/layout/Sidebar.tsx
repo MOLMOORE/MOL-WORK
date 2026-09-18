@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { NavLink } from 'react-router-dom'
 import {
   BarChart3,
@@ -30,10 +30,16 @@ export const NAV_ITEMS = [
 ]
 
 export function Sidebar(): JSX.Element {
-  const [collapsed, setCollapsed] = useState(false)
   const overview = useAppStore((state) => state.overview)
   const settings = useAppStore((state) => state.settings)
   const updateSettings = useAppStore((state) => state.updateSettings)
+  const skin = settings?.themeSkin ?? 'default'
+  /* 数据驾驶舱的默认造型就是窄图标导轨，其他皮肤默认展开；
+     两种状态都能用底部按钮来回切换（v1.2.4 第五轮修复：以前驾驶舱收起来就放不回去） */
+  const [collapsed, setCollapsed] = useState(skin === 'hud')
+  useEffect(() => {
+    setCollapsed(skin === 'hud')
+  }, [skin])
 
   const pendingCount = overview?.pendingCount ?? 0
   const reviewCount = overview?.dueReviews.length ?? 0
@@ -48,6 +54,7 @@ export function Sidebar(): JSX.Element {
     <aside
       className={cn(
         'app-sidebar relative z-20 flex h-full shrink-0 flex-col border-r border-border bg-surface transition-all duration-250',
+        collapsed && 'is-rail',
         collapsed ? 'w-[76px]' : 'w-[222px]'
       )}
     >

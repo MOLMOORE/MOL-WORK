@@ -1,6 +1,11 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import { IPC_EVENTS } from '@shared/types/ipc'
-import type { CloseRequestPayload, ReminderPayload, WorkstationApi } from '@shared/types/ipc'
+import type {
+  CloseRequestPayload,
+  ReminderPayload,
+  WindowStatePayload,
+  WorkstationApi
+} from '@shared/types/ipc'
 import type {
   AppSettings,
   DailyReport,
@@ -21,6 +26,7 @@ import type {
   Project,
   ProjectInput,
   ProjectTime,
+  ReadingLogInput,
   ReviewItem,
   ReviewRating,
   ScheduleEvent,
@@ -104,6 +110,7 @@ const api: WorkstationApi = {
     save: (input: NoteInput) => invoke<Note>('note:save', input),
     remove: (id: number) => invoke<void>('note:remove', id),
     importPick: (options?: NoteImportOptions) => invoke<NoteImportSummary>('note:import-pick', options),
+    pickPaths: () => invoke<string[]>('note:pick-paths'),
     importFiles: (paths: string[], options?: NoteImportOptions) =>
       invoke<NoteImportSummary>('note:import-files', paths, options),
     doc: (id: number) => invoke<NoteDocInfo>('note:doc', id),
@@ -141,7 +148,16 @@ const api: WorkstationApi = {
     listByTask: (taskId: number) => invoke<FocusSession[]>('focus:list-by-task', taskId),
     listRange: (from: string, to: string) => invoke<FocusSession[]>('focus:list-range', from, to),
     log: (taskId: number | null, minutes: number, note?: string) =>
-      invoke<FocusSession>('focus:log', taskId, minutes, note)
+      invoke<FocusSession>('focus:log', taskId, minutes, note),
+    logReading: (input: ReadingLogInput) => invoke<FocusSession | null>('focus:log-reading', input),
+    readingMinutes: (noteId: number) => invoke<number>('focus:reading-minutes', noteId)
+  },
+  win: {
+    minimize: () => invoke<void>('win:minimize'),
+    toggleMaximize: () => invoke<void>('win:toggle-maximize'),
+    close: () => invoke<void>('win:close'),
+    setFullscreen: (on?: boolean) => invoke<WindowStatePayload>('win:set-fullscreen', on),
+    getState: () => invoke<WindowStatePayload>('win:get-state')
   },
   tool: {
     list: () => invoke<ToolManifest[]>('tool:list'),
@@ -169,7 +185,9 @@ const api: WorkstationApi = {
   onReminder: (callback: (payload: ReminderPayload) => void) => subscribe<ReminderPayload>(IPC_EVENTS.reminder, callback),
   onDataChanged: (callback: (scope: string) => void) => subscribe<string>(IPC_EVENTS.dataChanged, callback),
   onCloseRequest: (callback: (payload: CloseRequestPayload) => void) =>
-    subscribe<CloseRequestPayload>(IPC_EVENTS.closeRequest, callback)
+    subscribe<CloseRequestPayload>(IPC_EVENTS.closeRequest, callback),
+  onWindowState: (callback: (payload: WindowStatePayload) => void) =>
+    subscribe<WindowStatePayload>(IPC_EVENTS.windowState, callback)
 }
 
 contextBridge.exposeInMainWorld('api', api)

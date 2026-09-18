@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { AppLayout } from './components/layout/AppLayout'
+import { TitleBar } from './components/layout/TitleBar'
 import { CloseBehaviorDialog } from './components/layout/CloseBehaviorDialog'
 import { DashboardPage } from './pages/DashboardPage'
 import { TasksPage } from './pages/TasksPage'
@@ -30,17 +31,24 @@ export default function App(): JSX.Element {
     document.title = APP_NAME
   }, [])
 
+  // 加载中也保留自绘标题栏：无边框窗口没有系统关闭按钮，启动卡住时也得能关窗
   if (!ready) {
     return (
-      <div className="flex h-full items-center justify-center gap-3 bg-background text-muted-foreground">
-        <Spinner className="h-5 w-5" />
-        <span className="text-sm">正在加载 {APP_NAME}…</span>
+      <div className="flex h-full w-full flex-col overflow-hidden">
+        <TitleBar />
+        <div className="flex min-h-0 flex-1 items-center justify-center gap-3 bg-background text-muted-foreground">
+          <Spinner className="h-5 w-5" />
+          <span className="text-sm">正在加载 {APP_NAME}…</span>
+        </div>
       </div>
     )
   }
 
   return (
-    <>
+    /* 顶部一行是自绘标题栏：所有路由（含阅读界面）都在它下面，主题换色时它一起变 */
+    <div className="flex h-full w-full flex-col overflow-hidden">
+      <TitleBar />
+      <div className="min-h-0 flex-1">
       <Routes>
         <Route element={<AppLayout />}>
           <Route path="/" element={<DashboardPage />} />
@@ -56,8 +64,9 @@ export default function App(): JSX.Element {
         {/* 阅读界面：像一本书一样全屏打开，不套应用外壳 */}
         <Route path="/reader/:noteId" element={<ReaderPage />} />
       </Routes>
+      </div>
       {/* 点击窗口 X 后的进入后台/真正关闭选择弹窗 */}
       <CloseBehaviorDialog />
-    </>
+    </div>
   )
 }

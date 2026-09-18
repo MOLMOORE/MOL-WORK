@@ -82,6 +82,7 @@ export async function importNoteFiles(
           title,
           kind: options.kind ?? 'material',
           content: piece.body,
+          summary: (options.summary ?? '').trim(),
           filePath: path,
           tags: ['导入', doc.format],
           enableReview: false,

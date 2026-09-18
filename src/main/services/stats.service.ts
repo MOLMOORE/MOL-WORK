@@ -60,11 +60,11 @@ export function projectTimeRange(fromKey: string, toKey: string): ProjectTime[] 
   }
   const rows = all<Row>(
     `WITH focus AS (
-       SELECT t.project_id AS pid, COALESCE(SUM(f.duration_minutes), 0) AS minutes
+       SELECT COALESCE(f.project_id, t.project_id) AS pid, COALESCE(SUM(f.duration_minutes), 0) AS minutes
        FROM focus_sessions f
-       JOIN tasks t ON t.id = f.task_id
+       LEFT JOIN tasks t ON t.id = f.task_id
        WHERE f.started_at >= ? AND f.started_at <= ?
-       GROUP BY t.project_id
+       GROUP BY COALESCE(f.project_id, t.project_id)
      )
      SELECT p.id AS project_id,
             p.name AS project_name,
@@ -100,8 +100,8 @@ export function projectTimeRange(fromKey: string, toKey: string): ProjectTime[] 
   const loose = all<LooseRow>(
     `SELECT
        COALESCE((SELECT SUM(f.duration_minutes) FROM focus_sessions f
-                 JOIN tasks t ON t.id = f.task_id
-                 WHERE t.project_id IS NULL AND f.started_at >= ? AND f.started_at <= ?), 0) AS minutes,
+                 LEFT JOIN tasks t ON t.id = f.task_id
+                 WHERE COALESCE(f.project_id, t.project_id) IS NULL AND f.started_at >= ? AND f.started_at <= ?), 0) AS minutes,
        (SELECT COUNT(*) FROM tasks t WHERE t.project_id IS NULL AND t.created_at >= ? AND t.created_at <= ?) AS task_count,
        (SELECT COUNT(*) FROM tasks t WHERE t.project_id IS NULL AND t.completed_at >= ? AND t.completed_at <= ?) AS done_count`,
     from,

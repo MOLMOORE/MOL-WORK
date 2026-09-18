@@ -1,4 +1,12 @@
-import type { FocusSession, ReviewItem, ReviewRating, ScheduleEvent, ScheduleInput, Task } from '@shared/types/domain'
+import type {
+  FocusSession,
+  ReadingLogInput,
+  ReviewItem,
+  ReviewRating,
+  ScheduleEvent,
+  ScheduleInput,
+  Task
+} from '@shared/types/domain'
 import { handle } from './handle'
 import {
   createSchedule,
@@ -9,7 +17,16 @@ import {
   removeSchedule,
   updateSchedule
 } from '../services/schedule.service'
-import { getActiveFocus, listFocusByTask, listFocusRange, logFocus, startFocus, stopFocus } from '../db/repositories/focus.repo'
+import {
+  getActiveFocus,
+  listFocusByTask,
+  listFocusRange,
+  logFocus,
+  logReading,
+  startFocus,
+  stopFocus,
+  sumReadingMinutes
+} from '../db/repositories/focus.repo'
 import { deferTodayReviewsToTomorrow, enqueueDueReviews, gradeReview, planReview } from '../services/review.service'
 import { listDueReviews, listReviews } from '../db/repositories/review.repo'
 import { notifyDataChanged } from '../services/bus'
@@ -96,4 +113,13 @@ export function registerScheduleIpc(): void {
     notifyDataChanged('focus')
     return session
   })
+
+  /** 阅读计时：读资料的时间算进它关联的任务 / 项目（课程）的专注时间 */
+  handle<FocusSession | null>('focus:log-reading', (input: ReadingLogInput) => {
+    const session = logReading(input)
+    if (session) notifyDataChanged('focus')
+    return session
+  })
+
+  handle<number>('focus:reading-minutes', (noteId: number) => sumReadingMinutes(noteId))
 }

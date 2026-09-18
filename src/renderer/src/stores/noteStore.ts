@@ -35,6 +35,7 @@ export const useNoteStore = create<NoteState>((set, get) => ({
       ? notes.filter(
           (note) =>
             note.title.toLowerCase().includes(keyword.trim().toLowerCase()) ||
+            (note.summary ?? '').toLowerCase().includes(keyword.trim().toLowerCase()) ||
             note.content.toLowerCase().includes(keyword.trim().toLowerCase())
         )
       : notes

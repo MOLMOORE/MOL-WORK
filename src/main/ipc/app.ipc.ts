@@ -2,6 +2,7 @@ import { app, dialog, shell } from 'electron'
 import { writeFileSync } from 'node:fs'
 import { basename, join } from 'node:path'
 import type { AppSettings, DependencyStatus, OverviewData } from '@shared/types/domain'
+import type { WindowStatePayload } from '@shared/types/ipc'
 import { handle } from './handle'
 import { dataDir, readSettings, writeSettings } from '../services/settings.service'
 import { overview } from '../services/overview.service'
@@ -12,7 +13,16 @@ import { ensureDir, isInside, resolveUserPath } from '../utils/paths'
 import { notifyDataChanged } from '../services/bus'
 import { getDbFilePath } from '../db/connection'
 import { schedulerStatus } from '../services/scheduler.service'
-import { hideMainWindow, quitApplication, showSystemNotification } from '../index'
+import {
+  closeMainWindow,
+  getMainWindowState,
+  hideMainWindow,
+  minimizeMainWindow,
+  quitApplication,
+  setMainWindowFullscreen,
+  showSystemNotification,
+  toggleMaximizeMainWindow
+} from '../index'
 
 export function registerAppIpc(): void {
   handle<AppSettings>('app:get-settings', () => readSettings())
@@ -97,4 +107,15 @@ export function registerAppIpc(): void {
   handle<void>('app:quit-app', () => {
     quitApplication()
   })
+
+  /* ---------- 自绘标题栏：窗口控制与全屏 ---------- */
+  handle<void>('win:minimize', () => minimizeMainWindow())
+
+  handle<void>('win:toggle-maximize', () => toggleMaximizeMainWindow())
+
+  handle<void>('win:close', () => closeMainWindow())
+
+  handle<WindowStatePayload>('win:set-fullscreen', (on?: boolean) => setMainWindowFullscreen(on))
+
+  handle<WindowStatePayload>('win:get-state', () => getMainWindowState())
 }

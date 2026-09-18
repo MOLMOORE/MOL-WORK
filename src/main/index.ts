@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, nativeImage, Notification, shell, Tray, type NativeImage } from 'electron'
+import { app, BrowserWindow, Menu, nativeImage, Notification, screen, shell, Tray, type NativeImage } from 'electron'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { closeDatabase, initDatabase } from './db/connection'
@@ -8,7 +8,7 @@ import { purgeExpiredService } from './services/task.service'
 import { readSettings } from './services/settings.service'
 import { catchUpOnStartup, startScheduler, stopScheduler } from './services/scheduler.service'
 import { emitToRenderer } from './services/bus'
-import { IPC_EVENTS } from '@shared/types/ipc'
+import { IPC_EVENTS, type WindowStatePayload } from '@shared/types/ipc'
 import { APP_NAME } from '@shared/constants'
 import { logger } from './utils/logger'
 
@@ -103,6 +103,8 @@ function createWindow(): void {
     show: false,
     backgroundColor: '#141619',
     autoHideMenuBar: true,
+    /* 1.2.4 第五轮：去掉系统标题栏，窗口顶部由软件自己画一条随主题变色的标题栏 */
+    frame: false,
     title: APP_NAME,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
@@ -146,9 +148,98 @@ function createWindow(): void {
   // 拦截右上角关闭按钮：按用户设置进入后台 / 退出 / 弹窗询问
   interceptWindowClose(mainWindow)
 
+  // 自绘标题栏需要知道最大化 / 全屏状态，变化即推给渲染层
+  const push = (): void => pushWindowState()
+  mainWindow.on('ready-to-show', push)
+  mainWindow.on('maximize', () => {
+    fixMaximizedBounds(mainWindow)
+    push()
+  })
+  mainWindow.on('unmaximize', push)
+  mainWindow.on('enter-full-screen', push)
+  mainWindow.on('leave-full-screen', push)
+
   mainWindow.on('closed', () => {
     mainWindow = null
   })
+}
+
+/** 把当前窗口状态推给渲染层（自绘标题栏与全屏按钮据此更新） */
+export function pushWindowState(): void {
+  if (!mainWindow || mainWindow.isDestroyed()) return
+  const payload: WindowStatePayload = {
+    maximized: mainWindow.isMaximized(),
+    fullscreen: mainWindow.isFullScreen()
+  }
+  emitToRenderer(IPC_EVENTS.windowState, payload)
+}
+
+/**
+ * 无边框窗口在 Windows 上最大化有可能盖住任务栏：
+ * 只有真的超出工作区时才按工作区校正，正常情况一行代码都不执行。
+ */
+function fixMaximizedBounds(window: BrowserWindow | null): void {
+  if (!window || window.isDestroyed() || process.platform !== 'win32') return
+  if (!window.isMaximized() || window.isFullScreen()) return
+  const bounds = window.getBounds()
+  const { workArea } = screen.getDisplayMatching(bounds)
+  if (bounds.height > workArea.height + 2 || bounds.y < workArea.y - 2) {
+    window.setBounds({ x: workArea.x, y: workArea.y, width: workArea.width, height: workArea.height })
+  }
+}
+
+/** 自绘标题栏的窗口控制：最小化 / 最大化还原 / 关闭（关闭仍走原来的拦截逻辑） */
+export function minimizeMainWindow(): void {
+  mainWindow?.minimize()
+}
+
+export function toggleMaximizeMainWindow(): void {
+  if (!mainWindow) return
+  if (mainWindow.isMaximized()) mainWindow.unmaximize()
+  else mainWindow.maximize()
+}
+
+export function closeMainWindow(): void {
+  mainWindow?.close()
+}
+
+/** 全屏：F11 / 标题栏按钮 / 阅读界面的 F 都调这里 */
+export function setMainWindowFullscreen(on?: boolean): WindowStatePayload {
+  if (!mainWindow) return { maximized: false, fullscreen: false }
+  const next = on ?? !mainWindow.isFullScreen()
+  mainWindow.setFullScreen(next)
+  return { maximized: mainWindow.isMaximized(), fullscreen: mainWindow.isFullScreen() }
+}
+
+export function getMainWindowState(): WindowStatePayload {
+  return {
+    maximized: mainWindow?.isMaximized() ?? false,
+    fullscreen: mainWindow?.isFullScreen() ?? false
+  }
+}
+
+/**
+ * 应用菜单：无边框窗口不再显示菜单栏，但保留编辑类快捷键（复制 / 粘贴 / 全选）。
+ * 默认菜单里的 F11 全屏与 Ctrl+R 刷新会抢走软件自己的快捷键，所以这里整体替换掉。
+ */
+function installApplicationMenu(): void {
+  const isDev = Boolean(process.env.ELECTRON_RENDERER_URL)
+  Menu.setApplicationMenu(
+    Menu.buildFromTemplate([
+      { role: 'editMenu', label: '编辑' },
+      ...(isDev
+        ? [
+            {
+              label: '调试',
+              submenu: [
+                { label: '刷新', accelerator: 'CmdOrCtrl+Shift+R', click: () => mainWindow?.webContents.reload() },
+                { label: '开发者工具', accelerator: 'CmdOrCtrl+Shift+I', click: () => mainWindow?.webContents.toggleDevTools() }
+              ]
+            }
+          ]
+        : [])
+    ])
+  )
 }
 
 /** 拦截窗口关闭：按用户设置进入后台、直接退出或交给渲染层弹窗询问 */
@@ -196,6 +287,7 @@ if (!gotLock) {
 
   app.whenReady().then(async () => {
     logger.info('应用启动')
+    installApplicationMenu()
     initDatabase()
     if (process.env.WORKSTATION_SELFTEST === '1') {
       const { runSelfTest } = await import('./selftest')

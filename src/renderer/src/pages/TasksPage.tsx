@@ -513,7 +513,7 @@ export function TasksPage(): JSX.Element {
   )
 
   const entries: GridEntry[] = [
-    { id: 'header', title: '任务工具头', x: 0, y: 0, w: 12, h: 3, minW: 6, minH: 3, node: headerNode },
+    { id: 'header', title: '任务工具头', x: 0, y: 0, w: 12, h: 4, minW: 6, minH: 3, node: headerNode },
     ...(view === 'list'
       ? [
           {
@@ -567,7 +567,7 @@ export function TasksPage(): JSX.Element {
           ))}
         </div>
       ) : (
-        <PageGrid pageKey="tasks" entries={entries} storageKey="workstation.grid.tasks.v4" reserved={false} />
+        <PageGrid pageKey="tasks" entries={entries} storageKey="workstation.grid.tasks.v5" reserved={false} />
       )}
 
       <TaskForm

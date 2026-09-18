@@ -721,12 +721,19 @@
       linear-gradient(90deg, hsl(189 94% 30% / 0.06) 0 1px, transparent 1px);
   }
   html[data-skin='hud'] .app-shell { background-size: 28px 28px; }
-  html[data-skin='hud'] .app-sidebar { width: 68px; border-right: 1px solid hsl(var(--primary) / 0.28); }
-  /* 导轨只收文字与「收起侧栏」按钮：明暗切换、设置两个入口必须留在导轨里 */
-  html[data-skin='hud'] .nav-label,
-  html[data-skin='hud'] .brand-text,
-  html[data-skin='hud'] .sidebar-collapse { display: none; }
-  html[data-skin='hud'] .app-nav-item { justify-content: center; padding-left: 0; padding-right: 0; }
+  /* 导轨由侧栏自己的折叠状态决定（驾驶舱默认折叠，底部「展开侧栏」按钮可以放回去），
+     以前是 CSS 强行压成 68px 并藏掉折叠按钮，导致折叠后无法复原。 */
+  html[data-skin='hud'] .app-sidebar { border-right: 1px solid hsl(var(--primary) / 0.28); }
+  html[data-skin='hud'] .app-sidebar.is-rail { width: 68px; }
+  html[data-skin='hud'] .app-sidebar.is-rail .app-nav-item,
+  html[data-skin='hud'] .app-sidebar.is-rail .sidebar-collapse {
+    justify-content: center;
+    padding-left: 0;
+    padding-right: 0;
+  }
+  html[data-skin='hud'] .app-nav-item.is-active {
+    box-shadow: inset 0 0 0 1px hsl(var(--primary) / 0.45);
+  }
   html[data-skin='hud'] .app-statusbar { display: flex; }
   html[data-skin='hud'] .app-topbar { border-bottom: 1px solid hsl(var(--primary) / 0.28); }
   html[data-skin='hud'] .glass-card { position: relative; border-color: hsl(var(--primary) / 0.28); }
@@ -831,10 +838,18 @@
     border: 1px solid hsl(var(--n-h) var(--n-s) 50%);
     box-shadow: var(--mw-bevel);
   }
+  /* 卡片标题条：一律画成 Win95 的蓝色渐变标题栏 */
   html[data-skin='retro'] .glass-card > .section-header {
-    padding: 0.2rem 0.5rem;
-    margin: -1.25rem -1.25rem 1rem;
+    padding: 0.22rem 0.6rem;
     background: linear-gradient(90deg, hsl(var(--p-h) var(--p-s) var(--p-l)), hsl(var(--p-h) 44% 74%));
+    border: 1px solid hsl(var(--n-h) var(--n-s) 42%);
+  }
+  /* 只有当标题条就是卡片里的第一个元素时才出血贴到卡片边缘；
+     上面还有内容（比如设置页的「返回设置」）时用负 margin 会盖住它 —— 图1 的遮挡 */
+  html[data-skin='retro'] .glass-card > .section-header:first-child {
+    margin: -1.25rem -1.25rem 1rem;
+    padding: 0.3rem 1.25rem 0.4rem;
+    border: none;
   }
   html[data-skin='retro'] .glass-card > .section-header .section-title { font-size: 0.78rem; color: hsl(0 0% 100%); }
   html[data-skin='retro'] .glass-card > .section-header p { color: hsl(0 0% 100% / 0.85); }
@@ -851,6 +866,39 @@
     background-clip: padding-box;
   }
   html[data-skin='retro'] ::-webkit-scrollbar-track { background: hsl(var(--n-h) var(--n-s) 88%); }
+
+  /* ---------- 自绘标题栏的皮肤适配 ---------- */
+  html[data-skin='retro'] .app-titlebar {
+    background: linear-gradient(90deg, hsl(var(--p-h) var(--p-s) var(--p-l)), hsl(var(--p-h) 44% 76%));
+    border-bottom: 2px solid hsl(var(--n-h) var(--n-s) 58%);
+  }
+  html[data-skin='retro'] .titlebar-btn {
+    width: 34px;
+    color: hsl(0 0% 100%);
+    border-left: 1px solid hsl(0 0% 100% / 0.35);
+  }
+  html[data-skin='retro'] .titlebar-btn:hover {
+    background: hsl(0 0% 100% / 0.24);
+    color: hsl(0 0% 100%);
+  }
+  html[data-skin='retro'] .titlebar-close:hover { background: hsl(var(--danger)); color: #fff; }
+  html[data-skin='terminal'] .app-titlebar {
+    background: hsl(var(--n-h) var(--n-s) 4%);
+    border-bottom: 3px double hsl(var(--primary) / 0.5);
+    color: hsl(var(--p-l-text));
+  }
+  html[data-skin='terminal'] .titlebar-btn:hover { background: hsl(var(--primary) / 0.18); }
+  html[data-skin='terminal'] .titlebar-close:hover { background: hsl(var(--danger) / 0.85); }
+  html[data-skin='hud'] .app-titlebar {
+    border-bottom: 1px solid hsl(var(--primary) / 0.35);
+    background-image: linear-gradient(90deg, hsl(var(--primary) / 0.1), transparent 45%);
+  }
+  html[data-skin='hud'] .titlebar-btn:hover { background: hsl(var(--primary) / 0.18); }
+  html[data-skin='brutalism'] .app-titlebar { border-bottom: 3px solid hsl(var(--border)); }
+  html[data-skin='brutalism'] .titlebar-btn { border-left: 3px solid hsl(var(--border)); width: 38px; }
+  html[data-skin='magazine'] .app-titlebar { border-bottom: 1px solid hsl(var(--border)); }
+  html[data-skin='glass'] .app-titlebar { background: hsl(var(--surface) / 0.72); backdrop-filter: blur(14px); }
+  html[data-skin='soft'] .app-titlebar { border-bottom: none; box-shadow: 0 6px 16px -12px rgba(148, 128, 112, 0.6); }
 
   /* ---------- 皮肤动画与预览缩略图 ---------- */
   @keyframes mw-aurora {
@@ -955,6 +1003,44 @@
   /* 应用外壳：风格主题的页面底纹（渐变 / 纸纹 / 扫描线）落在这里 */
   .app-shell {
     background-image: var(--page-bg-image);
+  }
+
+  /* ---------- 自绘标题栏（无边框窗口，v1.2.4 第五轮）----------
+     整条只用主题令牌上色，换主题 / 换深浅色时跟着一起变。 */
+  .app-titlebar {
+    -webkit-user-select: none;
+    user-select: none;
+    z-index: 60;
+  }
+  .titlebar-drag {
+    -webkit-app-region: drag;
+  }
+  .titlebar-actions {
+    -webkit-app-region: no-drag;
+  }
+  .titlebar-btn {
+    display: flex;
+    width: 42px;
+    align-items: center;
+    justify-content: center;
+    color: hsl(var(--muted-foreground));
+    transition: background-color 140ms ease, color 140ms ease;
+  }
+  .titlebar-btn:hover {
+    background: hsl(var(--muted));
+    color: hsl(var(--foreground));
+  }
+  .titlebar-close:hover {
+    background: hsl(var(--danger));
+    color: #fff;
+  }
+
+  /* ---------- 网格卡片外框：内容比格子高时改为可滚，不做硬裁 ----------
+     任何主题、任何字号下工具条都不会像图3那样被切掉半行。 */
+  .mw-grid-node {
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
   }
 
   /* 卡片：实底 + 细描边 + 极轻投影；描边宽度与圆角由主题旋钮决定 */
@@ -1101,6 +1187,8 @@
     position: relative;
     background: #fff;
     box-shadow: 0 2px 10px -2px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(0, 0, 0, 0.12);
+    /* 阴影随动效一起渐变：翻页结束时不会「啪」地跳一下 */
+    transition: box-shadow 260ms ease;
     overflow: hidden;
     display: flex;
     align-items: center;
@@ -1116,8 +1204,9 @@
     display: contents;
   }
 
+  /* 未渲染完就用纸白占位：灰条纹会在翻页瞬间闪一下，看起来像抽搐 */
   .mw-page.is-loading {
-    background: repeating-linear-gradient(45deg, #f3f4f6 0 10px, #eceef1 10px 20px);
+    background: #fff;
   }
 
   .mw-page-blank {
@@ -1127,6 +1216,56 @@
 
   .mw-page.is-error {
     background: hsl(var(--n-h) var(--n-s) var(--n-l-card));
+  }
+
+  /* 点击左右两侧翻页：放大 / 可拖动时自动收起，避免和拖动平移抢操作 */
+  .mw-pagezone {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    z-index: 5;
+    width: 14%;
+    min-width: 64px;
+    display: grid;
+    place-items: center;
+    border: none;
+    background: transparent;
+    color: hsl(var(--n-h) var(--n-s) 30%);
+    opacity: 0;
+    transition: opacity 150ms ease, background-color 150ms ease;
+    cursor: pointer;
+  }
+  .mw-pagezone-left {
+    left: 0;
+    justify-items: start;
+    padding-left: 10px;
+  }
+  .mw-pagezone-right {
+    right: 0;
+    justify-items: end;
+    padding-right: 10px;
+  }
+  .mw-pagezone:hover {
+    opacity: 1;
+  }
+  .mw-pagezone-left:hover {
+    background: linear-gradient(90deg, hsl(var(--primary) / 0.14), transparent);
+  }
+  .mw-pagezone-right:hover {
+    background: linear-gradient(270deg, hsl(var(--primary) / 0.14), transparent);
+  }
+  .mw-pagezone span {
+    display: grid;
+    place-items: center;
+    width: 30px;
+    height: 30px;
+    border-radius: 999px;
+    background: hsl(0 0% 100% / 0.82);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.28);
+  }
+  [data-theme='dark'] .mw-pagezone span {
+    background: hsl(var(--n-h) var(--n-s) 14% / 0.86);
+    color: hsl(var(--n-fg));
   }
 
   /* 排版模式：这一「页」就是整个舞台，iframe 铺满后由内容侧缩放 */
@@ -1172,16 +1311,16 @@
     to { transform: translateX(0); opacity: 1; }
   }
   @keyframes mw-slide-out-next {
-    from { transform: translateX(0); }
-    to { transform: translateX(-62%); opacity: 0.2; }
+    from { transform: translateX(0); opacity: 1; }
+    to { transform: translateX(-58%); opacity: 0; }
   }
   @keyframes mw-slide-in-prev {
     from { transform: translateX(-62%); opacity: 0.25; }
     to { transform: translateX(0); opacity: 1; }
   }
   @keyframes mw-slide-out-prev {
-    from { transform: translateX(0); }
-    to { transform: translateX(62%); opacity: 0.2; }
+    from { transform: translateX(0); opacity: 1; }
+    to { transform: translateX(58%); opacity: 0; }
   }
   @keyframes mw-cover-in-next {
     from { transform: translateX(100%); }
@@ -1192,12 +1331,14 @@
     to { transform: translateX(0); }
   }
   @keyframes mw-book-out-next {
-    from { transform: rotateY(0deg); filter: brightness(1); }
-    to { transform: rotateY(-108deg); filter: brightness(0.62); }
+    from { transform: rotateY(0deg); filter: brightness(1); opacity: 1; }
+    70% { opacity: 1; }
+    to { transform: rotateY(-112deg); filter: brightness(0.62); opacity: 0; }
   }
   @keyframes mw-book-out-prev {
-    from { transform: rotateY(0deg); filter: brightness(1); }
-    to { transform: rotateY(108deg); filter: brightness(0.62); }
+    from { transform: rotateY(0deg); filter: brightness(1); opacity: 1; }
+    70% { opacity: 1; }
+    to { transform: rotateY(112deg); filter: brightness(0.62); opacity: 0; }
   }
   @keyframes mw-book-in-next {
     from { transform: rotateY(26deg); filter: brightness(0.78); }
@@ -1225,28 +1366,33 @@
     }
   }
 
-  [data-flip='fade'] .mw-layer-in { animation: mw-fade-in 300ms ease-out; }
-  [data-flip='fade'] .mw-layer-out { animation: mw-fade-out 300ms ease-in forwards; z-index: 3; }
+  /* 五种动效统一 340ms，与 ReaderPage 的 TURN_MS 一致：
+     残影层在动画结束后才卸载，且退场一律收到完全透明，收尾不会抖一下 */
+  /* 动效一律挂在 .mw-page 上：换页时这张「纸」是新挂载的节点，动画必然重新播放；
+     图层容器保持常驻，不再靠 key 强制重挂，收尾时也就不会抖 */
+  [data-flip='fade'] .mw-layer-in .mw-page { animation: mw-fade-in 340ms ease-out; }
+  [data-flip='fade'] .mw-layer-out .mw-page { animation: mw-fade-out 340ms ease-in forwards; }
+  [data-flip='fade'] .mw-layer-out { z-index: 3; }
 
   /* 翻页时两层重叠：绝对定位到舞台中心，纸本身负责动画 */
   .mw-book.is-turning .mw-layer .mw-page {
     box-shadow: 0 10px 34px -10px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(0, 0, 0, 0.14);
   }
 
-  [data-flip='slide'] .mw-layer-in .mw-page { animation: mw-slide-in-next 380ms cubic-bezier(0.22, 0.9, 0.24, 1); }
-  [data-flip='slide'] .mw-layer-out .mw-page { animation: mw-slide-out-next 380ms cubic-bezier(0.22, 0.9, 0.24, 1) forwards; }
+  [data-flip='slide'] .mw-layer-in .mw-page { animation: mw-slide-in-next 340ms cubic-bezier(0.22, 0.9, 0.24, 1); }
+  [data-flip='slide'] .mw-layer-out .mw-page { animation: mw-slide-out-next 340ms cubic-bezier(0.22, 0.9, 0.24, 1) forwards; }
   [data-flip='slide'] .mw-book.is-reverse .mw-layer-in .mw-page { animation-name: mw-slide-in-prev; }
   [data-flip='slide'] .mw-book.is-reverse .mw-layer-out .mw-page { animation-name: mw-slide-out-prev; }
 
   [data-flip='cover'] .mw-layer-in { z-index: 2; }
-  [data-flip='cover'] .mw-layer-in .mw-page { animation: mw-cover-in-next 380ms cubic-bezier(0.2, 0.85, 0.2, 1); }
+  [data-flip='cover'] .mw-layer-in .mw-page { animation: mw-cover-in-next 340ms cubic-bezier(0.2, 0.85, 0.2, 1); }
   [data-flip='cover'] .mw-book.is-reverse .mw-layer-in .mw-page { animation-name: mw-cover-in-prev; }
 
   /* 仿真翻书：绕书脊（左页边）转过去，背面变暗，新页从内侧翻起 */
   [data-flip='book'] .mw-layer-out { z-index: 3; }
   [data-flip='book'] .mw-layer-out .mw-page {
     transform-origin: left center;
-    animation: mw-book-out-next 420ms cubic-bezier(0.36, 0.7, 0.24, 1) forwards;
+    animation: mw-book-out-next 340ms cubic-bezier(0.36, 0.7, 0.24, 1) forwards;
     backface-visibility: hidden;
   }
   /* 翻过去的那一面压出一道书脊阴影，观感不再像「整块纸平移」 */
@@ -1256,12 +1402,12 @@
     inset: 0;
     pointer-events: none;
     background: linear-gradient(90deg, rgba(0, 0, 0, 0.34) 0%, rgba(0, 0, 0, 0.08) 42%, rgba(0, 0, 0, 0) 100%);
-    animation: mw-book-shade 420ms ease-in forwards;
+    animation: mw-book-shade 340ms ease-in forwards;
   }
   [data-flip='book'] .mw-book.is-reverse .mw-layer-out .mw-page::after {
     background: linear-gradient(270deg, rgba(0, 0, 0, 0.34) 0%, rgba(0, 0, 0, 0.08) 42%, rgba(0, 0, 0, 0) 100%);
   }
-  [data-flip='book'] .mw-layer-in .mw-page { animation: mw-book-in-next 420ms ease-out; }
+  [data-flip='book'] .mw-layer-in .mw-page { animation: mw-book-in-next 340ms ease-out; }
   [data-flip='book'] .mw-book.is-reverse .mw-layer-out .mw-page {
     transform-origin: right center;
     animation-name: mw-book-out-prev;

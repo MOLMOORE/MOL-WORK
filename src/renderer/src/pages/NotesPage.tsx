@@ -58,7 +58,9 @@ export function NotesPage(): JSX.Element {
     gradeReview
   } = useNoteStore()
   const tasks = useTaskStore((state) => state.tasks)
+  const projects = useTaskStore((state) => state.projects)
   const loadTasks = useTaskStore((state) => state.load)
+  const loadProjects = useTaskStore((state) => state.loadProjects)
   const pushToast = useAppStore((state) => state.pushToast)
   const refreshOverview = useAppStore((state) => state.refreshOverview)
 
@@ -67,18 +69,27 @@ export function NotesPage(): JSX.Element {
   const [draftTitle, setDraftTitle] = useState('')
   const [draftContent, setDraftContent] = useState('')
   const [draftKind, setDraftKind] = useState<NoteKind>('note')
+  // 详情里的可编辑字段：简介 + 关联任务 / 项目（课程）
+  const [draftSummary, setDraftSummary] = useState('')
+  const [draftTaskId, setDraftTaskId] = useState<number | null>(null)
+  const [draftProjectId, setDraftProjectId] = useState<number | null>(null)
   const [enableReview, setEnableReview] = useState(true)
   const [confirmId, setConfirmId] = useState<number | null>(null)
   const [createOpen, setCreateOpen] = useState(false)
   const [newTaskId, setNewTaskId] = useState<number | null>(null)
+  const [newProjectId, setNewProjectId] = useState<number | null>(null)
   const [newTitle, setNewTitle] = useState('')
   // 导入外部文档（PDF / Word / PPT / 网页 / 纯文本 …）
   const [importOpen, setImportOpen] = useState(false)
   const [importing, setImporting] = useState(false)
   const [dropping, setDropping] = useState(false)
   const [importTaskId, setImportTaskId] = useState<number | null>(null)
+  const [importProjectId, setImportProjectId] = useState<number | null>(null)
+  const [importSummary, setImportSummary] = useState('')
   const [importKind, setImportKind] = useState<NoteKind>('material')
   const [importSplit, setImportSplit] = useState(false)
+  /** 已经选好、等待确认的文件路径：拖进来或从选择框拿到后先不导入，先问简介与关联 */
+  const [importPaths, setImportPaths] = useState<string[]>([])
   // 详情弹窗：选中任意一条资料后弹出，替代原先常驻右侧的详情区
   const [detailOpen, setDetailOpen] = useState(false)
   // 导入进度（主进程逐文件推送）
@@ -87,7 +98,8 @@ export function NotesPage(): JSX.Element {
   useEffect(() => {
     void load()
     void loadTasks()
-  }, [load, loadTasks])
+    void loadProjects()
+  }, [load, loadTasks, loadProjects])
 
   // 订阅导入进度：进度条浮层在页面底部显示，完成后自动收起
   useEffect(() => {
@@ -116,6 +128,9 @@ export function NotesPage(): JSX.Element {
     setDraftTitle(current.title)
     setDraftContent(current.content)
     setDraftKind(current.kind)
+    setDraftSummary(current.summary ?? '')
+    setDraftTaskId(current.taskId ?? null)
+    setDraftProjectId(current.projectId ?? null)
     setEnableReview(Boolean(current.review))
   }, [current?.id, current?.updatedAt])
 
@@ -131,6 +146,10 @@ export function NotesPage(): JSX.Element {
       title: draftTitle.trim() === '' ? '未命名笔记' : draftTitle.trim(),
       content: draftContent,
       kind: draftKind,
+      summary: draftSummary.trim(),
+      // 只挂项目时清掉任务归属，避免项目跟着旧任务跑
+      taskId: draftTaskId,
+      projectId: draftTaskId !== null ? draftProjectId ?? current.projectId ?? null : draftProjectId,
       enableReview
     })
     await refreshOverview()
@@ -153,8 +172,17 @@ export function NotesPage(): JSX.Element {
       pushToast({ title: '请填写笔记标题', tone: 'warning' })
       return
     }
-    await createNote({ taskId: newTaskId, title: newTitle.trim(), content: '', kind: 'note', enableReview: true })
+    await createNote({
+      taskId: newTaskId,
+      projectId: newProjectId,
+      title: newTitle.trim(),
+      content: '',
+      kind: 'note',
+      enableReview: true
+    })
     setNewTitle('')
+    setNewTaskId(null)
+    setNewProjectId(null)
     setCreateOpen(false)
     await refreshOverview()
     pushToast({ title: '笔记已创建', description: '已自动加入遗忘曲线复习计划', tone: 'success' })
@@ -174,11 +202,21 @@ export function NotesPage(): JSX.Element {
     pushToast({ title: `已排入 ${day} 日程`, tone: 'success' })
   }
 
-  const importOptions = (taskId: number | null): NoteImportOptions => ({
-    taskId,
+  const importOptions = (): NoteImportOptions => ({
+    taskId: importTaskId,
+    projectId: importProjectId,
+    summary: importSummary.trim(),
     kind: importKind,
     splitByHeading: importSplit
   })
+
+  /** 把刚拿到的文件路径放进确认弹窗（不直接导入） */
+  const stageImport = (paths: string[]): void => {
+    if (paths.length === 0) return
+    setImportPaths((old) => Array.from(new Set([...old, ...paths])))
+    setImportTaskId((old) => old ?? taskFilter)
+    setImportOpen(true)
+  }
 
   const reportImport = async (summary: NoteImportSummary): Promise<void> => {
     const failed = summary.items.filter((item) => !item.ok)
@@ -202,29 +240,33 @@ export function NotesPage(): JSX.Element {
     }
   }
 
-  const handlePickImport = async (): Promise<void> => {
+  /** 弹窗里「再加文件」：继续追加待导入清单 */
+  const handlePickMore = async (): Promise<void> => {
     setImporting(true)
     try {
-      await reportImport(await api.note.importPick(importOptions(importTaskId)))
-      setImportOpen(false)
+      stageImport(await api.note.pickPaths())
     } catch (error) {
-      pushToast({ title: '导入失败', description: error instanceof Error ? error.message : String(error), tone: 'danger' })
+      pushToast({ title: '没能打开文件选择框', description: error instanceof Error ? error.message : String(error), tone: 'danger' })
     } finally {
       setImporting(false)
     }
   }
 
-  const handleDropFiles = async (files: File[]): Promise<void> => {
-    const paths = files
-      .map((file) => window.nativeFiles?.pathForFile(file) ?? '')
-      .filter((path) => path !== '')
-    if (paths.length === 0) {
-      pushToast({ title: '没能取到文件路径', description: '请改用笔记列表右上角的「导入文档」按钮选择文件', tone: 'warning' })
+  /** 确认导入：简介与关联一并写进每一条笔记 */
+  const confirmImport = async (): Promise<void> => {
+    if (importPaths.length === 0) {
+      pushToast({ title: '请先选择要导入的文件', tone: 'warning' })
       return
     }
     setImporting(true)
     try {
-      await reportImport(await api.note.importFiles(paths, importOptions(taskFilter)))
+      const paths = importPaths
+      setImportPaths([])
+      setImportSummary('')
+      setImportOpen(false)
+      await reportImport(await api.note.importFiles(paths, importOptions()))
+      setImportTaskId(null)
+      setImportProjectId(null)
     } catch (error) {
       pushToast({ title: '导入失败', description: error instanceof Error ? error.message : String(error), tone: 'danger' })
     } finally {
@@ -232,9 +274,29 @@ export function NotesPage(): JSX.Element {
     }
   }
 
-  const openImport = (): void => {
-    setImportTaskId(taskFilter)
-    setImportOpen(true)
+  /** 拖文件进来：先问简介与关联，再导入（第五轮） */
+  const handleDropFiles = (files: File[]): void => {
+    const paths = files
+      .map((file) => window.nativeFiles?.pathForFile(file) ?? '')
+      .filter((path) => path !== '')
+    if (paths.length === 0) {
+      pushToast({ title: '没能取到文件路径', description: '请改用笔记列表右上角的「导入」按钮选择文件', tone: 'warning' })
+      return
+    }
+    stageImport(paths)
+  }
+
+  /** 「导入」按钮：先弹系统选择框，拿到文件后进确认弹窗 */
+  const openImport = async (): Promise<void> => {
+    setImporting(true)
+    try {
+      const paths = await api.note.pickPaths()
+      if (paths.length > 0) stageImport(paths)
+    } catch (error) {
+      pushToast({ title: '没能打开文件选择框', description: error instanceof Error ? error.message : String(error), tone: 'danger' })
+    } finally {
+      setImporting(false)
+    }
   }
 
   const tasksNode = (
@@ -366,10 +428,12 @@ export function NotesPage(): JSX.Element {
                     )}
                   </div>
                   <p className="mt-2 truncate text-xs font-medium text-foreground">{note.title}</p>
-                  <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-muted-foreground">
-                    {note.viewMode === 'text'
-                      ? note.content.replace(/[#>*`]/g, '').slice(0, 80) || '暂无正文'
-                      : `按 ${note.sourceFormat ?? '原文件'} 原版式显示，图片与排版都在`}
+                  <p className="mt-1 line-clamp-2 min-w-0 text-[11px] leading-relaxed text-muted-foreground">
+                    {note.summary !== ''
+                      ? note.summary
+                      : note.viewMode === 'text'
+                        ? note.content.replace(/[#>*`]/g, '').slice(0, 80) || '暂无正文'
+                        : `按 ${note.sourceFormat ?? '原文件'} 原版式显示，图片与排版都在`}
                   </p>
                   <div className="mt-1.5 flex items-center gap-2 text-[10px] text-muted-foreground">
                     <span className="rounded bg-muted px-1.5 py-0.5">{VIEW_MODE_LABEL[note.viewMode] ?? '文本'}</span>
@@ -378,8 +442,16 @@ export function NotesPage(): JSX.Element {
                     {note.lastPage > 1 && note.viewMode !== 'text' ? (
                       <span className="tabular-nums">读到 {note.lastPage}</span>
                     ) : null}
+                    {note.readingMinutes ? (
+                      <span className="tabular-nums">已读 {note.readingMinutes} 分钟</span>
+                    ) : null}
                     <span className="ml-auto flex shrink-0 items-center gap-1.5">
                       {note.taskTitle ? <span className="max-w-[90px] truncate">任务：{note.taskTitle}</span> : null}
+                      {note.projectName ? (
+                        <span className="max-w-[90px] truncate" title={note.projectName}>
+                          课程：{note.projectName}
+                        </span>
+                      ) : null}
                       <button
                         type="button"
                         title="编辑正文与复习计划"
@@ -413,7 +485,7 @@ export function NotesPage(): JSX.Element {
       </Card>
       {dropping ? (
         <div className="pointer-events-none absolute inset-0 z-10 grid place-items-center rounded-xl border-2 border-dashed border-primary/70 bg-primary/10 text-xs font-medium text-tint-primary">
-          松手即导入：PDF / Word / PPT / Excel / EPUB / 网页 / 文本按原版式成书，纯文本与 Markdown 可编辑
+          松手后先问一句：给这批资料填个简介、要不要挂到某个任务或课程上，确认后才开始导入
         </div>
       ) : null}
     </div>
@@ -439,21 +511,37 @@ export function NotesPage(): JSX.Element {
           />
           <div className="relative z-10 w-full max-w-md rounded-xl border border-border bg-surface p-5 shadow-pop animate-scale-in">
             <p className="text-sm font-semibold text-foreground">新建笔记</p>
-            <p className="mt-0.5 text-xs text-muted-foreground">可选择归属任务，保存后自动加入复习计划</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">可选择归属任务或项目 / 课程，保存后自动加入复习计划</p>
             <div className="mt-4 grid gap-4">
-              <Field label="归属任务">
-                <Select
-                  value={newTaskId === null ? '' : String(newTaskId)}
-                  onChange={(event) => setNewTaskId(event.target.value === '' ? null : Number(event.target.value))}
-                >
-                  <option value="">不关联任务</option>
-                  {tasks.map((task) => (
-                    <option key={task.id} value={task.id}>
-                      {task.title}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field label="归属任务">
+                  <Select
+                    value={newTaskId === null ? '' : String(newTaskId)}
+                    onChange={(event) => setNewTaskId(event.target.value === '' ? null : Number(event.target.value))}
+                  >
+                    <option value="">不关联任务</option>
+                    {tasks.map((task) => (
+                      <option key={task.id} value={task.id}>
+                        {task.title}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+                <Field label="归属项目 / 课程">
+                  <Select
+                    value={newProjectId === null ? '' : String(newProjectId)}
+                    onChange={(event) => setNewProjectId(event.target.value === '' ? null : Number(event.target.value))}
+                  >
+                    <option value="">不关联项目 / 课程</option>
+                    {projects.map((project) => (
+                      <option key={project.id} value={project.id}>
+                        {project.kind === 'course' ? '课程 · ' : '项目 · '}
+                        {project.name}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+              </div>
               <Field label="笔记标题" required>
                 <Input value={newTitle} onChange={(event) => setNewTitle(event.target.value)} placeholder="例如：B+ 树与 B 树的核心差异" />
               </Field>
@@ -478,69 +566,116 @@ export function NotesPage(): JSX.Element {
             onClick={() => setImportOpen(false)}
             className="absolute inset-0 cursor-default bg-black/40"
           />
-          <div className="relative z-10 w-full max-w-lg rounded-xl border border-border bg-surface p-5 shadow-pop animate-scale-in">
-            <p className="text-sm font-semibold text-foreground">把文档导成一本可翻的书</p>
-            <p className="mt-0.5 text-xs text-muted-foreground">
-              全程在本地完成、不上传。PDF / PPT / Excel 等按原版式逐页显示（图片与排版都保留、只读）；
-              Word 能转 PDF 时同样原版式，否则退回可编辑文字；Markdown / TXT / 代码等文本类保持可编辑。
-            </p>
-            <div className="mt-4 grid gap-4">
-              <Field label="归属任务" hint="留空则只作为独立资料保存">
-                <Select
-                  value={importTaskId === null ? '' : String(importTaskId)}
-                  onChange={(event) => setImportTaskId(event.target.value === '' ? null : Number(event.target.value))}
-                >
-                  <option value="">不关联任务</option>
-                  {tasks.map((task) => (
-                    <option key={task.id} value={task.id}>
-                      {task.title}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
-              <div className="grid grid-cols-2 gap-4">
-                <Field label="导入为">
-                  <Select value={importKind} onChange={(event) => setImportKind(event.target.value as NoteKind)}>
-                    <option value="material">资料（不排复习）</option>
-                    <option value="note">笔记（可排复习）</option>
-                  </Select>
-                </Field>
-                <Field label="长文档处理">
-                  <div className="flex h-9 items-center rounded-xl border border-border bg-input/60 px-3">
-                    <Switch
-                      checked={importSplit}
-                      onChange={setImportSplit}
-                      label={importSplit ? '按一级标题拆成多条' : '整篇存为一条'}
-                    />
+          <div className="relative z-10 flex max-h-full w-full max-w-xl flex-col overflow-hidden rounded-xl border border-border bg-surface shadow-pop animate-scale-in">
+            <div className="shrink-0 border-b border-border px-5 py-4">
+              <p className="text-sm font-semibold text-foreground">这批资料怎么存？</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                先填个简介、再决定挂到哪个任务或课程上；不填也没关系，之后随时能在详情里补。
+              </p>
+            </div>
+
+            <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+              <div className="grid gap-4">
+                <Field label={`已选文件（${importPaths.length} 个）`}>
+                  <div className="max-h-24 overflow-y-auto rounded-lg border border-border bg-muted/25 p-2">
+                    {importPaths.map((path) => (
+                      <p key={path} className="truncate text-[11px] leading-relaxed text-muted-foreground" title={path}>
+                        {path.split(/[\\/]/).pop()}
+                      </p>
+                    ))}
                   </div>
                 </Field>
-              </div>
-              <div className="grid gap-1.5 rounded-lg border border-border bg-muted/25 p-3">
-                <p className="text-[11px] font-medium text-muted-foreground">支持的格式</p>
-                {IMPORT_FORMAT_GROUPS.map((group) => (
-                  <p key={group.label} className="text-[11px] leading-relaxed text-muted-foreground/90">
-                    <span className="text-foreground">{group.label}</span>：{group.formats}
-                    <span className="ml-1 text-muted-foreground/70">— {group.mode}</span>
+
+                <Field label="资料简介" hint="一句话说明这份资料是什么、用来干什么；留空则不填">
+                  <Textarea
+                    rows={2}
+                    value={importSummary}
+                    onChange={(event) => setImportSummary(event.target.value)}
+                    placeholder="例如：电路原理实验课的讲义与实验报告模板，重点看第 3 章的桥式电路"
+                  />
+                </Field>
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Field label="关联任务" hint="阅读时间会算进这个任务的专注时长">
+                    <Select
+                      value={importTaskId === null ? '' : String(importTaskId)}
+                      onChange={(event) => setImportTaskId(event.target.value === '' ? null : Number(event.target.value))}
+                    >
+                      <option value="">不关联任务</option>
+                      {tasks.map((task) => (
+                        <option key={task.id} value={task.id}>
+                          {task.title}
+                        </option>
+                      ))}
+                    </Select>
+                  </Field>
+                  <Field label="关联项目 / 课程" hint="没有对应任务时，直接挂到课程上">
+                    <Select
+                      value={importProjectId === null ? '' : String(importProjectId)}
+                      onChange={(event) =>
+                        setImportProjectId(event.target.value === '' ? null : Number(event.target.value))
+                      }
+                    >
+                      <option value="">不关联项目 / 课程</option>
+                      {projects.map((project) => (
+                        <option key={project.id} value={project.id}>
+                          {project.kind === 'course' ? '课程 · ' : '项目 · '}
+                          {project.name}
+                        </option>
+                      ))}
+                    </Select>
+                  </Field>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="导入为">
+                    <Select value={importKind} onChange={(event) => setImportKind(event.target.value as NoteKind)}>
+                      <option value="material">资料（不排复习）</option>
+                      <option value="note">笔记（可排复习）</option>
+                    </Select>
+                  </Field>
+                  <Field label="长文档处理">
+                    <div className="flex h-9 items-center rounded-xl border border-border bg-input/60 px-3">
+                      <Switch
+                        checked={importSplit}
+                        onChange={setImportSplit}
+                        label={importSplit ? '按一级标题拆成多条' : '整篇存为一条'}
+                      />
+                    </div>
+                  </Field>
+                </div>
+
+                <div className="grid gap-1.5 rounded-lg border border-border bg-muted/25 p-3">
+                  <p className="text-[11px] font-medium text-muted-foreground">支持的格式</p>
+                  {IMPORT_FORMAT_GROUPS.map((group) => (
+                    <p key={group.label} className="text-[11px] leading-relaxed text-muted-foreground/90">
+                      <span className="text-foreground">{group.label}</span>：{group.formats}
+                      <span className="ml-1 text-muted-foreground/70">— {group.mode}</span>
+                    </p>
+                  ))}
+                  <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground/70">
+                    转成原版式页面需要本机装有 LibreOffice 或 Microsoft Office（PDF 与网页 / EPUB 不需要）；
+                    没有转换器时会自动退回「抽取文字」，仍能读但版式与图片会丢。扫描版 PDF 可以正常翻阅，只是搜不到字。
                   </p>
-                ))}
-                <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground/70">
-                  转成原版式页面需要本机装有 LibreOffice 或 Microsoft Office（PDF 与网页 / EPUB 不需要）；
-                  没有转换器时会自动退回「抽取文字」，仍能读但版式与图片会丢。扫描版 PDF 可以正常翻阅，只是搜不到字。
-                  也可以把文件直接拖到左侧笔记列表上，一次多个。
-                </p>
+                </div>
               </div>
             </div>
-            <div className="mt-5 flex justify-end gap-2">
+
+            <div className="flex shrink-0 justify-end gap-2 border-t border-border px-5 py-3">
               <Button variant="ghost" onClick={() => setImportOpen(false)}>
                 取消
               </Button>
-              <Button variant="primary" loading={importing} icon={<Upload className="h-3.5 w-3.5" />} onClick={handlePickImport}>
-                选择文件并导入
+              <Button variant="secondary" icon={<Upload className="h-3.5 w-3.5" />} loading={importing} onClick={handlePickMore}>
+                再加文件
+              </Button>
+              <Button variant="primary" icon={<BookOpen className="h-3.5 w-3.5" />} loading={importing} onClick={confirmImport}>
+                开始导入
               </Button>
             </div>
           </div>
         </div>
       ) : null}
+
 
       {current ? (
         <Modal
@@ -551,7 +686,7 @@ export function NotesPage(): JSX.Element {
             `${VIEW_MODE_LABEL[current.viewMode] ?? '文本'} · ${current.pageCount > 0 ? `${current.pageCount} 页 · ` : ''}` +
             (current.readonly ? '只读原版式' : `更新于 ${current.updatedAt.replace('T', ' ').slice(0, 16)}`)
           }
-          width="max-w-4xl"
+          width="max-w-2xl"
           footer={
             <>
               <Button
@@ -568,11 +703,9 @@ export function NotesPage(): JSX.Element {
                     {preview ? '继续编辑' : '预览'}
                   </Button>
                 ) : null}
-                {!current.readonly ? (
-                  <Button variant="secondary" icon={<Save className="h-3.5 w-3.5" />} loading={saving} onClick={handleSave}>
-                    保存
-                  </Button>
-                ) : null}
+                <Button variant="secondary" icon={<Save className="h-3.5 w-3.5" />} loading={saving} onClick={handleSave}>
+                  保存
+                </Button>
                 <Button variant="primary" icon={<BookOpen className="h-3.5 w-3.5" />} onClick={() => openReader(current.id)}>
                   进入阅读
                 </Button>
@@ -580,60 +713,101 @@ export function NotesPage(): JSX.Element {
             </>
           }
         >
-          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_270px]">
-            <div className="grid min-w-0 content-start gap-4">
-              <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_150px]">
-                <Field label="标题">
-                  <Input value={draftTitle} onChange={(event) => setDraftTitle(event.target.value)} />
-                </Field>
-                <Field label="类型">
-                  <Select value={draftKind} onChange={(event) => setDraftKind(event.target.value as NoteKind)}>
-                    <option value="note">笔记</option>
-                    <option value="material">资料</option>
-                    <option value="flashcard">卡片</option>
-                  </Select>
-                </Field>
+          {/* 详情改成单列自上而下：原来左右两栏在窄弹窗里会互相挤压重叠（第五轮修复） */}
+          <div className="grid min-w-0 content-start gap-4">
+            <div className="grid min-w-0 gap-3 sm:grid-cols-[minmax(0,1fr)_150px]">
+              <Field label="标题">
+                <Input value={draftTitle} onChange={(event) => setDraftTitle(event.target.value)} />
+              </Field>
+              <Field label="类型">
+                <Select value={draftKind} onChange={(event) => setDraftKind(event.target.value as NoteKind)}>
+                  <option value="note">笔记</option>
+                  <option value="material">资料</option>
+                  <option value="flashcard">卡片</option>
+                </Select>
+              </Field>
+            </div>
+
+            <div className="grid min-w-0 gap-3 sm:grid-cols-2">
+              <Field label="关联任务" hint="阅读时间计入该任务的专注时长">
+                <Select
+                  value={draftTaskId === null ? '' : String(draftTaskId)}
+                  onChange={(event) => setDraftTaskId(event.target.value === '' ? null : Number(event.target.value))}
+                >
+                  <option value="">不关联任务</option>
+                  {tasks.map((task) => (
+                    <option key={task.id} value={task.id}>
+                      {task.title}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label="关联项目 / 课程" hint="没有对应任务时直接挂到课程上">
+                <Select
+                  value={draftProjectId === null ? '' : String(draftProjectId)}
+                  onChange={(event) => setDraftProjectId(event.target.value === '' ? null : Number(event.target.value))}
+                >
+                  <option value="">不关联项目 / 课程</option>
+                  {projects.map((project) => (
+                    <option key={project.id} value={project.id}>
+                      {project.kind === 'course' ? '课程 · ' : '项目 · '}
+                      {project.name}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+            </div>
+
+            <Field label="资料简介" hint="自己写一句「这是什么、什么时候用」；不再展示自动抽取的文字">
+              <Textarea
+                rows={2}
+                value={draftSummary}
+                onChange={(event) => setDraftSummary(event.target.value)}
+                placeholder="留空即不填"
+              />
+            </Field>
+
+            {current.filePath ? (
+              <div className="flex min-w-0 flex-wrap items-center gap-2 rounded-lg border border-border bg-muted/25 px-3 py-1.5 text-[11px] text-muted-foreground">
+                <Paperclip className="h-3.5 w-3.5 shrink-0" />
+                <span className="min-w-0 flex-1 truncate" title={current.filePath}>
+                  原件 {current.filePath}
+                </span>
+                <Button size="xs" variant="ghost" onClick={() => void api.app.openPath(current.filePath as string)}>
+                  打开源文件
+                </Button>
+                <Button size="xs" variant="ghost" onClick={() => void api.note.revealSource(current.id)}>
+                  定位
+                </Button>
               </div>
+            ) : null}
 
-              {current.filePath ? (
-                <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-muted/25 px-3 py-1.5 text-[11px] text-muted-foreground">
-                  <Paperclip className="h-3.5 w-3.5 shrink-0" />
-                  <span className="min-w-0 flex-1 truncate" title={current.filePath}>
-                    原件 {current.filePath}
-                  </span>
-                  <Button size="xs" variant="ghost" onClick={() => void api.app.openPath(current.filePath as string)}>
-                    打开源文件
-                  </Button>
-                  <Button size="xs" variant="ghost" onClick={() => void api.app.showItemInFolder(current.filePath as string)}>
-                    定位
-                  </Button>
-                </div>
-              ) : null}
-
-              {preview || current.readonly ? (
-                <div className="mw-note-preview max-h-[46vh] overflow-y-auto rounded-xl border border-border bg-muted/20 p-4 text-sm leading-relaxed text-foreground">
+            {!current.readonly ? (
+              preview ? (
+                <div className="mw-note-preview max-h-[38vh] min-w-0 overflow-auto rounded-xl border border-border bg-muted/20 p-4 text-sm leading-relaxed text-foreground">
                   <ReactMarkdown remarkPlugins={[remarkGfm]}>{draftContent || '_暂无正文_'}</ReactMarkdown>
                 </div>
               ) : (
-                <Textarea
-                  rows={14}
-                  value={draftContent}
-                  onChange={(event) => setDraftContent(event.target.value)}
-                  placeholder={'## 小节标题\n\n- 知识点一\n- 知识点二\n\n> 关键结论'}
-                  className="min-h-[30vh] font-mono text-[13px]"
-                />
-              )}
-              {current.readonly ? (
-                <p className="text-[11px] leading-relaxed text-muted-foreground">
-                  这份资料按原版式只读保存（图片、表格、排版都在），上面显示的是供搜索与摘要用的抽取文字。
-                  要记想法请点「进入阅读」，在书里加书签、重点页与注释。
-                </p>
-              ) : null}
-            </div>
+                <Field label="正文" hint="Markdown，可编辑">
+                  <Textarea
+                    rows={10}
+                    value={draftContent}
+                    onChange={(event) => setDraftContent(event.target.value)}
+                    placeholder="## 小节标题"
+                    className="min-h-[24vh] font-mono text-[13px]"
+                  />
+                </Field>
+              )
+            ) : (
+              <p className="text-[11px] leading-relaxed text-muted-foreground">
+                这份资料按原版式只读保存（图片、表格、排版都在）。要记想法请点「进入阅读」，
+                在书里加书签、重点页与注释；上面填的简介会显示在卡片与详情里。
+              </p>
+            )}
 
-            <aside className="grid min-w-0 content-start gap-3 rounded-xl border border-border bg-muted/20 p-3">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-xs font-medium text-foreground">复习计划</span>
+            <div className="grid min-w-0 gap-2 rounded-xl border border-border bg-muted/20 p-3">
+              <div className="flex min-w-0 items-center justify-between gap-3">
+                <span className="min-w-0 truncate text-xs font-medium text-foreground">复习计划</span>
                 <Switch checked={enableReview} onChange={setEnableReview} label={enableReview ? '已纳入' : '不纳入'} />
               </div>
               {current.review ? (
@@ -648,12 +822,19 @@ export function NotesPage(): JSX.Element {
                   这条资料还没有排进遗忘曲线。打开上方开关并保存，就会自动生成复习计划。
                 </p>
               )}
-              <div className="mt-1 border-t border-border pt-2 text-[11px] leading-relaxed text-muted-foreground">
-                <p>标签：{current.tags.length > 0 ? current.tags.join(' / ') : '无'}</p>
-                <p>创建：{formatDateTime(current.createdAt)}</p>
-                {current.sourceFormat ? <p>来源格式：{current.sourceFormat}</p> : null}
-              </div>
-            </aside>
+            </div>
+
+            <div className="flex min-w-0 flex-wrap gap-x-4 gap-y-1 border-t border-border pt-2 text-[11px] text-muted-foreground">
+              <span className="min-w-0 break-all">标签：{current.tags.length > 0 ? current.tags.join(' / ') : '无'}</span>
+              <span>创建：{formatDateTime(current.createdAt)}</span>
+              {current.sourceFormat ? <span>来源格式：{current.sourceFormat}</span> : null}
+              {current.pageCount > 0 ? (
+                <span>
+                  读到 {Math.min(current.lastPage, current.pageCount)} / {current.pageCount} 页
+                </span>
+              ) : null}
+              <span>已读 {current.readingMinutes ?? 0} 分钟</span>
+            </div>
           </div>
         </Modal>
       ) : null}
