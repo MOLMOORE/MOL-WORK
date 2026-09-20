@@ -2,7 +2,22 @@ import { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { BookOpen, Eye, FileText, GripVertical, Layers, Paperclip, Pencil, Plus, Save, Search, Trash2, Upload } from 'lucide-react'
+import {
+  ArrowDownWideNarrow,
+  ArrowUpNarrowWide,
+  BookOpen,
+  Eye,
+  FileText,
+  GripVertical,
+  Layers,
+  Paperclip,
+  Pencil,
+  Plus,
+  Save,
+  Search,
+  Trash2,
+  Upload
+} from 'lucide-react'
 import type { Note, NoteImportOptions, NoteImportProgress, NoteImportSummary, NoteKind, ReviewRating } from '@shared/types/domain'
 import { IMPORT_FORMAT_GROUPS } from '@shared/constants'
 import { Card, SectionHeader } from '../components/ui/Card'
@@ -33,7 +48,10 @@ const IMPORT_STAGE_LABEL: Record<string, string> = {
 
 /** 列表排序方式：手动 = 自己拖出来的顺序（v1.2.5 落库保存） */
 type NoteSort = 'manual' | 'updated' | 'created' | 'title' | 'format'
+/** 排序方向：正序 / 倒序。每种排序各自记住自己上次用的方向 */
+type NoteSortDir = 'asc' | 'desc'
 const SORT_KEY = 'workstation.notes.sort.v1'
+const SORT_DIR_KEY = 'workstation.notes.sortdir.v1'
 const NOTE_SORTS: { key: NoteSort; label: string; hint: string }[] = [
   { key: 'manual', label: '手动排序', hint: '按住卡片拖动即可自由排列，顺序会保存' },
   { key: 'updated', label: '按修改日期排序', hint: '最近改过的排前面' },
@@ -41,26 +59,53 @@ const NOTE_SORTS: { key: NoteSort; label: string; hint: string }[] = [
   { key: 'title', label: '按首字符排序', hint: '按标题第一个字 / 字母排序（中文按拼音）' },
   { key: 'format', label: '按格式排序', hint: 'PDF、DOCX、PPTX 等来源格式归类' }
 ]
+/** 每种排序的默认方向：日期默认「新的在前」，首字符与格式默认「A→Z」 */
+const DEFAULT_DIRS: Record<NoteSort, NoteSortDir> = {
+  manual: 'asc',
+  updated: 'desc',
+  created: 'desc',
+  title: 'asc',
+  format: 'asc'
+}
+const SORT_KEYS = Object.keys(DEFAULT_DIRS) as NoteSort[]
+
+function loadSortDirs(): Record<NoteSort, NoteSortDir> {
+  const dirs = { ...DEFAULT_DIRS }
+  try {
+    const raw = localStorage.getItem(SORT_DIR_KEY)
+    const saved = raw ? (JSON.parse(raw) as Partial<Record<NoteSort, NoteSortDir>>) : null
+    if (saved) {
+      SORT_KEYS.forEach((key) => {
+        if (saved[key] === 'asc' || saved[key] === 'desc') dirs[key] = saved[key] as NoteSortDir
+      })
+    }
+  } catch {
+    /* 本地存的格式不对就退回默认方向 */
+  }
+  return dirs
+}
 
 /** 中文按拼音、英文按字母：交给 Intl 的 zh-Hans 规则，不用自己写拼音表 */
 const byTitle = (a: string, b: string): number => a.localeCompare(b, 'zh-Hans-CN', { numeric: true, sensitivity: 'base' })
 
-function sortNotes(list: Note[], sort: NoteSort): Note[] {
-  const next = [...list]
-  switch (sort) {
-    case 'updated':
-      return next.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt) || a.id - b.id)
-    case 'created':
-      return next.sort((a, b) => b.createdAt.localeCompare(a.createdAt) || a.id - b.id)
-    case 'title':
-      return next.sort((a, b) => byTitle(a.title, b.title) || a.id - b.id)
-    case 'format':
-      return next.sort(
-        (a, b) => byTitle(a.sourceFormat ?? 'zzz', b.sourceFormat ?? 'zzz') || byTitle(a.title, b.title) || a.id - b.id
-      )
-    default:
-      return next.sort((a, b) => a.sortOrder - b.sortOrder || b.updatedAt.localeCompare(a.updatedAt) || a.id - b.id)
+/** 比较一律按「正序」写，倒序时整体取反：五种排序不必各写两遍 */
+function sortNotes(list: Note[], sort: NoteSort, dir: NoteSortDir = 'asc'): Note[] {
+  const sign = dir === 'desc' ? -1 : 1
+  const compare = (a: Note, b: Note): number => {
+    switch (sort) {
+      case 'updated':
+        return a.updatedAt.localeCompare(b.updatedAt) || a.id - b.id
+      case 'created':
+        return a.createdAt.localeCompare(b.createdAt) || a.id - b.id
+      case 'title':
+        return byTitle(a.title, b.title) || a.id - b.id
+      case 'format':
+        return byTitle(a.sourceFormat ?? 'zzz', b.sourceFormat ?? 'zzz') || byTitle(a.title, b.title) || a.id - b.id
+      default:
+        return a.sortOrder - b.sortOrder || a.updatedAt.localeCompare(b.updatedAt) || a.id - b.id
+    }
   }
+  return [...list].sort((a, b) => sign * compare(a, b))
 }
 
 const KIND_TABS: { key: NoteKind | 'all'; label: string }[] = [
@@ -100,6 +145,8 @@ export function NotesPage(): JSX.Element {
   const [kind, setKind] = useState<NoteKind | 'all'>('all')
   // 列表排序：默认沿用手动顺序；拖拽排序会顺手切回手动
   const [sort, setSort] = useState<NoteSort>(() => (localStorage.getItem(SORT_KEY) as NoteSort) || 'manual')
+  const [dirs, setDirs] = useState<Record<NoteSort, NoteSortDir>>(loadSortDirs)
+  const sortDir = dirs[sort]
   const [dragId, setDragId] = useState<number | null>(null)
   const [overId, setOverId] = useState<number | null>(null)
   const [preview, setPreview] = useState(false)
@@ -172,13 +219,22 @@ export function NotesPage(): JSX.Element {
   }, [current?.id, current?.updatedAt])
 
   const filtered = useMemo(
-    () => sortNotes(kind === 'all' ? notes : notes.filter((note) => note.kind === kind), sort),
-    [notes, kind, sort]
+    () => sortNotes(kind === 'all' ? notes : notes.filter((note) => note.kind === kind), sort, sortDir),
+    [notes, kind, sort, sortDir]
   )
 
   const chooseSort = (key: NoteSort): void => {
     setSort(key)
     localStorage.setItem(SORT_KEY, key)
+  }
+
+  /** 正序 / 倒序互换：只改当前这种排序的方向，其它排序保持各自记住的方向 */
+  const toggleSortDir = (): void => {
+    setDirs((prev) => {
+      const next = { ...prev, [sort]: prev[sort] === 'asc' ? 'desc' : 'asc' }
+      localStorage.setItem(SORT_DIR_KEY, JSON.stringify(next))
+      return next
+    })
   }
 
   /** 把拖到的位置写回顺序：可见条目重排后整段落库，并自动切回手动排序 */
@@ -192,7 +248,8 @@ export function NotesPage(): JSX.Element {
     next.splice(from, 1)
     next.splice(to, 0, fromId)
     chooseSort('manual')
-    await reorderNotes(next)
+    // 手动排序处于「倒序」时，屏幕上看到的是反过来的顺序，落库要按反序编号才对得上
+    await reorderNotes(sort === 'manual' && sortDir === 'desc' ? [...next].reverse() : next)
   }
 
   const handleSave = async (): Promise<void> => {
@@ -456,15 +513,35 @@ export function NotesPage(): JSX.Element {
                 title={item.hint}
                 onClick={() => chooseSort(item.key)}
                 className={cn(
-                  'rounded-lg border px-2 py-1 text-[11px] transition-colors',
+                  'flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] transition-colors',
                   sort === item.key
                     ? 'border-primary/60 bg-primary/10 font-medium text-foreground'
                     : 'border-border text-muted-foreground hover:border-muted-foreground/50 hover:text-foreground'
                 )}
               >
                 {item.label}
+                {sort === item.key ? (
+                  sortDir === 'asc' ? (
+                    <ArrowUpNarrowWide className="h-3 w-3 shrink-0" />
+                  ) : (
+                    <ArrowDownWideNarrow className="h-3 w-3 shrink-0" />
+                  )
+                ) : null}
               </button>
             ))}
+            <button
+              type="button"
+              title={`当前${sortDir === 'asc' ? '正序' : '倒序'}，点击换成${sortDir === 'asc' ? '倒序' : '正序'}`}
+              onClick={toggleSortDir}
+              className="flex items-center gap-1 rounded-lg border border-border px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:border-primary/60 hover:text-foreground"
+            >
+              {sortDir === 'asc' ? (
+                <ArrowUpNarrowWide className="h-3 w-3 shrink-0" />
+              ) : (
+                <ArrowDownWideNarrow className="h-3 w-3 shrink-0" />
+              )}
+              {sortDir === 'asc' ? '正序' : '倒序'}
+            </button>
             <span className="ml-auto hidden items-center gap-1 text-[11px] text-muted-foreground xl:flex">
               <GripVertical className="h-3 w-3" />
               按住卡片可自由拖动排序

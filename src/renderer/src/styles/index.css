@@ -1522,3 +1522,109 @@
     list-style: revert;
   }
 }
+/* ==========================================================================
+   页面对比（v1.2.5）：整页工作台 —— 每一页是可拖动的纸框，可单独放大平移细看
+   配色全部走主题令牌，皮肤与明暗切换都跟着变
+   ========================================================================== */
+@layer components {
+  .cmp-bar,
+  .cmp-drawer {
+    background: hsl(var(--surface) / 0.94);
+    color: hsl(var(--foreground));
+  }
+
+  .cmp-card-bar {
+    background: hsl(var(--surface));
+    border-color: hsl(var(--border));
+    color: hsl(var(--muted-foreground));
+    border-radius: var(--r-lg) var(--r-lg) 0 0;
+    cursor: move;
+    touch-action: none;
+    box-shadow: 0 -1px 0 0 hsl(var(--border));
+  }
+
+  .cmp-jump {
+    border-radius: calc(var(--r-lg) / 2);
+    padding: 1px 5px;
+    color: hsl(var(--foreground));
+    font-weight: 500;
+    transition: background-color 140ms ease, color 140ms ease;
+  }
+  .cmp-jump:hover {
+    background: hsl(var(--muted));
+    color: hsl(var(--primary));
+  }
+
+  .cmp-ico {
+    display: inline-flex;
+    height: 20px;
+    width: 20px;
+    align-items: center;
+    justify-content: center;
+    border-radius: calc(var(--r-lg) / 2);
+    color: hsl(var(--muted-foreground));
+    transition: background-color 140ms ease, color 140ms ease;
+  }
+  .cmp-ico:hover {
+    background: hsl(var(--muted));
+    color: hsl(var(--foreground));
+  }
+
+  /* 纸框：内容比框大时靠拖动平移，框本身可拖、右下角可拉大 */
+  .cmp-frame {
+    position: relative;
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+    background: #fff;
+    border-radius: 0 0 var(--r-lg) var(--r-lg);
+    box-shadow: 0 12px 30px -14px rgba(0, 0, 0, 0.55), 0 0 0 1px hsl(var(--border));
+    touch-action: none;
+  }
+  .cmp-frame.is-movable {
+    cursor: move;
+  }
+  .cmp-frame.is-pannable {
+    cursor: grab;
+  }
+  .cmp-frame.is-pannable:active {
+    cursor: grabbing;
+  }
+
+  /* 内容层：pdf.js 按阶梯倍率重画高清画布，这一层只用 CSS 补差与平移，所以拖动跟手 */
+  .cmp-page {
+    transform-origin: center center;
+    will-change: transform;
+  }
+
+  .cmp-grip {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    height: 16px;
+    width: 16px;
+    cursor: nwse-resize;
+    touch-action: none;
+    border-right: 3px solid hsl(var(--muted-foreground) / 0.55);
+    border-bottom: 3px solid hsl(var(--muted-foreground) / 0.55);
+    border-bottom-right-radius: var(--r-lg);
+    opacity: 0;
+    transition: opacity 140ms ease;
+  }
+  .cmp-frame:hover .cmp-grip {
+    opacity: 1;
+  }
+
+
+/* 阅读工具条里的原生下拉：深色皮肤下弹层与文字都跟着主题走 */
+  .reader-bar select,
+  .cmp-shell select {
+    color: hsl(var(--foreground));
+  }
+
+  .reader-bar select option,
+  .cmp-shell select option {
+    background: hsl(var(--surface));
+    color: hsl(var(--foreground));
+  }
+}

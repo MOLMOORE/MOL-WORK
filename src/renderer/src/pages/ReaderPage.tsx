@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent, ReactNode, RefObject } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { createPortal } from 'react-dom'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import {
@@ -26,7 +27,12 @@ import {
   RotateCw,
   Scissors,
   GitCompare,
+  Images,
+  LayoutGrid,
+  MoveHorizontal,
+  RotateCcw,
   Star,
+  Type,
   X
 } from 'lucide-react'
 import type { Note, NoteDocInfo, NoteMark, NoteMarkKind } from '@shared/types/domain'
@@ -63,6 +69,21 @@ const FLIP_LABELS: { key: FlipEffect; label: string }[] = [
   { key: 'book', label: '翻书' }
 ]
 
+/** 阅读字体（文本 / 排版模式）：auto = 不改文档与界面自带的字体 */
+const READER_FONTS: { key: string; label: string; stack: string }[] = [
+  { key: 'auto', label: '跟随原文', stack: '' },
+  { key: 'hei', label: '黑体', stack: "'Microsoft YaHei', 'PingFang SC', 'Heiti SC', 'Noto Sans CJK SC', sans-serif" },
+  { key: 'song', label: '宋体', stack: "'Songti SC', 'Noto Serif CJK SC', SimSun, Georgia, serif" },
+  { key: 'kai', label: '楷体', stack: "Kaiti SC, KaiTi, 'TW-Kai', STKaiti, serif" },
+  { key: 'fang', label: '仿宋', stack: "FangSong, STFangsong, 'Songti SC', serif" },
+  { key: 'round', label: '圆体', stack: "Yuanti SC, 'Microsoft YaHei Round', 'PingFang SC', sans-serif" },
+  { key: 'sans', label: '无衬线西文', stack: "Inter, 'Segoe UI', system-ui, sans-serif" },
+  { key: 'serif', label: '衬线西文', stack: "Georgia, 'Times New Roman', serif" },
+  { key: 'mono', label: '等宽', stack: "'Cascadia Mono', 'JetBrains Mono', Consolas, 'Courier New', monospace" }
+]
+const FONT_KEY = 'workstation.reader.font.v1'
+const FONTSIZE_KEY = 'workstation.reader.fontsize.v1'
+
 /** 翻页动效时长，与 CSS 里五种动效的 380ms 完全一致：残影在动画收尾之后才卸载 */
 const TURN_MS = 380
 /** 并排对比最多几页 / 一次最多提取多少页 */
@@ -88,7 +109,17 @@ export function ReaderPage(): JSX.Element {
   const [panel, setPanel] = useState<PanelTab | null>('thumbs')
   const [marks, setMarks] = useState<NoteMark[]>([])
   const [readMinutes, setReadMinutes] = useState(0)
-  const [fontSize, setFontSize] = useState(17)
+  const [fontSize, setFontSize] = useState(() => Number(localStorage.getItem(FONTSIZE_KEY)) || 17)
+  /** 文本 / 排版模式的正文字体，选一次就一直记住 */
+  const [fontFamily, setFontFamily] = useState(() => localStorage.getItem(FONT_KEY) || 'auto')
+  const fontStack = READER_FONTS.find((item) => item.key === fontFamily)?.stack ?? ''
+
+  useEffect(() => {
+    localStorage.setItem(FONTSIZE_KEY, String(fontSize))
+  }, [fontSize])
+  useEffect(() => {
+    localStorage.setItem(FONT_KEY, fontFamily)
+  }, [fontFamily])
   const [draft, setDraft] = useState('')
   const [editing, setEditing] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -372,21 +403,27 @@ export function ReaderPage(): JSX.Element {
         if (event.key === 'Escape') (target as HTMLElement).blur()
         return
       }
+      /* 对比 / 提取浮层开着时，方向键与翻页快捷键先留给浮层，别在背后偷偷翻书 */
+      if (compareOpen || extractOpen) return
       const ctrl = event.ctrlKey || event.metaKey
       const pages = info?.viewMode === 'pages'
       const scrolling = layout === 'continuous' || info?.viewMode === 'text'
+      /** 文本 / 排版模式没有「缩放基准」这一说，Ctrl+± 与 +／- 直接改内容缩放 */
+      const contentZoom = info !== null && info.viewMode !== 'pages'
 
       if (ctrl) {
         switch (event.key) {
           case '=':
           case '+':
             event.preventDefault()
-            zoomBy(1.2)
+            if (contentZoom) handleWheelZoomRich(1.2)
+            else zoomBy(1.2)
             return
           case '-':
           case '_':
             event.preventDefault()
-            zoomBy(1 / 1.2)
+            if (contentZoom) handleWheelZoomRich(1 / 1.2)
+            else zoomBy(1 / 1.2)
             return
           case '0':
             event.preventDefault()
@@ -459,12 +496,14 @@ export function ReaderPage(): JSX.Element {
         case '+':
         case '=':
           event.preventDefault()
-          zoomBy(1.2)
+          if (contentZoom) handleWheelZoomRich(1.2)
+          else zoomBy(1.2)
           break
         case '-':
         case '_':
           event.preventDefault()
-          zoomBy(1 / 1.2)
+          if (contentZoom) handleWheelZoomRich(1 / 1.2)
+          else zoomBy(1 / 1.2)
           break
         case '0':
           event.preventDefault()
@@ -529,7 +568,7 @@ export function ReaderPage(): JSX.Element {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step, goPage, pageCount, panel, composer, info, flip, navigate, page, marks, layout, fullscreen])
+  }, [step, goPage, pageCount, panel, composer, info, flip, navigate, page, marks, layout, fullscreen, compareOpen, extractOpen])
 
   // ---------- 标记 ----------
   const toggleMark = async (kind: NoteMarkKind): Promise<void> => {
@@ -614,7 +653,7 @@ export function ReaderPage(): JSX.Element {
   flipRef.current = flip
   pdfRef.current = pdf
   rotationRef.current = rotation
-  const zoomPercent = info?.viewMode === 'rich' ? Math.round(zoom * 100) : Math.round((scale / SCREEN_SCALE) * 100)
+  const zoomPercent = info && info.viewMode !== 'pages' ? Math.round(zoom * 100) : Math.round((scale / SCREEN_SCALE) * 100)
   /** 只有内容真的比舞台大才需要拖动平移 */
   const canPan = info?.viewMode === 'pages' && (layout === 'continuous' || scale > fitScale + 0.002 || zoom > 1.001)
   /**
@@ -899,6 +938,44 @@ export function ReaderPage(): JSX.Element {
             </IconButton>
           </div>
         )}
+        {/* 文本 / 排版模式才有字体与内容缩放；书页是画布，字体与它无关 */}
+        {info.viewMode !== 'pages' ? (
+          <>
+            <label className="flex items-center gap-1 rounded-lg border border-border bg-input px-1.5 py-1">
+              <Type className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+              <select
+                value={fontFamily}
+                onChange={(event) => setFontFamily(event.target.value)}
+                title="正文字体"
+                className="max-w-[7rem] cursor-pointer bg-transparent text-[11px] text-foreground outline-none"
+              >
+                {READER_FONTS.map((item) => (
+                  <option key={item.key} value={item.key}>
+                    {item.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {info.viewMode === 'text' ? (
+              <div className="flex items-center gap-1 rounded-lg border border-border bg-muted p-0.5">
+                <IconButton label="缩小（Ctrl+滚轮 / Ctrl+-）" onClick={() => handleWheelZoomRich(1 / 1.2)}>
+                  <Minus className="h-3.5 w-3.5" />
+                </IconButton>
+                <button
+                  type="button"
+                  title="恢复 100%（Ctrl+0）"
+                  onClick={() => setZoom(1)}
+                  className="w-14 shrink-0 cursor-pointer text-center text-[11px] tabular-nums text-foreground hover:text-tint-primary"
+                >
+                  {zoomPercent}%
+                </button>
+                <IconButton label="放大（Ctrl+滚轮 / Ctrl++）" onClick={() => handleWheelZoomRich(1.2)}>
+                  <Plus className="h-3.5 w-3.5" />
+                </IconButton>
+              </div>
+            ) : null}
+          </>
+        ) : null}
 
         <div className="flex items-center gap-1">
           <IconButton label="书签（B）" onClick={() => void toggleMark('bookmark')}>
@@ -1002,6 +1079,7 @@ export function ReaderPage(): JSX.Element {
                 html={info.html ?? ''}
                 page={page}
                 zoom={zoom}
+                fontFamily={fontStack}
                 layout={layout}
                 onPageCount={setPageCount}
                 onActivePage={handleActivePage}
@@ -1013,7 +1091,10 @@ export function ReaderPage(): JSX.Element {
                 editing={editing}
                 onEdit={setDraft}
                 fontSize={fontSize}
+                fontFamily={fontStack}
+                zoom={zoom}
                 readonly={info.readonly}
+                onWheelZoom={handleWheelZoomRich}
               />
             )}
 
@@ -1434,12 +1515,14 @@ function RichStage(props: {
   html: string
   page: number
   zoom: number
+  /** 正文字体栈；空串 = 跟随排版文档自带字体 */
+  fontFamily: string
   layout: StageLayout
   onPageCount: (count: number) => void
   onActivePage: (page: number) => void
   onWheelZoom: (factor: number) => void
 }): JSX.Element {
-  const { html, page, zoom, layout, onPageCount, onActivePage, onWheelZoom } = props
+  const { html, page, zoom, fontFamily, layout, onPageCount, onActivePage, onWheelZoom } = props
   const frameRef = useRef<HTMLIFrameElement>(null)
   const [ready, setReady] = useState(false)
   /** 程序滚动之后短暂忽略滚动回报，避免「滚到第几页」和「第几页滚过去」互相打架 */
@@ -1452,6 +1535,17 @@ function RichStage(props: {
     const doc = frame?.contentDocument
     if (!frame || !doc) return
     doc.documentElement.style.zoom = String(zoom)
+    /* 字体覆盖只在用户主动选字体时注入，默认不动排版文档自带的字体 */
+    if (doc.head) {
+      let fontStyle = doc.getElementById('mw-reader-font')
+      if (!fontStyle) {
+        fontStyle = doc.createElement('style')
+        fontStyle.id = 'mw-reader-font'
+        doc.head.appendChild(fontStyle)
+      }
+      fontStyle.textContent =
+        fontFamily === '' ? '' : 'html body, html body * { font-family: ' + fontFamily + ' !important; }'
+    }
     const measure = (): void => {
       const screen = frame.clientHeight / Math.max(0.2, zoom)
       const view = doc.documentElement.scrollHeight
@@ -1480,7 +1574,7 @@ function RichStage(props: {
       doc.removeEventListener('wheel', onWheel)
       doc.removeEventListener('scroll', onScroll)
     }
-  }, [ready, zoom, layout, onPageCount, onActivePage, onWheelZoom])
+  }, [ready, zoom, fontFamily, layout, onPageCount, onActivePage, onWheelZoom])
 
   // 翻页 = 把 iframe 滚到对应位置（保持原版式，不做二次排版）
   useEffect(() => {
@@ -1529,13 +1623,39 @@ function TextStage(props: {
   editing: boolean
   onEdit: (value: string) => void
   fontSize: number
+  /** 正文字体栈；空串 = 用界面默认字体 */
+  fontFamily: string
+  zoom: number
   readonly: boolean
+  onWheelZoom: (factor: number) => void
 }): JSX.Element {
-  const { text, editing, onEdit, fontSize, readonly } = props
+  const { text, editing, onEdit, fontSize, fontFamily, zoom, readonly, onWheelZoom } = props
   const isPlain = !/[#*`>|-]{1}/.test(text.slice(0, 200)) && !/^#{1,6}\s/m.test(text)
+  const scrollRef = useRef<HTMLDivElement>(null)
+
+  /* Ctrl+滚轮缩放：React 的 onWheel 是 passive 监听，拦不住浏览器自己的缩放，挂原生监听 */
+  useEffect(() => {
+    const node = scrollRef.current
+    if (!node) return undefined
+    const onWheel = (event: WheelEvent): void => {
+      if (!event.ctrlKey && !event.metaKey) return
+      event.preventDefault()
+      onWheelZoom(Math.exp(-event.deltaY * 0.0022))
+    }
+    node.addEventListener('wheel', onWheel, { passive: false })
+    return () => node.removeEventListener('wheel', onWheel)
+  }, [onWheelZoom])
+
   return (
-    <div className="reader-scroll h-full overflow-auto px-6 py-8">
-      <article className="reader-text mx-auto max-w-[46rem]" style={{ fontSize: `${fontSize}px` }}>
+    <div ref={scrollRef} className="reader-scroll h-full overflow-auto px-6 py-8">
+      <article
+        className="reader-text mx-auto max-w-[46rem]"
+        style={{
+          fontSize: `${fontSize}px`,
+          fontFamily: fontFamily === '' ? undefined : fontFamily,
+          zoom: zoom === 1 ? undefined : String(zoom)
+        }}
+      >
         {editing ? (
           <textarea
             value={text}
@@ -1544,7 +1664,7 @@ function TextStage(props: {
             spellCheck={false}
           />
         ) : isPlain ? (
-          <pre className="whitespace-pre-wrap break-words font-body leading-[1.85]">{text}</pre>
+          <pre className="whitespace-pre-wrap break-words leading-[1.85]">{text}</pre>
         ) : (
           <div className="md-body leading-[1.85]">
             <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
@@ -2010,7 +2130,62 @@ function ReaderOverlay(props: { onClose: () => void; children: ReactNode; width?
   )
 }
 
-/* ==================== 页面对比：把任意几页并排放着看 ==================== */
+/* ==================== 页面对比：整页工作台，可自由拖动、单独放大细看 ==================== */
+/** 一张对比页的状态：纸框在画布上的位置尺寸 + 内容的放大倍数与平移 */
+interface CompareCard {
+  x: number
+  y: number
+  w: number
+  h: number
+  zoom: number
+  panX: number
+  panY: number
+}
+/** 画布重画倍率走 1.15 的阶梯：缩放不必每一档都重画，阶梯之间用 CSS 缩放补差，拖动才跟手 */
+const CMP_LADDER = 1.15
+const CMP_MIN_ZOOM = 0.5
+const CMP_MAX_ZOOM = 8
+/** 对比画布内边距、纸框间距、标题条高度 */
+const CMP_PAD = 18
+const CMP_GAP = 14
+const CMP_BAR = 28
+
+/** 把任意倍率吸附到 1.15 的阶梯上（pdf.js 只按 0.01 的粒度缓存画布） */
+function ladder(value: number): number {
+  const step = Math.round(Math.log(Math.max(0.02, value)) / Math.log(CMP_LADDER))
+  return Math.max(0.04, Math.round(Math.pow(CMP_LADDER, step) * 100) / 100)
+}
+/** 单页画布的像素预算：同屏最多四页，放大到极限时把画布压在 ~1200 万像素内，
+    多出来的倍率交给 CSS 缩放补，宁可略微发虚也不吃掉几个 G 的内存 */
+function budgetScale(baseWidth: number, baseHeight: number, want: number): number {
+  const pixels = baseWidth * baseHeight * want * want
+  const cap = 12_000_000
+  return pixels <= cap ? want : Math.max(0.2, (want * Math.sqrt(cap)) / Math.sqrt(pixels))
+}
+
+/** 1-3 页横排、4 页两行两列；纸框按页面比例在各自格子里居中 */
+function compareSlots(count: number, area: { width: number; height: number }, ratio: number): CompareCard[] {
+  const cols = count >= 4 ? 2 : Math.max(1, count)
+  const rows = count >= 4 ? 2 : 1
+  const cellW = (area.width - CMP_PAD * 2 - CMP_GAP * (cols - 1)) / cols
+  const cellH = (area.height - CMP_PAD * 2 - CMP_GAP * (rows - 1)) / rows
+  const w = Math.max(140, Math.min(cellW, cellH * ratio))
+  const h = Math.max(100, w / ratio)
+  return Array.from({ length: count }, (_, index) => {
+    const col = index % cols
+    const row = Math.floor(index / cols)
+    return {
+      x: Math.round(CMP_PAD + col * (cellW + CMP_GAP) + (cellW - w) / 2),
+      y: Math.round(CMP_PAD + row * (cellH + CMP_GAP) + (cellH - h) / 2),
+      w: Math.round(w),
+      h: Math.round(h),
+      zoom: 1,
+      panX: 0,
+      panY: 0
+    }
+  })
+}
+
 function CompareOverlay(props: {
   pdf: PdfDocInfo
   pages: number[]
@@ -2021,16 +2196,159 @@ function CompareOverlay(props: {
   onGo: (page: number) => void
 }): JSX.Element {
   const { pdf, pages, pageCount, limit, onClose, onChange, onGo } = props
-  const [boost, setBoost] = useState(1)
-  const [viewport, setViewport] = useState({ width: 1280, height: 800 })
+  const canvasRef = useRef<HTMLDivElement>(null)
+  const [area, setArea] = useState({ width: 0, height: 0 })
+  const [cards, setCards] = useState<Record<number, CompareCard>>({})
+  const [drawer, setDrawer] = useState(true)
   const [stripLimit, setStripLimit] = useState(60)
+  const drag = useRef<{ mode: 'move' | 'pan' | 'resize'; page: number; sx: number; sy: number; base: CompareCard } | null>(null)
+  const ratio = pdf.baseWidth / pdf.baseHeight
 
+  /* Esc 先关对比层，再谈退出全屏（capture 抢在页面快捷键之前） */
   useEffect(() => {
-    const measure = (): void => setViewport({ width: window.innerWidth, height: window.innerHeight })
+    const onKey = (event: KeyboardEvent): void => {
+      if (event.key !== 'Escape') return
+      event.preventDefault()
+      event.stopPropagation()
+      onClose()
+    }
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
+  }, [onClose])
+
+  /* 画布尺寸以真实盒子为准：整页工作台不再拿 window 内部尺寸去猜，也就不会被任何东西盖住 */
+  useEffect(() => {
+    const node = canvasRef.current
+    if (!node) return undefined
+    const measure = (): void => setArea({ width: node.clientWidth, height: node.clientHeight })
     measure()
-    window.addEventListener('resize', measure)
-    return () => window.removeEventListener('resize', measure)
+    if (typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', measure)
+      return () => window.removeEventListener('resize', measure)
+    }
+    const observer = new ResizeObserver(measure)
+    observer.observe(node)
+    return () => observer.disconnect()
   }, [])
+
+  /* 新挑进来的页补上默认格子，移出的页清掉状态；已经拖过的页保持用户摆的位置 */
+  useEffect(() => {
+    if (area.width < 60 || area.height < 60) return
+    setCards((prev) => {
+      if (Object.keys(prev).length === pages.length && pages.every((page) => prev[page])) return prev
+      const slots = compareSlots(pages.length, area, ratio)
+      const next: Record<number, CompareCard> = {}
+      pages.forEach((page, index) => {
+        next[page] = prev[page] ?? slots[index]
+      })
+      return next
+    })
+  }, [pages, area, ratio])
+
+  /** 平移范围：纸比框大才允许移动，并且不许拖到完全看不见 */
+  const clampPan = useCallback(
+    (card: CompareCard, panX: number, panY: number): { panX: number; panY: number } => {
+      const fit = Math.min(card.w / pdf.baseWidth, card.h / pdf.baseHeight)
+      const box = pageSize(pdf.baseWidth, pdf.baseHeight, fit * card.zoom, 0)
+      const maxX = Math.max(0, (box.width - card.w) / 2 + 24)
+      const maxY = Math.max(0, (box.height - card.h) / 2 + 24)
+      return {
+        panX: Math.max(-maxX, Math.min(maxX, panX)),
+        panY: Math.max(-maxY, Math.min(maxY, panY))
+      }
+    },
+    [pdf]
+  )
+
+  /** 单独放大某一页：带锚点时指针指着的那一点原地不动，放大后按住就能拖着看 */
+  const setCardZoom = useCallback(
+    (page: number, factor: number, origin?: { x: number; y: number }): void => {
+      setCards((prev) => {
+        const card = prev[page]
+        if (!card) return prev
+        const zoom = Math.max(CMP_MIN_ZOOM, Math.min(CMP_MAX_ZOOM, card.zoom * factor))
+        if (Math.abs(zoom - card.zoom) < 0.0005) return prev
+        const times = zoom / card.zoom
+        const panX = origin ? origin.x - (origin.x - card.panX) * times : card.panX
+        const panY = origin ? origin.y - (origin.y - card.panY) * times : card.panY
+        const spot = clampPan({ ...card, zoom }, panX, panY)
+        return { ...prev, [page]: { ...card, zoom, panX: spot.panX, panY: spot.panY } }
+      })
+    },
+    [clampPan]
+  )
+
+  /* 滚轮缩放：React 的 onWheel 是 passive 监听，拦不住浏览器自己的页面缩放，这里挂原生监听 */
+  useEffect(() => {
+    const node = canvasRef.current
+    if (!node) return undefined
+    const onWheel = (event: WheelEvent): void => {
+      const host = (event.target as HTMLElement | null)?.closest<HTMLElement>('[data-cmp-page]')
+      if (!host) return
+      event.preventDefault()
+      const page = Number(host.dataset.cmpPage)
+      const rect = host.getBoundingClientRect()
+      setCardZoom(page, Math.exp(-event.deltaY * 0.0018), {
+        x: event.clientX - rect.left - rect.width / 2,
+        y: event.clientY - rect.top - rect.height / 2
+      })
+    }
+    node.addEventListener('wheel', onWheel, { passive: false })
+    return () => node.removeEventListener('wheel', onWheel)
+  }, [setCardZoom])
+
+  const startDrag = (event: ReactPointerEvent<HTMLElement>, page: number, mode: 'move' | 'pan' | 'resize'): void => {
+    if (event.button !== 0) return
+    if ((event.target as HTMLElement | null)?.closest('button')) return
+    const card = cards[page]
+    if (!card) return
+    event.preventDefault()
+    event.stopPropagation()
+    event.currentTarget.setPointerCapture?.(event.pointerId)
+    drag.current = { mode, page, sx: event.clientX, sy: event.clientY, base: card }
+  }
+
+  const onDragMove = (event: ReactPointerEvent<HTMLElement>): void => {
+    const current = drag.current
+    if (!current) return
+    const dx = event.clientX - current.sx
+    const dy = event.clientY - current.sy
+    setCards((prev) => {
+      const card = prev[current.page]
+      if (!card) return prev
+      const base = current.base
+      if (current.mode === 'move') {
+        return { ...prev, [current.page]: { ...card, x: base.x + dx, y: base.y + dy } }
+      }
+      if (current.mode === 'resize') {
+        const w = Math.max(140, Math.min(area.width - 24, base.w + dx))
+        const h = Math.max(100, Math.min(Math.max(120, area.height - CMP_BAR - 24), base.h + dy))
+        const spot = clampPan({ ...base, w, h }, base.panX, base.panY)
+        return { ...prev, [current.page]: { ...card, w, h, panX: spot.panX, panY: spot.panY } }
+      }
+      const spot = clampPan(base, base.panX + dx, base.panY + dy)
+      return { ...prev, [current.page]: { ...card, panX: spot.panX, panY: spot.panY } }
+    })
+  }
+
+  const endDrag = (): void => {
+    drag.current = null
+  }
+
+  const resetCard = (page: number): void => {
+    setCards((prev) => {
+      const card = prev[page]
+      if (!card) return prev
+      return { ...prev, [page]: { ...card, zoom: 1, panX: 0, panY: 0 } }
+    })
+  }
+
+  /** 重排：回到「1-3 页横排、4 页田字格」的默认摆位 */
+  const relayout = (): void => {
+    if (pages.length === 0 || area.width < 60 || area.height < 60) return
+    const slots = compareSlots(pages.length, area, ratio)
+    setCards(Object.fromEntries(pages.map((page, index): [number, CompareCard] => [page, slots[index]])))
+  }
 
   const toggle = (number: number): void => {
     if (pages.includes(number)) {
@@ -2041,107 +2359,170 @@ function CompareOverlay(props: {
     onChange([...pages, number].sort((a, b) => a - b).slice(-limit))
   }
 
-  const count = Math.max(1, pages.length)
-  const columnWidth = (viewport.width - 170) / count
-  const availableHeight = viewport.height - 300
-  const pageScale = Math.max(
-    0.12,
-    Math.min(columnWidth / pdf.baseWidth, availableHeight / pdf.baseHeight) * boost
-  )
-  const box = pageSize(pdf.baseWidth, pdf.baseHeight, pageScale, 0)
-
-  return (
-    <ReaderOverlay onClose={onClose}>
-      <header className="flex shrink-0 items-center gap-3 border-b border-border px-4 py-3">
+  return createPortal(
+    <div className="cmp-shell reader-stage fixed inset-0 z-[70] flex flex-col">
+      <header className="cmp-bar flex shrink-0 items-center gap-2 border-b border-border px-3 py-2">
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold text-foreground">页面对比</p>
           <p className="truncate text-[11px] text-muted-foreground">
-            从下面挑最多 {limit} 页并排放着看；再点一次取消选择
+            按住标题条拖动每一页 · 滚轮或 −／+ 单独放大 · 放大后按住页面平移细看 · 右下角可拉大纸框
           </p>
         </div>
-        <div className="ml-auto flex items-center gap-1 rounded-lg border border-border bg-muted p-0.5">
-          <IconButton label="缩小" onClick={() => setBoost((value) => Math.max(0.4, value / 1.2))}>
-            <Minus className="h-3.5 w-3.5" />
-          </IconButton>
-          <span className="w-12 text-center text-[11px] tabular-nums text-foreground">
-            {Math.round(boost * 100)}%
+        <div className="ml-auto flex shrink-0 items-center gap-1">
+          <span className="mr-1 text-[11px] tabular-nums text-muted-foreground">
+            {pages.length} / {limit} 页
           </span>
-          <IconButton label="放大" onClick={() => setBoost((value) => Math.min(3, value * 1.2))}>
-            <Plus className="h-3.5 w-3.5" />
+          <Button size="sm" variant="ghost" icon={<LayoutGrid className="h-3.5 w-3.5" />} onClick={relayout}>
+            重排
+          </Button>
+          <Button
+            size="sm"
+            variant={drawer ? 'secondary' : 'ghost'}
+            icon={<Images className="h-3.5 w-3.5" />}
+            onClick={() => setDrawer((value) => !value)}
+          >
+            挑页
+          </Button>
+          <IconButton label="关闭对比（Esc）" onClick={onClose}>
+            <X className="h-4 w-4" />
           </IconButton>
         </div>
-        <IconButton label="关闭对比（Esc）" onClick={onClose}>
-          <X className="h-4 w-4" />
-        </IconButton>
       </header>
 
-      <div className="flex min-h-0 flex-1 items-stretch justify-center gap-4 overflow-auto bg-n-900/20 p-4">
+      <div ref={canvasRef} className="relative min-h-0 flex-1 overflow-hidden">
         {pages.length === 0 ? (
-          <p className="m-auto text-sm text-muted-foreground">还没挑页：在下方点两页就能并排看</p>
-        ) : (
-          pages.map((number) => (
-            <figure key={number} className="flex shrink-0 flex-col items-center gap-2">
-              <div className="mw-page" style={{ width: box.width, height: box.height }}>
-                <PdfPageView pdf={pdf} pageNumber={number} scale={pageScale} rotation={0} priority={40} />
+          <div className="absolute inset-0 grid place-items-center px-6 text-center">
+            <div>
+              <p className="text-sm text-muted-foreground">还没挑页：在下方缩略图里点两页就能并排比</p>
+              <Button size="sm" variant="secondary" className="mt-3" onClick={() => setDrawer(true)}>
+                去挑页
+              </Button>
+            </div>
+          </div>
+        ) : null}
+
+        {pages.map((page) => {
+          const card = cards[page]
+          if (!card) return null
+          const fit = Math.min(card.w / pdf.baseWidth, card.h / pdf.baseHeight)
+          const renderScale = ladder(budgetScale(pdf.baseWidth, pdf.baseHeight, fit * card.zoom))
+          const cssScale = (fit * card.zoom) / renderScale
+          const panned = card.zoom > 1.02
+          return (
+            <div key={page} className="absolute select-none" style={{ left: card.x, top: card.y, width: card.w }}>
+              <div
+                className="cmp-card-bar flex items-center gap-1 border-b"
+                style={{ height: CMP_BAR }}
+                onPointerDown={(event) => startDrag(event, page, 'move')}
+                onPointerMove={onDragMove}
+                onPointerUp={endDrag}
+                onPointerCancel={endDrag}
+              >
+                <MoveHorizontal className="h-3 w-3 shrink-0 opacity-45" />
+                <button
+                  type="button"
+                  className="cmp-jump max-w-[7rem] truncate"
+                  title={'翻到第 ' + page + ' 页'}
+                  onClick={() => onGo(page)}
+                >
+                  第 {page} 页
+                </button>
+                <span className="ml-auto flex shrink-0 items-center gap-0.5">
+                  <button type="button" className="cmp-ico" title="缩小这一页" onClick={() => setCardZoom(page, 1 / 1.3)}>
+                    <Minus className="h-3 w-3" />
+                  </button>
+                  <span className="w-11 text-center text-[10px] tabular-nums opacity-80">
+                    {Math.round(card.zoom * 100)}%
+                  </span>
+                  <button type="button" className="cmp-ico" title="放大这一页" onClick={() => setCardZoom(page, 1.3)}>
+                    <Plus className="h-3 w-3" />
+                  </button>
+                  <button type="button" className="cmp-ico" title="复位这一页" onClick={() => resetCard(page)}>
+                    <RotateCcw className="h-3 w-3" />
+                  </button>
+                  <button type="button" className="cmp-ico" title="移出对比" onClick={() => toggle(page)}>
+                    <X className="h-3 w-3" />
+                  </button>
+                </span>
               </div>
-              <figcaption className="flex items-center gap-2 text-[11px] text-muted-foreground">
-                <button
-                  type="button"
-                  onClick={() => onGo(number)}
-                  className="rounded-md border border-border bg-surface px-2 py-0.5 text-foreground transition-colors hover:border-primary/60"
+
+              <div
+                data-cmp-page={page}
+                className={cn('cmp-frame', panned ? 'is-pannable' : 'is-movable')}
+                style={{ width: card.w, height: card.h }}
+                onPointerDown={(event) => startDrag(event, page, panned ? 'pan' : 'move')}
+                onPointerMove={onDragMove}
+                onPointerUp={endDrag}
+                onPointerCancel={endDrag}
+                onDoubleClick={(event) => {
+                  const rect = event.currentTarget.getBoundingClientRect()
+                  setCardZoom(
+                    page,
+                    panned ? 1 / card.zoom : 2.4 / card.zoom,
+                    {
+                      x: event.clientX - rect.left - rect.width / 2,
+                      y: event.clientY - rect.top - rect.height / 2
+                    }
+                  )
+                }}
+              >
+                <div
+                  className="cmp-page"
+                  style={{ transform: `translate(${card.panX}px, ${card.panY}px) scale(${cssScale})` }}
                 >
-                  第 {number} 页
-                </button>
-                <button
-                  type="button"
-                  onClick={() => toggle(number)}
-                  className="rounded-md px-1.5 py-0.5 transition-colors hover:bg-muted hover:text-foreground"
-                >
-                  移出
-                </button>
-              </figcaption>
-            </figure>
-          ))
-        )}
+                  <PdfPageView pdf={pdf} pageNumber={page} scale={renderScale} rotation={0} priority={30} />
+                </div>
+                <span
+                  className="cmp-grip"
+                  title="拖动调整这一页的纸框大小"
+                  onPointerDown={(event) => startDrag(event, page, 'resize')}
+                  onPointerMove={onDragMove}
+                  onPointerUp={endDrag}
+                  onPointerCancel={endDrag}
+                />
+              </div>
+            </div>
+          )
+        })}
       </div>
 
-      <footer className="shrink-0 border-t border-border px-3 py-2">
-        <div className="mb-1.5 flex items-center gap-2 text-[11px] text-muted-foreground">
-          <span className="tabular-nums">已选 {pages.length} / {limit} 页</span>
-          <button
-            type="button"
-            onClick={() => onChange([])}
-            className="rounded-md px-1.5 py-0.5 transition-colors hover:bg-muted hover:text-foreground"
-          >
-            全部移出
-          </button>
-        </div>
-        <div className="flex gap-2 overflow-x-auto pb-1">
-          {Array.from({ length: Math.min(stripLimit, pageCount) }, (_, index) => index + 1).map((number) => (
-            <PageThumbPicker
-              key={number}
-              pdf={pdf}
-              number={number}
-              width={72}
-              selected={pages.includes(number)}
-              onClick={() => toggle(number)}
-            />
-          ))}
-          {stripLimit < pageCount ? (
-            <button
-              type="button"
-              onClick={() => setStripLimit((value) => value + 120)}
-              className="flex h-[104px] w-24 shrink-0 items-center justify-center rounded-lg border border-dashed border-border px-2 text-[11px] text-muted-foreground hover:text-foreground"
-            >
-              还有 {pageCount - stripLimit} 页
-            </button>
-          ) : null}
-        </div>
-      </footer>
-    </ReaderOverlay>
+      {drawer ? (
+        <footer className="cmp-drawer shrink-0 border-t border-border px-3 py-2">
+          <div className="mb-1.5 flex items-center gap-2 text-[11px] text-muted-foreground">
+            <span>从下面挑最多 {limit} 页，再点一次取消选择</span>
+            {pages.length > 0 ? (
+              <button type="button" className="cmp-jump" onClick={() => onChange([])}>
+                全部移出
+              </button>
+            ) : null}
+          </div>
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {Array.from({ length: Math.min(stripLimit, pageCount) }, (_, index) => index + 1).map((number) => (
+              <PageThumbPicker
+                key={number}
+                pdf={pdf}
+                number={number}
+                width={72}
+                selected={pages.includes(number)}
+                onClick={() => toggle(number)}
+              />
+            ))}
+            {stripLimit < pageCount ? (
+              <button
+                type="button"
+                onClick={() => setStripLimit((value) => value + 120)}
+                className="flex h-[104px] w-24 shrink-0 items-center justify-center rounded-lg border border-dashed border-border px-2 text-[11px] text-muted-foreground hover:text-foreground"
+              >
+                还有 {pageCount - stripLimit} 页
+              </button>
+            ) : null}
+          </div>
+        </footer>
+      ) : null}
+    </div>,
+    document.body
   )
 }
-
 /* ==================== 页面提取：任意几页拼成一份新资料 ==================== */
 /** 把「1,3,5-8，11」这种写法解析成页码数组 */
 function parsePageSpec(text: string, total: number): number[] {
