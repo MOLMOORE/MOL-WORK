@@ -6,6 +6,8 @@ import type {
   FocusSession,
   Note,
   NoteDocInfo,
+  NoteExtractInput,
+  NoteExtractResult,
   NoteImportOptions,
   NoteImportProgress,
   NoteImportSummary,
@@ -142,6 +144,12 @@ export interface WorkstationApi {
     revealSource(id: number): Promise<void>
     /** 取 pdf.js 的字形映射 / 标准字体字节（渲染进程读不到 asar 内的文件） */
     pdfAsset(kind: 'cmaps' | 'standard_fonts', name: string): Promise<Uint8Array | null>
+    /** 列表拖拽排序后落库：按数组顺序重写 sort_order */
+    reorder(ids: number[]): Promise<void>
+    /** 页面提取：任意几页拼成一份新资料，可同时另存为 PDF 文件 */
+    extractPages(input: NoteExtractInput): Promise<NoteExtractResult>
+    /** 弹「另存为」对话框拿一个写入路径，取消返回空串 */
+    pickSavePath(defaultName: string): Promise<string>
   }
   schedule: {
     range(from: string, to: string): Promise<ScheduleEvent[]>

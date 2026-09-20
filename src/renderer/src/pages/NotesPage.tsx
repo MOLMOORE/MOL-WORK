@@ -2,8 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { BookOpen, Eye, FileText, Layers, Paperclip, Pencil, Plus, Save, Search, Trash2, Upload } from 'lucide-react'
-import type { NoteImportOptions, NoteImportProgress, NoteImportSummary, NoteKind, ReviewRating } from '@shared/types/domain'
+import { BookOpen, Eye, FileText, GripVertical, Layers, Paperclip, Pencil, Plus, Save, Search, Trash2, Upload } from 'lucide-react'
+import type { Note, NoteImportOptions, NoteImportProgress, NoteImportSummary, NoteKind, ReviewRating } from '@shared/types/domain'
 import { IMPORT_FORMAT_GROUPS } from '@shared/constants'
 import { Card, SectionHeader } from '../components/ui/Card'
 import { Badge, EmptyState, Spinner } from '../components/ui/Feedback'
@@ -31,6 +31,38 @@ const IMPORT_STAGE_LABEL: Record<string, string> = {
   done: '完成'
 }
 
+/** 列表排序方式：手动 = 自己拖出来的顺序（v1.2.5 落库保存） */
+type NoteSort = 'manual' | 'updated' | 'created' | 'title' | 'format'
+const SORT_KEY = 'workstation.notes.sort.v1'
+const NOTE_SORTS: { key: NoteSort; label: string; hint: string }[] = [
+  { key: 'manual', label: '手动排序', hint: '按住卡片拖动即可自由排列，顺序会保存' },
+  { key: 'updated', label: '按修改日期排序', hint: '最近改过的排前面' },
+  { key: 'created', label: '按加入日期排序', hint: '最近导入的排前面' },
+  { key: 'title', label: '按首字符排序', hint: '按标题第一个字 / 字母排序（中文按拼音）' },
+  { key: 'format', label: '按格式排序', hint: 'PDF、DOCX、PPTX 等来源格式归类' }
+]
+
+/** 中文按拼音、英文按字母：交给 Intl 的 zh-Hans 规则，不用自己写拼音表 */
+const byTitle = (a: string, b: string): number => a.localeCompare(b, 'zh-Hans-CN', { numeric: true, sensitivity: 'base' })
+
+function sortNotes(list: Note[], sort: NoteSort): Note[] {
+  const next = [...list]
+  switch (sort) {
+    case 'updated':
+      return next.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt) || a.id - b.id)
+    case 'created':
+      return next.sort((a, b) => b.createdAt.localeCompare(a.createdAt) || a.id - b.id)
+    case 'title':
+      return next.sort((a, b) => byTitle(a.title, b.title) || a.id - b.id)
+    case 'format':
+      return next.sort(
+        (a, b) => byTitle(a.sourceFormat ?? 'zzz', b.sourceFormat ?? 'zzz') || byTitle(a.title, b.title) || a.id - b.id
+      )
+    default:
+      return next.sort((a, b) => a.sortOrder - b.sortOrder || b.updatedAt.localeCompare(a.updatedAt) || a.id - b.id)
+  }
+}
+
 const KIND_TABS: { key: NoteKind | 'all'; label: string }[] = [
   { key: 'all', label: '全部' },
   { key: 'note', label: '笔记' },
@@ -55,6 +87,7 @@ export function NotesPage(): JSX.Element {
     createNote,
     saveNote,
     removeNote,
+    reorderNotes,
     gradeReview
   } = useNoteStore()
   const tasks = useTaskStore((state) => state.tasks)
@@ -65,6 +98,10 @@ export function NotesPage(): JSX.Element {
   const refreshOverview = useAppStore((state) => state.refreshOverview)
 
   const [kind, setKind] = useState<NoteKind | 'all'>('all')
+  // 列表排序：默认沿用手动顺序；拖拽排序会顺手切回手动
+  const [sort, setSort] = useState<NoteSort>(() => (localStorage.getItem(SORT_KEY) as NoteSort) || 'manual')
+  const [dragId, setDragId] = useState<number | null>(null)
+  const [overId, setOverId] = useState<number | null>(null)
   const [preview, setPreview] = useState(false)
   const [draftTitle, setDraftTitle] = useState('')
   const [draftContent, setDraftContent] = useState('')
@@ -135,9 +172,28 @@ export function NotesPage(): JSX.Element {
   }, [current?.id, current?.updatedAt])
 
   const filtered = useMemo(
-    () => (kind === 'all' ? notes : notes.filter((note) => note.kind === kind)),
-    [notes, kind]
+    () => sortNotes(kind === 'all' ? notes : notes.filter((note) => note.kind === kind), sort),
+    [notes, kind, sort]
   )
+
+  const chooseSort = (key: NoteSort): void => {
+    setSort(key)
+    localStorage.setItem(SORT_KEY, key)
+  }
+
+  /** 把拖到的位置写回顺序：可见条目重排后整段落库，并自动切回手动排序 */
+  const applyReorder = async (fromId: number | null, toId: number): Promise<void> => {
+    if (fromId === null || fromId === toId) return
+    const visible = filtered.map((note) => note.id)
+    const from = visible.indexOf(fromId)
+    const to = visible.indexOf(toId)
+    if (from < 0 || to < 0) return
+    const next = [...visible]
+    next.splice(from, 1)
+    next.splice(to, 0, fromId)
+    chooseSort('manual')
+    await reorderNotes(next)
+  }
 
   const handleSave = async (): Promise<void> => {
     if (!current) return
@@ -344,11 +400,14 @@ export function NotesPage(): JSX.Element {
     <div
       className="relative h-full"
       onDragOver={(event) => {
+        // 只有从外面拖文件进来才亮「将文件拖入此处」；列表内部拖拽排序不走这套
+        if (dragId !== null || !Array.from(event.dataTransfer.types).includes('Files')) return
         event.preventDefault()
         setDropping(true)
       }}
       onDragLeave={() => setDropping(false)}
       onDrop={(event) => {
+        if (event.dataTransfer.files.length === 0) return
         event.preventDefault()
         setDropping(false)
         void handleDropFiles(Array.from(event.dataTransfer.files))
@@ -389,6 +448,29 @@ export function NotesPage(): JSX.Element {
             }))}
           />
 
+          <div className="mb-2 flex flex-wrap items-center gap-1.5">
+            {NOTE_SORTS.map((item) => (
+              <button
+                key={item.key}
+                type="button"
+                title={item.hint}
+                onClick={() => chooseSort(item.key)}
+                className={cn(
+                  'rounded-lg border px-2 py-1 text-[11px] transition-colors',
+                  sort === item.key
+                    ? 'border-primary/60 bg-primary/10 font-medium text-foreground'
+                    : 'border-border text-muted-foreground hover:border-muted-foreground/50 hover:text-foreground'
+                )}
+              >
+                {item.label}
+              </button>
+            ))}
+            <span className="ml-auto hidden items-center gap-1 text-[11px] text-muted-foreground xl:flex">
+              <GripVertical className="h-3 w-3" />
+              按住卡片可自由拖动排序
+            </span>
+          </div>
+
           <div className="mw-note-list flex-1 overflow-y-auto pr-1">
             {/* 列表占了整页宽度，宽窗口下两列排，卡片不再中间空一大段 */}
             <div className="grid gap-x-2 2xl:grid-cols-2">
@@ -404,21 +486,52 @@ export function NotesPage(): JSX.Element {
                   key={note.id}
                   role="button"
                   tabIndex={0}
+                  draggable
+                  onDragStart={(event) => {
+                    setDragId(note.id)
+                    event.dataTransfer.effectAllowed = 'move'
+                    // 拖拽数据里带一个自定义标记，别被外面的「拖文件导入」当成外部文件
+                    event.dataTransfer.setData('text/plain', String(note.id))
+                  }}
+                  onDragEnd={() => {
+                    setDragId(null)
+                    setOverId(null)
+                  }}
+                  onDragOver={(event) => {
+                    if (dragId === null || dragId === note.id) return
+                    event.preventDefault()
+                    event.stopPropagation()
+                    event.dataTransfer.dropEffect = 'move'
+                    if (overId !== note.id) setOverId(note.id)
+                  }}
+                  onDrop={(event) => {
+                    if (dragId === null) return
+                    event.preventDefault()
+                    event.stopPropagation()
+                    void applyReorder(dragId, note.id)
+                    setDragId(null)
+                    setOverId(null)
+                  }}
                   onClick={() => void openDetail(note.id)}
                   onKeyDown={(event) => {
                     if (event.key === 'Enter') void openDetail(note.id)
                   }}
                   className={cn(
                     'mb-2 w-full cursor-pointer rounded-xl border p-3 text-left transition-all duration-150',
+                    dragId === note.id && 'opacity-45',
+                    dragId !== null && dragId !== note.id && overId === note.id && 'border-primary ring-2 ring-primary/45',
                     current?.id === note.id
                       ? 'border-primary/50 bg-primary/10'
                       : 'border-border bg-muted/20 hover:border-primary/30 hover:bg-muted/40'
                   )}
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <Badge tone={note.kind === 'material' ? 'warning' : note.kind === 'flashcard' ? 'info' : 'primary'}>
-                      {note.kind === 'material' ? '资料' : note.kind === 'flashcard' ? '卡片' : '笔记'}
-                    </Badge>
+                    <span className="flex min-w-0 items-center gap-1">
+                      <GripVertical className="h-3.5 w-3.5 shrink-0 cursor-grab text-muted-foreground/45" />
+                      <Badge tone={note.kind === 'material' ? 'warning' : note.kind === 'flashcard' ? 'info' : 'primary'}>
+                        {note.kind === 'material' ? '资料' : note.kind === 'flashcard' ? '卡片' : '笔记'}
+                      </Badge>
+                    </span>
                     {note.review ? (
                       <Badge tone={note.review.status === 'mastered' ? 'success' : 'info'} dot>
                         {note.review.status === 'mastered' ? '已掌握' : relativeDay(note.review.dueAt)}
@@ -484,8 +597,8 @@ export function NotesPage(): JSX.Element {
           </div>
       </Card>
       {dropping ? (
-        <div className="pointer-events-none absolute inset-0 z-10 grid place-items-center rounded-xl border-2 border-dashed border-primary/70 bg-primary/10 text-xs font-medium text-tint-primary">
-          松手后先问一句：给这批资料填个简介、要不要挂到某个任务或课程上，确认后才开始导入
+        <div className="pointer-events-none absolute inset-0 z-10 grid place-items-center rounded-xl border-2 border-dashed border-primary/70 bg-primary/10 text-sm font-medium text-tint-primary">
+          将文件拖入此处
         </div>
       ) : null}
     </div>
@@ -568,10 +681,7 @@ export function NotesPage(): JSX.Element {
           />
           <div className="relative z-10 flex max-h-full w-full max-w-xl flex-col overflow-hidden rounded-xl border border-border bg-surface shadow-pop animate-scale-in">
             <div className="shrink-0 border-b border-border px-5 py-4">
-              <p className="text-sm font-semibold text-foreground">这批资料怎么存？</p>
-              <p className="mt-0.5 text-xs text-muted-foreground">
-                先填个简介、再决定挂到哪个任务或课程上；不填也没关系，之后随时能在详情里补。
-              </p>
+              <p className="text-sm font-semibold text-foreground">保存资料</p>
             </div>
 
             <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
@@ -586,7 +696,7 @@ export function NotesPage(): JSX.Element {
                   </div>
                 </Field>
 
-                <Field label="资料简介" hint="一句话说明这份资料是什么、用来干什么；留空则不填">
+                <Field label="资料简介">
                   <Textarea
                     rows={2}
                     value={importSummary}
@@ -758,12 +868,12 @@ export function NotesPage(): JSX.Element {
               </Field>
             </div>
 
-            <Field label="资料简介" hint="自己写一句「这是什么、什么时候用」；不再展示自动抽取的文字">
+            <Field label="资料简介">
               <Textarea
                 rows={2}
                 value={draftSummary}
                 onChange={(event) => setDraftSummary(event.target.value)}
-                placeholder="留空即不填"
+                placeholder="简介填在此处"
               />
             </Field>
 

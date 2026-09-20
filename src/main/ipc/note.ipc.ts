@@ -2,6 +2,8 @@ import { dialog, shell } from 'electron'
 import type {
   Note,
   NoteDocInfo,
+  NoteExtractInput,
+  NoteExtractResult,
   NoteInput,
   NoteImportOptions,
   NoteImportProgress,
@@ -25,6 +27,8 @@ import {
   saveNoteMark
 } from '../services/note.service'
 import { importNoteFiles } from '../services/note-import.service'
+import { extractNotePages } from '../services/note-extract.service'
+import { reorderNotes } from '../db/repositories/note.repo'
 import { readPdfAsset, type PdfAssetKind } from '../services/pdf-assets'
 import { emitToRenderer, notifyDataChanged } from '../services/bus'
 
@@ -88,6 +92,20 @@ export function registerNoteIpc(): void {
     const summary = await importNoteFiles(paths, options, pushImportProgress)
     if (summary.created.length > 0) notifyDataChanged('notes')
     return summary
+  })
+
+  // ---------- 列表拖拽排序 / 页面提取（v1.2.5） ----------
+  handle<void>('note:reorder', (ids: number[]) => reorderNotes(Array.isArray(ids) ? ids.map(Number) : []))
+
+  handle<NoteExtractResult>('note:extract-pages', (input: NoteExtractInput) => extractNotePages(input))
+
+  handle<string>('note:pick-save-path', async (defaultName: string) => {
+    const result = await dialog.showSaveDialog({
+      title: '保存提取出的 PDF',
+      defaultPath: defaultName || '提取页面.pdf',
+      filters: [{ name: 'PDF 文档', extensions: ['pdf'] }]
+    })
+    return result.canceled || !result.filePath ? '' : result.filePath
   })
 
   /** 只弹选择框拿路径：导入前先让渲染层问用户填简介与关联任务 / 课程 */

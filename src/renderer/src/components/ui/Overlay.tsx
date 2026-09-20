@@ -1,6 +1,7 @@
 import { useEffect, type ReactNode } from 'react'
 import { X } from 'lucide-react'
 import { cn } from '../../lib/utils'
+import { blockEscapeFullscreen } from '../../lib/escape'
 import { IconButton, Button } from './Button'
 
 export interface ModalProps {
@@ -16,11 +17,16 @@ export interface ModalProps {
 export function Modal({ open, onClose, title, description, children, footer, width = 'max-w-2xl' }: ModalProps): JSX.Element | null {
   useEffect(() => {
     if (!open) return undefined
+    // 弹窗开着时 Esc 归弹窗用（先关弹窗），别让全局的「Esc 退出全屏」把它抢走
+    const release = blockEscapeFullscreen()
     const onKey = (event: KeyboardEvent): void => {
       if (event.key === 'Escape') onClose()
     }
     window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
+    return () => {
+      release()
+      window.removeEventListener('keydown', onKey)
+    }
   }, [open, onClose])
 
   if (!open) return null
@@ -68,11 +74,16 @@ export interface DrawerProps {
 export function Drawer({ open, onClose, title, subtitle, children, footer, width = 'w-[560px]' }: DrawerProps): JSX.Element | null {
   useEffect(() => {
     if (!open) return undefined
+    // 弹窗开着时 Esc 归弹窗用（先关弹窗），别让全局的「Esc 退出全屏」把它抢走
+    const release = blockEscapeFullscreen()
     const onKey = (event: KeyboardEvent): void => {
       if (event.key === 'Escape') onClose()
     }
     window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
+    return () => {
+      release()
+      window.removeEventListener('keydown', onKey)
+    }
   }, [open, onClose])
 
   return (

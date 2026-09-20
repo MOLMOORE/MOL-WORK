@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import type { MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent, RefObject } from 'react'
+import type { MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent, ReactNode, RefObject } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -24,10 +24,12 @@ import {
   Maximize2,
   Minimize2,
   RotateCw,
+  Scissors,
+  GitCompare,
   Star,
   X
 } from 'lucide-react'
-import type { NoteDocInfo, NoteMark, NoteMarkKind } from '@shared/types/domain'
+import type { Note, NoteDocInfo, NoteMark, NoteMarkKind } from '@shared/types/domain'
 import { Button, IconButton } from '../components/ui/Button'
 import { Spinner } from '../components/ui/Feedback'
 import {
@@ -42,6 +44,7 @@ import {
   type PdfDocInfo
 } from '../lib/pdf'
 import { api } from '../lib/ipc'
+import { blockEscapeFullscreen } from '../lib/escape'
 import { cn, formatDateTime } from '../lib/utils'
 
 /** 翻页动效：直切 / 淡入淡出 / 推移 / 覆盖 / 仿真翻书 */
@@ -60,8 +63,10 @@ const FLIP_LABELS: { key: FlipEffect; label: string }[] = [
   { key: 'book', label: '翻书' }
 ]
 
-/** 翻页动效时长，与 CSS 里五种动效的 340ms 完全一致：残影在动画收尾之后才卸载 */
-const TURN_MS = 340
+/** 翻页动效时长，与 CSS 里五种动效的 380ms 完全一致：残影在动画收尾之后才卸载 */
+const TURN_MS = 380
+/** 并排对比最多几页 / 一次最多提取多少页 */
+const MAX_COMPARE = 4
 
 export function ReaderPage(): JSX.Element {
   const { noteId } = useParams()
@@ -80,7 +85,7 @@ export function ReaderPage(): JSX.Element {
   const [panning, setPanning] = useState(false)
   const [fullscreen, setFullscreen] = useState(false)
   const [flip, setFlip] = useState<FlipEffect>('book')
-  const [panel, setPanel] = useState<PanelTab | null>('outline')
+  const [panel, setPanel] = useState<PanelTab | null>('thumbs')
   const [marks, setMarks] = useState<NoteMark[]>([])
   const [readMinutes, setReadMinutes] = useState(0)
   const [fontSize, setFontSize] = useState(17)
@@ -90,10 +95,28 @@ export function ReaderPage(): JSX.Element {
   const [stageSize, setStageSize] = useState({ width: 0, height: 0 })
   const [turning, setTurning] = useState<{ from: number; to: number; dir: 1 | -1 } | null>(null)
   const [composer, setComposer] = useState<{ kind: NoteMarkKind; quote: string } | null>(null)
+  /** 页面对比：挑出来并排看的页码（最多 4 页） */
+  const [compare, setCompare] = useState<number[]>([])
+  const [compareOpen, setCompareOpen] = useState(false)
+  /** 页面提取：勾出来拼成新文档的页码 */
+  const [extractOpen, setExtractOpen] = useState(false)
+  /** 舞台就地提示：翻到头了、提取好了（阅读界面不套应用外壳，没有全局 Toaster） */
+  const [hint, setHint] = useState('')
+  const hintTimer = useRef<number | null>(null)
   const stageRef = useRef<HTMLDivElement>(null)
   const scrollRef = useRef<HTMLDivElement | null>(null)
   const progressTimer = useRef<number | null>(null)
   const turnTimer = useRef<number | null>(null)
+  /** pageRef 是「要去的那一页」，shownRef 是「屏幕上已经画出来的那一页」：
+      连点翻页时动画必须从真正显示着的页开始，否则残影会跳一页 */
+  const pageRef = useRef(1)
+  const shownRef = useRef(1)
+  const turnToken = useRef(0)
+  const pendingTurn = useRef<{ from: number; to: number; dir: 1 | -1 } | null>(null)
+  const pageCountRef = useRef(1)
+  const flipRef = useRef<FlipEffect>('book')
+  const pdfRef = useRef<PdfDocInfo | null>(null)
+  const rotationRef = useRef(0)
   const panRef = useRef<{ x: number; y: number; left: number; top: number; moved: boolean } | null>(null)
   const suppressClick = useRef(false)
   const anchor = useRef<{ x: number; y: number; r: number; cx: number; cy: number } | null>(null)
@@ -101,6 +124,28 @@ export function ReaderPage(): JSX.Element {
   const scaleRef = useRef(1)
   const layoutRef = useRef<StageLayout>('single')
   const stepRef = useRef<(delta: number) => void>(() => undefined)
+
+  /** 就地提示一条，1.6s 后自己消失；连着按方向键时不重复刷屏 */
+  const showHint = useCallback((message: string) => {
+    if (hintTimer.current) window.clearTimeout(hintTimer.current)
+    setHint(message)
+    hintTimer.current = window.setTimeout(() => {
+      hintTimer.current = null
+      setHint('')
+    }, 1600)
+  }, [])
+
+  /** 直接跳到某一页（换书、读进度时），不带动效 */
+  const resetPage = useCallback((next: number) => {
+    turnToken.current += 1
+    pendingTurn.current = null
+    if (turnTimer.current) window.clearTimeout(turnTimer.current)
+    turnTimer.current = null
+    pageRef.current = next
+    shownRef.current = next
+    setTurning(null)
+    setPage(next)
+  }, [])
 
   // ---------- 载入文档 ----------
   useEffect(() => {
@@ -114,7 +159,7 @@ export function ReaderPage(): JSX.Element {
         if (cancelled) return
         setInfo(doc)
         setDraft(doc.text)
-        setPage(Math.max(1, doc.note.lastPage || 1))
+        resetPage(Math.max(1, doc.note.lastPage || 1))
         if (doc.viewMode === 'pages' && doc.data) {
           const opened = await openPdf(doc.data, (outline) => {
             opened.outline = outline
@@ -132,7 +177,7 @@ export function ReaderPage(): JSX.Element {
           setPageCount(Math.max(1, doc.note.pageCount || 1))
         } else {
           setPageCount(1)
-          setPage(1)
+          resetPage(1)
         }
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : String(err))
@@ -143,7 +188,7 @@ export function ReaderPage(): JSX.Element {
     return () => {
       cancelled = true
     }
-  }, [id])
+  }, [id, resetPage])
 
   // 换书 / 关书时丢掉这本书的画布缓存，长文档不至于一直占着内存
   useEffect(() => {
@@ -163,45 +208,109 @@ export function ReaderPage(): JSX.Element {
     return () => observer.disconnect()
   }, [info])
 
-  // ---------- 翻页动画：只有逐页翻才做动效，动画结束再清掉残影 ----------
-  const pageRef = useRef(1)
-  useEffect(() => {
-    pageRef.current = page
-  }, [page])
+  // ---------- 翻页动画：先把目标页画好，再启动动效 ----------
   useEffect(() => {
     layoutRef.current = layout
   }, [layout])
 
+  /** 这一「屏」包含哪几页：双页是左右两页 */
+  const spreadOf = useCallback((target: number): number[] => {
+    const total = Math.max(1, pageCountRef.current)
+    if (layoutRef.current === 'double') return [target, target + 1].filter((n) => n >= 1 && n <= total)
+    return [target]
+  }, [])
+
+  /**
+   * 闪动的根因：新页还没画完，动画已经开跑了，于是先看到一张白纸再「蹦」出内容。
+   * 所以动效启动前先把这一屏要用的画布要到手（命中缓存就是同步返回，几乎不耗时），
+   * 最迟 900ms 也必须落地，不至于卡住不动。
+   */
+  const warmPages = useCallback((pages: number[]): Promise<void> => {
+    const doc = pdfRef.current
+    if (!doc) return Promise.resolve()
+    const scaleNow = scaleRef.current
+    const rotationNow = rotationRef.current
+    const jobs = pages.map((number) =>
+      pageCanvas(doc.doc, doc.uid, number, scaleNow, rotationNow, 80)
+        .then(() => undefined)
+        .catch(() => undefined)
+    )
+    return Promise.race([
+      Promise.all(jobs).then(() => undefined),
+      new Promise<void>((resolve) => {
+        window.setTimeout(resolve, 900)
+      })
+    ])
+  }, [])
+
+  /** 落地一次翻页：turn 为 null 就是不动效、直接切 */
+  const applyTurn = useCallback((turn: { from: number; to: number; dir: 1 | -1 } | null) => {
+    if (turn && pendingTurn.current !== turn) return
+    pendingTurn.current = null
+    if (turnTimer.current) {
+      window.clearTimeout(turnTimer.current)
+      turnTimer.current = null
+    }
+    const target = turn ? turn.to : pageRef.current
+    shownRef.current = target
+    setPage(target)
+    if (!turn) {
+      setTurning(null)
+      return
+    }
+    setTurning(turn)
+    turnTimer.current = window.setTimeout(() => {
+      turnTimer.current = null
+      setTurning(null)
+    }, TURN_MS)
+  }, [])
+
   const goPage = useCallback(
     (next: number, dir?: 1 | -1) => {
-      const target = Math.min(Math.max(1, Math.round(next)), Math.max(1, pageCount))
+      const total = Math.max(1, pageCountRef.current)
+      const target = Math.min(Math.max(1, Math.round(next)), total)
       const current = pageRef.current
       if (target === current) return
       const direction = dir ?? (target > current ? 1 : -1)
       pageRef.current = target
-      if (flip !== 'none' && Math.abs(target - current) === 1) {
-        if (turnTimer.current) window.clearTimeout(turnTimer.current)
-        setTurning({ from: current, to: target, dir: direction })
-        turnTimer.current = window.setTimeout(() => {
-          turnTimer.current = null
-          setTurning(null)
-        }, TURN_MS)
-      } else {
-        if (turnTimer.current) window.clearTimeout(turnTimer.current)
-        turnTimer.current = null
-        setTurning(null)
+      const from = shownRef.current
+      const stride = layoutRef.current === 'double' ? 2 : 1
+      const animate =
+        flipRef.current !== 'none' &&
+        layoutRef.current !== 'continuous' &&
+        Math.abs(target - from) === stride
+      if (!animate) {
+        turnToken.current += 1
+        applyTurn(null)
+        return
       }
-      setPage(target)
+      const turn = { from, to: target, dir: direction }
+      const token = (turnToken.current += 1)
+      pendingTurn.current = turn
+      void warmPages([...spreadOf(from), ...spreadOf(target)]).then(() => {
+        if (turnToken.current === token) applyTurn(turn)
+      })
     },
-    [pageCount, flip]
+    [applyTurn, spreadOf, warmPages]
   )
 
+  /** 往前 / 往后翻一格；已经到头了就原地提示一声，不再空转 */
   const step = useCallback(
     (delta: number) => {
-      const stride = layout === 'double' ? 2 : 1
-      goPage(pageRef.current + delta * stride, delta > 0 ? 1 : -1)
+      const total = Math.max(1, pageCountRef.current)
+      const current = pageRef.current
+      if (delta > 0 && current >= total) {
+        showHint('已到最后一页')
+        return
+      }
+      if (delta < 0 && current <= 1) {
+        showHint('已在第一页')
+        return
+      }
+      const stride = layoutRef.current === 'double' ? 2 : 1
+      goPage(current + delta * stride, delta > 0 ? 1 : -1)
     },
-    [goPage, layout]
+    [goPage, showHint]
   )
   useEffect(() => {
     stepRef.current = step
@@ -501,6 +610,10 @@ export function ReaderPage(): JSX.Element {
   }, [pdf, stageSize, fit, layout, rotation])
   const scale = Math.max(0.1, Math.min(12, fitScale * zoom))
   scaleRef.current = scale
+  pageCountRef.current = pageCount
+  flipRef.current = flip
+  pdfRef.current = pdf
+  rotationRef.current = rotation
   const zoomPercent = info?.viewMode === 'rich' ? Math.round(zoom * 100) : Math.round((scale / SCREEN_SCALE) * 100)
   /** 只有内容真的比舞台大才需要拖动平移 */
   const canPan = info?.viewMode === 'pages' && (layout === 'continuous' || scale > fitScale + 0.002 || zoom > 1.001)
@@ -517,6 +630,7 @@ export function ReaderPage(): JSX.Element {
       const target = Math.min(Math.max(1, next), Math.max(1, pageCount))
       if (pageRef.current === target) return
       pageRef.current = target
+      shownRef.current = target
       setPage(target)
     },
     [pageCount]
@@ -643,6 +757,12 @@ export function ReaderPage(): JSX.Element {
     void api.win.getState().then((state) => setFullscreen(state.fullscreen)).catch(() => undefined)
     return api.onWindowState((state) => setFullscreen(state.fullscreen))
   }, [])
+
+  // 侧栏、注释框、对比 / 提取浮层开着时，Esc 先关它们；再按一次才退出全屏
+  useEffect(() => {
+    if (!panel && !composer && !compareOpen && !extractOpen) return undefined
+    return blockEscapeFullscreen()
+  }, [panel, composer, compareOpen, extractOpen])
 
   /** 连续滚动 / 文本模式下的滚动翻页 */
   const scrollPages = (direction: number, screens = 1): void => {
@@ -793,9 +913,25 @@ export function ReaderPage(): JSX.Element {
           <IconButton label="页内查找（Ctrl+F）" onClick={() => setPanel(panel === 'find' ? null : 'find')}>
             <Search className="h-4 w-4" />
           </IconButton>
+          {info.viewMode === 'pages' && pdf ? (
+            <>
+              <IconButton
+                label={compare.length >= 2 ? '页面对比（已选 ' + compare.length + ' 页）' : '页面对比：把任意几页并排放着比'}
+                onClick={() => {
+                  setCompare((list) => (list.includes(page) ? list : [...list, page].sort((a, b) => a - b).slice(0, MAX_COMPARE)))
+                  setCompareOpen(true)
+                }}
+              >
+                <GitCompare className={cn('h-4 w-4', compare.length >= 2 && 'text-tint-primary')} />
+              </IconButton>
+              <IconButton label="页面提取：把任意几页拼成一份新资料" onClick={() => setExtractOpen(true)}>
+                <Scissors className="h-4 w-4" />
+              </IconButton>
+            </>
+          ) : null}
           <IconButton
-            label={panel ? '收起侧栏' : '展开目录 / 书签 / 注释'}
-            onClick={() => setPanel(panel ? null : 'outline')}
+            label={panel ? '收起侧栏' : '展开页面 / 目录 / 注释'}
+            onClick={() => setPanel(panel ? null : 'thumbs')}
           >
             <List className="h-4 w-4" />
           </IconButton>
@@ -867,7 +1003,6 @@ export function ReaderPage(): JSX.Element {
                 page={page}
                 zoom={zoom}
                 layout={layout}
-                turning={turning}
                 onPageCount={setPageCount}
                 onActivePage={handleActivePage}
                 onWheelZoom={handleWheelZoomRich}
@@ -892,6 +1027,7 @@ export function ReaderPage(): JSX.Element {
                   title="上一页（点击书页左侧）"
                   className="mw-pagezone mw-pagezone-left"
                   onClick={() => step(-1)}
+                  onDoubleClick={(event) => event.stopPropagation()}
                 >
                   <span>
                     <ChevronLeft className="h-4 w-4" />
@@ -904,12 +1040,18 @@ export function ReaderPage(): JSX.Element {
                   title="下一页（点击书页右侧）"
                   className="mw-pagezone mw-pagezone-right"
                   onClick={() => step(1)}
+                  onDoubleClick={(event) => event.stopPropagation()}
                 >
                   <span>
                     <ChevronRight className="h-4 w-4" />
                   </span>
                 </button>
               </>
+            ) : null}
+
+            {/* 到头了 / 刚提取完，就地提示一声，不用弹全局气泡 */}
+            {hint !== '' ? (
+              <div className="reader-hint animate-fade-in">{hint}</div>
             ) : null}
           </div>
 
@@ -922,13 +1064,14 @@ export function ReaderPage(): JSX.Element {
             <span>← → 翻页</span>
             <span>空格 下一页</span>
             <span>点书页左右侧翻页</span>
+            <span>到头会提示</span>
             <span>Ctrl+滚轮 缩放</span>
             <span>按住左键拖动</span>
             <span>B 书签</span>
             <span>S 重点</span>
             <span>E 注释</span>
             <span>R 旋转</span>
-            <span>F / F11 全屏</span>
+            <span>F / F11 全屏 · Esc 退出</span>
             {readMinutes > 0 ? (
               <>
                 <span className="h-3 w-px bg-border" />
@@ -956,6 +1099,33 @@ export function ReaderPage(): JSX.Element {
           />
         ) : null}
       </div>
+
+      {compareOpen && pdf ? (
+        <CompareOverlay
+          pdf={pdf}
+          pages={compare}
+          pageCount={pageCount}
+          limit={MAX_COMPARE}
+          onClose={() => setCompareOpen(false)}
+          onChange={(list) => setCompare(list)}
+          onGo={(target) => {
+            setCompareOpen(false)
+            goPage(target)
+          }}
+        />
+      ) : null}
+
+      {extractOpen && pdf ? (
+        <ExtractDialog
+          pdf={pdf}
+          noteId={id}
+          sourceTitle={info.note.title}
+          current={page}
+          onClose={() => setExtractOpen(false)}
+          onHint={showHint}
+          onOpened={(note) => navigate('/reader/' + note.id)}
+        />
+      ) : null}
 
       {composer ? (
         <MarkComposer
@@ -1050,7 +1220,7 @@ function PdfStage(props: StageProps): JSX.Element {
   const box = pageSize(pdf.baseWidth, pdf.baseHeight, scale, rotation)
 
   return (
-    <div ref={onScrollNode} className="reader-page-area h-full overflow-auto">
+    <div ref={onScrollNode} className={cn('reader-page-area h-full overflow-auto', turning && 'is-turning')}>
       {/* 用 margin:auto 居中：放大超出舞台时上下左右都能滚到，不会被裁掉 */}
       <div className="mw-book-frame">
         <div className={cn('mw-book', turning && 'is-turning', turning?.dir === -1 && 'is-reverse')}>
@@ -1265,12 +1435,11 @@ function RichStage(props: {
   page: number
   zoom: number
   layout: StageLayout
-  turning: { from: number; to: number; dir: 1 | -1 } | null
   onPageCount: (count: number) => void
   onActivePage: (page: number) => void
   onWheelZoom: (factor: number) => void
 }): JSX.Element {
-  const { html, page, zoom, layout, turning, onPageCount, onActivePage, onWheelZoom } = props
+  const { html, page, zoom, layout, onPageCount, onActivePage, onWheelZoom } = props
   const frameRef = useRef<HTMLIFrameElement>(null)
   const [ready, setReady] = useState(false)
   /** 程序滚动之后短暂忽略滚动回报，避免「滚到第几页」和「第几页滚过去」互相打架 */
@@ -1321,11 +1490,11 @@ function RichStage(props: {
     try {
       ignoreScrollUntil.current = Date.now() + 400
       const top = ((page - 1) * frame.clientHeight) / zoom
-      doc.defaultView?.scrollTo({ top, behavior: turning ? 'auto' : 'smooth' })
+      doc.defaultView?.scrollTo({ top, behavior: 'smooth' })
     } catch {
       /* 忽略 */
     }
-  }, [page, zoom, ready, turning])
+  }, [page, zoom, ready])
 
   if (html === '') {
     return <div className="flex h-full items-center justify-center text-sm text-muted-foreground">这份资料的排版文件读不到了</div>
@@ -1333,8 +1502,10 @@ function RichStage(props: {
 
   return (
     <div className="reader-page-area relative flex h-full items-center justify-center overflow-hidden px-6 py-5">
-      <div className={cn('mw-book mw-book-fill', turning && 'is-turning', turning?.dir === -1 && 'is-reverse')}>
-        <div className="mw-layer mw-layer-in" key={`rich-${page}`}>
+      {/* 排版模式整页就是这一个 iframe：重挂一次就白屏一下，所以这里不挂翻页图层，
+          只让内容平滑滚过去 —— 效果比强行套一层平移更稳，也不会有闪动 */}
+      <div className="mw-book mw-book-fill">
+        <div className="mw-layer mw-layer-in">
           <div className="mw-page mw-page-rich">
             <iframe
               ref={frameRef}
@@ -1390,8 +1561,8 @@ function TextStage(props: {
 }
 /* ==================== 右侧面板：目录 / 缩略图 / 书签重点 / 注释 / 查找 / 本页文字 ==================== */
 const PANEL_TABS: { key: PanelTab; label: string }[] = [
-  { key: 'outline', label: '目录' },
   { key: 'thumbs', label: '页面' },
+  { key: 'outline', label: '目录' },
   { key: 'marks', label: '书签' },
   { key: 'notes', label: '注释' },
   { key: 'find', label: '查找' },
@@ -1776,5 +1947,376 @@ function MarkComposer(props: {
         </div>
       </div>
     </div>
+  )
+}
+
+/* ==================== 选页用的缩略图按钮（对比与提取共用） ==================== */
+function PageThumbPicker(props: {
+  pdf: PdfDocInfo
+  number: number
+  width: number
+  selected: boolean
+  onClick: () => void
+}): JSX.Element {
+  const { pdf, number, width, selected, onClick } = props
+  const height = Math.round((width * pdf.baseHeight) / pdf.baseWidth)
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={'第 ' + number + ' 页'}
+      className={cn(
+        'shrink-0 rounded-lg border p-1 transition-colors',
+        selected ? 'border-primary bg-primary/10' : 'border-border hover:border-muted-foreground/60'
+      )}
+    >
+      <span className="block overflow-hidden rounded bg-white" style={{ width, height }}>
+        <PdfPageView pdf={pdf} pageNumber={number} scale={width / pdf.baseWidth} rotation={0} lazy priority={selected ? 20 : 2} />
+      </span>
+      <span
+        className={cn(
+          'mt-1 block text-center text-[10px] tabular-nums',
+          selected ? 'font-medium text-foreground' : 'text-muted-foreground'
+        )}
+      >
+        {number}
+      </span>
+    </button>
+  )
+}
+
+/** 浮层通用外壳：点背景关闭、Esc 优先给浮层用（capture 抢在页面快捷键之前） */
+function ReaderOverlay(props: { onClose: () => void; children: ReactNode; width?: string }): JSX.Element {
+  const { onClose, children, width = 'max-w-6xl' } = props
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent): void => {
+      if (event.key !== 'Escape') return
+      event.preventDefault()
+      event.stopPropagation()
+      onClose()
+    }
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
+  }, [onClose])
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4" onMouseDown={onClose}>
+      <div
+        className={cn('glass-card flex max-h-full w-full flex-col overflow-hidden', width)}
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        {children}
+      </div>
+    </div>
+  )
+}
+
+/* ==================== 页面对比：把任意几页并排放着看 ==================== */
+function CompareOverlay(props: {
+  pdf: PdfDocInfo
+  pages: number[]
+  pageCount: number
+  limit: number
+  onClose: () => void
+  onChange: (pages: number[]) => void
+  onGo: (page: number) => void
+}): JSX.Element {
+  const { pdf, pages, pageCount, limit, onClose, onChange, onGo } = props
+  const [boost, setBoost] = useState(1)
+  const [viewport, setViewport] = useState({ width: 1280, height: 800 })
+  const [stripLimit, setStripLimit] = useState(60)
+
+  useEffect(() => {
+    const measure = (): void => setViewport({ width: window.innerWidth, height: window.innerHeight })
+    measure()
+    window.addEventListener('resize', measure)
+    return () => window.removeEventListener('resize', measure)
+  }, [])
+
+  const toggle = (number: number): void => {
+    if (pages.includes(number)) {
+      onChange(pages.filter((item) => item !== number))
+      return
+    }
+    // 超出上限就挤掉最早选的那一页，始终保留最近挑的几页
+    onChange([...pages, number].sort((a, b) => a - b).slice(-limit))
+  }
+
+  const count = Math.max(1, pages.length)
+  const columnWidth = (viewport.width - 170) / count
+  const availableHeight = viewport.height - 300
+  const pageScale = Math.max(
+    0.12,
+    Math.min(columnWidth / pdf.baseWidth, availableHeight / pdf.baseHeight) * boost
+  )
+  const box = pageSize(pdf.baseWidth, pdf.baseHeight, pageScale, 0)
+
+  return (
+    <ReaderOverlay onClose={onClose}>
+      <header className="flex shrink-0 items-center gap-3 border-b border-border px-4 py-3">
+        <div className="min-w-0">
+          <p className="truncate text-sm font-semibold text-foreground">页面对比</p>
+          <p className="truncate text-[11px] text-muted-foreground">
+            从下面挑最多 {limit} 页并排放着看；再点一次取消选择
+          </p>
+        </div>
+        <div className="ml-auto flex items-center gap-1 rounded-lg border border-border bg-muted p-0.5">
+          <IconButton label="缩小" onClick={() => setBoost((value) => Math.max(0.4, value / 1.2))}>
+            <Minus className="h-3.5 w-3.5" />
+          </IconButton>
+          <span className="w-12 text-center text-[11px] tabular-nums text-foreground">
+            {Math.round(boost * 100)}%
+          </span>
+          <IconButton label="放大" onClick={() => setBoost((value) => Math.min(3, value * 1.2))}>
+            <Plus className="h-3.5 w-3.5" />
+          </IconButton>
+        </div>
+        <IconButton label="关闭对比（Esc）" onClick={onClose}>
+          <X className="h-4 w-4" />
+        </IconButton>
+      </header>
+
+      <div className="flex min-h-0 flex-1 items-stretch justify-center gap-4 overflow-auto bg-n-900/20 p-4">
+        {pages.length === 0 ? (
+          <p className="m-auto text-sm text-muted-foreground">还没挑页：在下方点两页就能并排看</p>
+        ) : (
+          pages.map((number) => (
+            <figure key={number} className="flex shrink-0 flex-col items-center gap-2">
+              <div className="mw-page" style={{ width: box.width, height: box.height }}>
+                <PdfPageView pdf={pdf} pageNumber={number} scale={pageScale} rotation={0} priority={40} />
+              </div>
+              <figcaption className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                <button
+                  type="button"
+                  onClick={() => onGo(number)}
+                  className="rounded-md border border-border bg-surface px-2 py-0.5 text-foreground transition-colors hover:border-primary/60"
+                >
+                  第 {number} 页
+                </button>
+                <button
+                  type="button"
+                  onClick={() => toggle(number)}
+                  className="rounded-md px-1.5 py-0.5 transition-colors hover:bg-muted hover:text-foreground"
+                >
+                  移出
+                </button>
+              </figcaption>
+            </figure>
+          ))
+        )}
+      </div>
+
+      <footer className="shrink-0 border-t border-border px-3 py-2">
+        <div className="mb-1.5 flex items-center gap-2 text-[11px] text-muted-foreground">
+          <span className="tabular-nums">已选 {pages.length} / {limit} 页</span>
+          <button
+            type="button"
+            onClick={() => onChange([])}
+            className="rounded-md px-1.5 py-0.5 transition-colors hover:bg-muted hover:text-foreground"
+          >
+            全部移出
+          </button>
+        </div>
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          {Array.from({ length: Math.min(stripLimit, pageCount) }, (_, index) => index + 1).map((number) => (
+            <PageThumbPicker
+              key={number}
+              pdf={pdf}
+              number={number}
+              width={72}
+              selected={pages.includes(number)}
+              onClick={() => toggle(number)}
+            />
+          ))}
+          {stripLimit < pageCount ? (
+            <button
+              type="button"
+              onClick={() => setStripLimit((value) => value + 120)}
+              className="flex h-[104px] w-24 shrink-0 items-center justify-center rounded-lg border border-dashed border-border px-2 text-[11px] text-muted-foreground hover:text-foreground"
+            >
+              还有 {pageCount - stripLimit} 页
+            </button>
+          ) : null}
+        </div>
+      </footer>
+    </ReaderOverlay>
+  )
+}
+
+/* ==================== 页面提取：任意几页拼成一份新资料 ==================== */
+/** 把「1,3,5-8，11」这种写法解析成页码数组 */
+function parsePageSpec(text: string, total: number): number[] {
+  const picked = new Set<number>()
+  for (const chunk of text.split(/[,，;；s]+/)) {
+    if (chunk === '') continue
+    const range = chunk.match(/^(\d+)\s*[-~—到]\s*(\d+)$/)
+    if (range) {
+      const from = Number(range[1])
+      const to = Number(range[2])
+      for (let n = Math.min(from, to); n <= Math.max(from, to); n += 1) {
+        if (n >= 1 && n <= total) picked.add(n)
+      }
+      continue
+    }
+    const single = Number(chunk)
+    if (Number.isFinite(single) && single >= 1 && single <= total) picked.add(Math.round(single))
+  }
+  return [...picked].sort((a, b) => a - b)
+}
+
+function ExtractDialog(props: {
+  pdf: PdfDocInfo
+  noteId: number
+  sourceTitle: string
+  current: number
+  onClose: () => void
+  onHint: (message: string) => void
+  onOpened: (note: Note) => void
+}): JSX.Element {
+  const { pdf, noteId, sourceTitle, current, onClose, onHint, onOpened } = props
+  const [picked, setPicked] = useState<number[]>([current])
+  const [spec, setSpec] = useState('')
+  const [title, setTitle] = useState('')
+  const [busy, setBusy] = useState('')
+  const [gridLimit, setGridLimit] = useState(120)
+  const pageCount = pdf.pageCount
+
+  const sorted = useMemo(() => [...picked].sort((a, b) => a - b), [picked])
+  const toggle = (number: number): void =>
+    setPicked((list) => (list.includes(number) ? list.filter((item) => item !== number) : [...list, number]))
+
+  const applySpec = (): void => {
+    const list = parsePageSpec(spec, pageCount)
+    if (list.length === 0) {
+      onHint('没看懂这串页码，可以写 1,3,5-8')
+      return
+    }
+    setPicked(list)
+    onHint('已选中 ' + list.length + ' 页')
+  }
+
+  const run = async (mode: 'book' | 'file'): Promise<void> => {
+    if (sorted.length === 0) {
+      onHint('先勾选要提取的页面')
+      return
+    }
+    setBusy(mode)
+    try {
+      const suggested = (title.trim() || sourceTitle + '（提取 ' + sorted.length + ' 页）') + '.pdf'
+      const saveTo = mode === 'file' ? await api.note.pickSavePath(suggested) : undefined
+      if (mode === 'file' && (saveTo ?? '') === '') {
+        setBusy('')
+        return
+      }
+      const result = await api.note.extractPages({ noteId, pages: sorted, title: title.trim(), saveTo })
+      if (mode === 'file') {
+        onHint(result.savedPath ? '已导出：' + result.savedPath : '导出失败，换个路径再试')
+        setBusy('')
+        return
+      }
+      onHint('已提取 ' + sorted.length + ' 页，正在翻开新资料')
+      onOpened(result.note)
+    } catch (error) {
+      onHint(error instanceof Error ? error.message : String(error))
+      setBusy('')
+    }
+  }
+
+  return (
+    <ReaderOverlay onClose={onClose} width="max-w-4xl">
+      <header className="flex shrink-0 items-start justify-between gap-3 border-b border-border px-4 py-3">
+        <div className="min-w-0">
+          <p className="truncate text-sm font-semibold text-foreground">页面提取</p>
+          <p className="truncate text-[11px] text-muted-foreground">
+            从《{sourceTitle}》里挑任意几页，拼成一份新的 PDF 资料
+          </p>
+        </div>
+        <IconButton label="关闭（Esc）" onClick={onClose}>
+          <X className="h-4 w-4" />
+        </IconButton>
+      </header>
+
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
+        <div className="flex flex-wrap items-center gap-2 text-[11px]">
+          <input
+            value={spec}
+            onChange={(event) => setSpec(event.target.value)}
+            placeholder="按页码写，如 1,3,5-8"
+            className="field-base h-8 min-w-[180px] flex-1 text-xs"
+          />
+          <Button size="sm" variant="secondary" onClick={applySpec}>
+            套用
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => setPicked([current])}>
+            只要当前页
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => setPicked(Array.from({ length: pageCount }, (_, index) => index + 1))}
+          >
+            全选
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => setPicked([])}>
+            清空
+          </Button>
+          <span className="tabular-nums text-muted-foreground">已选 {sorted.length} 页</span>
+        </div>
+
+        <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_200px]">
+          <div className="flex flex-wrap gap-2 content-start rounded-lg border border-border bg-muted/20 p-2">
+            {Array.from({ length: Math.min(gridLimit, pageCount) }, (_, index) => index + 1).map((number) => (
+              <PageThumbPicker
+                key={number}
+                pdf={pdf}
+                number={number}
+                width={86}
+                selected={picked.includes(number)}
+                onClick={() => toggle(number)}
+              />
+            ))}
+            {gridLimit < pageCount ? (
+              <button
+                type="button"
+                onClick={() => setGridLimit((value) => value + 160)}
+                className="flex h-[120px] w-28 shrink-0 items-center justify-center rounded-lg border border-dashed border-border px-2 text-[11px] text-muted-foreground hover:text-foreground"
+              >
+                还有 {pageCount - gridLimit} 页，点击继续加载
+              </button>
+            ) : null}
+          </div>
+          <div className="min-w-0">
+            <p className="text-[11px] font-medium text-muted-foreground">新资料标题</p>
+            <input
+              value={title}
+              onChange={(event) => setTitle(event.target.value)}
+              placeholder={sourceTitle + '（提取 ' + sorted.length + ' 页）'}
+              className="field-base mt-1 h-8 w-full text-xs"
+            />
+            <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
+              提取会原样搬运页面（矢量文字与图片都不重画），新资料单独存进书柜，
+              原书不受影响；也可以直接另存成一份 PDF 文件。
+            </p>
+            {sorted.length > 0 ? (
+              <p className="mt-2 max-h-24 overflow-y-auto break-words text-[11px] leading-relaxed text-muted-foreground">
+                页码：{sorted.join('、')}
+              </p>
+            ) : null}
+          </div>
+        </div>
+      </div>
+
+      <footer className="flex shrink-0 items-center justify-end gap-2 border-t border-border px-4 py-3">
+        {busy !== '' ? <Spinner className="mr-auto h-4 w-4" /> : null}
+        <Button size="sm" variant="ghost" onClick={onClose} disabled={busy !== ''}>
+          取消
+        </Button>
+        <Button size="sm" variant="secondary" loading={busy === 'file'} disabled={busy !== ''} onClick={() => void run('file')}>
+          另存为 PDF 文件
+        </Button>
+        <Button size="sm" variant="primary" loading={busy === 'book'} disabled={busy !== ''} onClick={() => void run('book')}>
+          提取并存为新书
+        </Button>
+      </footer>
+    </ReaderOverlay>
   )
 }

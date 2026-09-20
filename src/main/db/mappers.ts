@@ -139,6 +139,7 @@ export interface NoteRow {
   last_page?: number | bigint | null
   source_format?: string | null
   readonly?: number | bigint | null
+  sort_order?: number | bigint | null
   created_at: string
   updated_at: string
   task_title?: string | null
@@ -166,6 +167,7 @@ export function mapNote(row: NoteRow): Note {
     lastPage: toNumber(row.last_page ?? 1, 1),
     sourceFormat: nullableStr(row.source_format),
     readonly: toNumber(row.readonly ?? 0) > 0,
+    sortOrder: toNumber(row.sort_order ?? 0),
     createdAt: str(row.created_at),
     updatedAt: str(row.updated_at),
     taskTitle: nullableStr(row.task_title),

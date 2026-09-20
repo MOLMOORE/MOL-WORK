@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { Copy, Maximize2, Minimize2, Square, X } from 'lucide-react'
+import { Copy, Maximize2, Minus, Square, X } from 'lucide-react'
+import { isEscapeFullscreenBlocked } from '../../lib/escape'
 import type { WindowStatePayload } from '@shared/types/ipc'
 import appIcon from '../../assets/app-icon.png'
 import { api } from '../../lib/ipc'
@@ -50,13 +51,20 @@ export function TitleBar(): JSX.Element | null {
     }
   }, [])
 
-  // F11 全屏：与浏览器 / VS Code 一致；在输入框里也不拦截，因为 F11 不属于文本输入
+  // 全屏快捷键：F11 切换、Esc 退出（与浏览器 / VS Code 一致，任何页面都生效）。
+  // 页面里开着侧栏、弹窗、对比浮层时，Esc 先归它们用，这里不抢（见 lib/escape.ts）。
   useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
-      if (event.key !== 'F11') return
+      if (event.key === 'F11') {
+        event.preventDefault()
+        event.stopPropagation()
+        void api.win.setFullscreen().catch(() => undefined)
+        return
+      }
+      if (event.key !== 'Escape') return
+      if (!fullscreenRef.current || isEscapeFullscreenBlocked()) return
       event.preventDefault()
-      event.stopPropagation()
-      void api.win.setFullscreen().catch(() => undefined)
+      void api.win.setFullscreen(false).catch(() => undefined)
     }
     // capture：阅读界面等页面级快捷键不会先把事件吃掉
     window.addEventListener('keydown', onKey, true)
@@ -81,8 +89,9 @@ export function TitleBar(): JSX.Element | null {
         <button type="button" className="titlebar-btn" title="全屏（F11）" onClick={toggleFullscreen}>
           <Maximize2 className="h-3.5 w-3.5" />
         </button>
+        {/* 最小化就用一根「减号」，和系统窗口按钮的观感一致 */}
         <button type="button" className="titlebar-btn" title="最小化" onClick={() => void api.win.minimize()}>
-          <Minimize2 className="h-3.5 w-3.5" />
+          <Minus className="h-3.5 w-3.5" />
         </button>
         <button
           type="button"

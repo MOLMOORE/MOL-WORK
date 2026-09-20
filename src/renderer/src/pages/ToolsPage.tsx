@@ -198,11 +198,6 @@ export function ToolsPage(): JSX.Element {
         <div className="relative flex flex-wrap items-start justify-between gap-4">
           <div className="max-w-2xl">
             <h2 className="text-lg font-semibold tracking-tight text-foreground">可插拔工具集</h2>
-            <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
-              清单一经注册，表单、依赖检测、执行与运行记录全部自动生效。当前共 {tools.length} 个工具，
-              其中图片转换、音频转换、视频转换、文档转换已按格式类别独立拆分（FFmpeg / Pandoc），
-              每次执行都会记录操作内容、耗时与结果存放位置。
-            </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Button

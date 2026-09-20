@@ -197,6 +197,8 @@ export interface Note {
   sourceFormat: string | null
   /** 是否只读（导入的资料默认只读，文本类可解除） */
   readonly: boolean
+  /** 手动排序序号：列表里拖拽排序后落库，越小越靠前（0 表示未参与过手动排序） */
+  sortOrder: number
   createdAt: string
   updatedAt: string
   taskTitle?: string | null
@@ -259,6 +261,21 @@ export interface NoteMarkInput {
 }
 
 /** 阅读器需要的文档信息：渲染件类型 + 页数 + 上次阅读位置 */
+/** 页面提取：把任意几页拼成一份新资料（v1.2.5） */
+export interface NoteExtractInput {
+  noteId: number
+  /** 1 起的页码，可乱序，内部会去重并按原文顺序排 */
+  pages: number[]
+  title?: string
+  /** 传了就同时另存一份 PDF 到该路径 */
+  saveTo?: string
+}
+
+export interface NoteExtractResult {
+  note: Note
+  savedPath: string | null
+}
+
 export interface NoteDocInfo {
   note: Note
   viewMode: NoteViewMode

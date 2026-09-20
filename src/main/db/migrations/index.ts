@@ -6,6 +6,7 @@ import { TASK_RECYCLE_OVERDUE_MEMORY_SQL } from './003_recycle_overdue_memory'
 import { PROCRASTINATION_INTELLIGENCE_SQL } from './004_procrastination_intelligence'
 import { NOTE_DOCUMENTS_SQL } from './005_note_documents'
 import { NOTE_SUMMARY_READING_SQL } from './006_note_summary_reading'
+import { NOTE_SORT_ORDER_SQL } from './007_note_sort_order'
 
 export interface Migration {
   version: number
@@ -19,7 +20,8 @@ export const migrations: Migration[] = [
   { version: 3, name: 'recycle-overdue-memory', sql: TASK_RECYCLE_OVERDUE_MEMORY_SQL },
   { version: 4, name: 'procrastination-intelligence', sql: PROCRASTINATION_INTELLIGENCE_SQL },
   { version: 5, name: 'note-documents', sql: NOTE_DOCUMENTS_SQL },
-  { version: 6, name: 'note-summary-reading', sql: NOTE_SUMMARY_READING_SQL }
+  { version: 6, name: 'note-summary-reading', sql: NOTE_SUMMARY_READING_SQL },
+  { version: 7, name: 'note-sort-order', sql: NOTE_SORT_ORDER_SQL }
 ]
 
 /**

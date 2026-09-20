@@ -14,6 +14,8 @@ import type {
   FocusSession,
   Note,
   NoteDocInfo,
+  NoteExtractInput,
+  NoteExtractResult,
   NoteImportOptions,
   NoteImportProgress,
   NoteImportSummary,
@@ -122,7 +124,10 @@ const api: WorkstationApi = {
     openSource: (id: number) => invoke<string>('note:open-source', id),
     revealSource: (id: number) => invoke<void>('note:reveal-source', id),
     pdfAsset: (kind: 'cmaps' | 'standard_fonts', name: string) =>
-      invoke<Uint8Array | null>('note:pdf-asset', kind, name)
+      invoke<Uint8Array | null>('note:pdf-asset', kind, name),
+    reorder: (ids: number[]) => invoke<void>('note:reorder', ids),
+    extractPages: (input: NoteExtractInput) => invoke<NoteExtractResult>('note:extract-pages', input),
+    pickSavePath: (defaultName: string) => invoke<string>('note:pick-save-path', defaultName)
   },
   schedule: {
     range: (from: string, to: string) => invoke<ScheduleEvent[]>('schedule:range', from, to),

@@ -16,6 +16,8 @@ interface NoteState {
   createNote: (input: NoteInput) => Promise<Note>
   saveNote: (input: NoteInput) => Promise<void>
   removeNote: (id: number) => Promise<void>
+  /** 列表拖拽排序：按给定 id 顺序落库，并就地更新本地顺序 */
+  reorderNotes: (ids: number[]) => Promise<void>
   gradeReview: (reviewId: number, rating: ReviewRating) => Promise<ReviewItem>
 }
 
@@ -69,6 +71,16 @@ export const useNoteStore = create<NoteState>((set, get) => ({
     const note = await api.note.save(input)
     await get().load()
     set({ current: note, saving: false })
+  },
+
+  reorderNotes: async (ids) => {
+    await api.note.reorder(ids)
+    const rank = new Map(ids.map((id, index) => [id, index]))
+    set({
+      notes: get().notes.map((note) =>
+        rank.has(note.id) ? { ...note, sortOrder: rank.get(note.id) as number } : note
+      )
+    })
   },
 
   removeNote: async (id) => {

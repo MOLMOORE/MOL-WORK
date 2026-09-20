@@ -1146,8 +1146,9 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    transform-style: preserve-3d;
-    perspective: 2400px;
+    /* 只给图层透视，不开 preserve-3d：保留 3D 上下文时 z-index 会失效，
+       两张纸在 3D 里互相穿插，翻到一半就会「啪」地跳一层（1.2.4 闪动根因之一） */
+    perspective: 2200px;
   }
   /* 排版模式（iframe）里书本要铺满舞台 */
   .mw-book-fill {
@@ -1169,7 +1170,14 @@
   .mw-book.is-turning .mw-layer-out {
     position: absolute;
     inset: 0;
-    will-change: transform, opacity;
+  }
+  .mw-book.is-turning .mw-layer {
+    will-change: transform, opacity, filter;
+    backface-visibility: hidden;
+  }
+  /* 整层平移会撑出滚动区：翻页这一下先锁住滚动容器，免得顺带冒出滚动条抖一格 */
+  .reader-page-area.is-turning {
+    overflow: hidden;
   }
 
   /* 拖动平移：可拖时光标成抓手，拖拽中禁选文字 */
@@ -1268,6 +1276,28 @@
     color: hsl(var(--n-fg));
   }
 
+  /* 就地提示：翻到头了、刚提取完，浮在书页下方，不抢任何操作（配色全走主题令牌） */
+  .reader-hint {
+    position: absolute;
+    left: 50%;
+    bottom: 26px;
+    transform: translateX(-50%);
+    z-index: 20;
+    pointer-events: none;
+    max-width: 78%;
+    padding: 6px 16px;
+    border-radius: 999px;
+    border: 1px solid hsl(var(--border));
+    background: hsl(var(--surface) / 0.96);
+    color: hsl(var(--foreground));
+    box-shadow: 0 10px 30px -12px rgba(0, 0, 0, 0.6);
+    font-size: 12px;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
   /* 排版模式：这一「页」就是整个舞台，iframe 铺满后由内容侧缩放 */
   .mw-page-rich {
     position: absolute;
@@ -1297,7 +1327,11 @@
     font-size: 11px;
   }
 
-  /* ---------- 翻页动效：直切 / 淡入 / 推移 / 覆盖 / 仿真翻书 ---------- */
+  /* ---------- 翻页动效：直切 / 淡入 / 覆盖 / 仿真翻书 ----------
+     动效统一挂在「图层」上，不再挂到单页上：双页时左右两页是一整张纸，
+     各页自己动就会在中缝处散开、互相遮挡（1.2.4 双页效果差的根因）。
+     时长与 ReaderPage 的 TURN_MS 一致（380ms），退场一律收到全透明，
+     图层卸载时不会有「啪一下」的跳变。 */
   @keyframes mw-fade-in {
     from { opacity: 0; }
     to { opacity: 1; }
@@ -1306,113 +1340,121 @@
     from { opacity: 1; }
     to { opacity: 0; }
   }
+  /* 推移：两层像传送带一样整体反向移动，走满一整页宽，方向感最明确 */
   @keyframes mw-slide-in-next {
-    from { transform: translateX(62%); opacity: 0.25; }
-    to { transform: translateX(0); opacity: 1; }
+    from { transform: translateX(103%); }
+    to { transform: translateX(0); }
   }
   @keyframes mw-slide-out-next {
-    from { transform: translateX(0); opacity: 1; }
-    to { transform: translateX(-58%); opacity: 0; }
+    from { transform: translateX(0); }
+    to { transform: translateX(-103%); }
   }
   @keyframes mw-slide-in-prev {
-    from { transform: translateX(-62%); opacity: 0.25; }
-    to { transform: translateX(0); opacity: 1; }
+    from { transform: translateX(-103%); }
+    to { transform: translateX(0); }
   }
   @keyframes mw-slide-out-prev {
-    from { transform: translateX(0); opacity: 1; }
-    to { transform: translateX(58%); opacity: 0; }
+    from { transform: translateX(0); }
+    to { transform: translateX(103%); }
   }
+  /* 覆盖：新页整张压到旧页上面，旧页留在原地被慢慢压暗 */
   @keyframes mw-cover-in-next {
-    from { transform: translateX(100%); }
+    from { transform: translateX(103%); }
     to { transform: translateX(0); }
   }
   @keyframes mw-cover-in-prev {
-    from { transform: translateX(-100%); }
+    from { transform: translateX(-103%); }
     to { transform: translateX(0); }
   }
-  @keyframes mw-book-out-next {
-    from { transform: rotateY(0deg); filter: brightness(1); opacity: 1; }
-    70% { opacity: 1; }
-    to { transform: rotateY(-112deg); filter: brightness(0.62); opacity: 0; }
+  @keyframes mw-cover-rest {
+    from { filter: brightness(1); }
+    to { filter: brightness(0.66); }
   }
-  @keyframes mw-book-out-prev {
-    from { transform: rotateY(0deg); filter: brightness(1); opacity: 1; }
-    70% { opacity: 1; }
-    to { transform: rotateY(112deg); filter: brightness(0.62); opacity: 0; }
+  /* 仿真翻书：整张纸绕书脊转。只转到接近侧立（88°，这时宽度已经≈0）并同步淡出，
+     不越过 90° 就不会露出纸背，也就不会「突然翻面」闪一下 */
+  @keyframes mw-book-out-next {
+    0% { transform: rotateY(0deg); filter: brightness(1); opacity: 1; }
+    55% { opacity: 1; }
+    100% { transform: rotateY(-88deg); filter: brightness(0.48); opacity: 0; }
   }
   @keyframes mw-book-in-next {
-    from { transform: rotateY(26deg); filter: brightness(0.78); }
-    to { transform: rotateY(0deg); filter: brightness(1); }
+    0% { filter: brightness(0.62); }
+    100% { filter: brightness(1); }
   }
+  /* 回翻：是新页从左侧翻落回书面，旧页只是被慢慢盖住 */
   @keyframes mw-book-in-prev {
-    from { transform: rotateY(-26deg); filter: brightness(0.78); }
-    to { transform: rotateY(0deg); filter: brightness(1); }
+    0% { transform: rotateY(72deg); filter: brightness(0.6); }
+    100% { transform: rotateY(0deg); filter: brightness(1); }
+  }
+  @keyframes mw-book-rest {
+    from { filter: brightness(1); }
+    to { filter: brightness(0.78); }
   }
   @keyframes mw-book-shade {
     from { opacity: 0; }
     45% { opacity: 1; }
-    to { opacity: 0.25; }
+    to { opacity: 0; }
   }
 
   /* 系统要求减少动效时直接切页 */
   @media (prefers-reduced-motion: reduce) {
-    .mw-book.is-turning .mw-layer,
-    .mw-book.is-turning .mw-layer .mw-page,
-    [data-flip] .mw-layer-in,
-    [data-flip] .mw-layer-out,
-    [data-flip] .mw-layer-in .mw-page,
-    [data-flip] .mw-layer-out .mw-page {
+    .mw-book.is-turning .mw-layer {
       animation: none !important;
     }
   }
 
-  /* 五种动效统一 340ms，与 ReaderPage 的 TURN_MS 一致：
-     残影层在动画结束后才卸载，且退场一律收到完全透明，收尾不会抖一下 */
-  /* 动效一律挂在 .mw-page 上：换页时这张「纸」是新挂载的节点，动画必然重新播放；
-     图层容器保持常驻，不再靠 key 强制重挂，收尾时也就不会抖 */
-  [data-flip='fade'] .mw-layer-in .mw-page { animation: mw-fade-in 340ms ease-out; }
-  [data-flip='fade'] .mw-layer-out .mw-page { animation: mw-fade-out 340ms ease-in forwards; }
-  [data-flip='fade'] .mw-layer-out { z-index: 3; }
-
-  /* 翻页时两层重叠：绝对定位到舞台中心，纸本身负责动画 */
+  /* 翻页时两层重叠：给纸加一档浮起阴影，动画结束后再随 transition 收回 */
   .mw-book.is-turning .mw-layer .mw-page {
     box-shadow: 0 10px 34px -10px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(0, 0, 0, 0.14);
   }
 
-  [data-flip='slide'] .mw-layer-in .mw-page { animation: mw-slide-in-next 340ms cubic-bezier(0.22, 0.9, 0.24, 1); }
-  [data-flip='slide'] .mw-layer-out .mw-page { animation: mw-slide-out-next 340ms cubic-bezier(0.22, 0.9, 0.24, 1) forwards; }
-  [data-flip='slide'] .mw-book.is-reverse .mw-layer-in .mw-page { animation-name: mw-slide-in-prev; }
-  [data-flip='slide'] .mw-book.is-reverse .mw-layer-out .mw-page { animation-name: mw-slide-out-prev; }
+  [data-flip='fade'] .mw-book.is-turning .mw-layer-in { z-index: 2; animation: mw-fade-in 380ms ease-out; }
+  [data-flip='fade'] .mw-book.is-turning .mw-layer-out { z-index: 3; animation: mw-fade-out 380ms ease-in forwards; }
 
-  [data-flip='cover'] .mw-layer-in { z-index: 2; }
-  [data-flip='cover'] .mw-layer-in .mw-page { animation: mw-cover-in-next 340ms cubic-bezier(0.2, 0.85, 0.2, 1); }
-  [data-flip='cover'] .mw-book.is-reverse .mw-layer-in .mw-page { animation-name: mw-cover-in-prev; }
+  [data-flip='slide'] .mw-book.is-turning .mw-layer-in { z-index: 2; animation: mw-slide-in-next 380ms cubic-bezier(0.22, 0.9, 0.24, 1); }
+  [data-flip='slide'] .mw-book.is-turning .mw-layer-out { z-index: 3; animation: mw-slide-out-next 380ms cubic-bezier(0.22, 0.9, 0.24, 1) forwards; }
+  [data-flip='slide'] .mw-book.is-turning.is-reverse .mw-layer-in { animation-name: mw-slide-in-prev; }
+  [data-flip='slide'] .mw-book.is-turning.is-reverse .mw-layer-out { animation-name: mw-slide-out-prev; }
 
-  /* 仿真翻书：绕书脊（左页边）转过去，背面变暗，新页从内侧翻起 */
-  [data-flip='book'] .mw-layer-out { z-index: 3; }
-  [data-flip='book'] .mw-layer-out .mw-page {
+  [data-flip='cover'] .mw-book.is-turning .mw-layer-in { z-index: 4; animation: mw-cover-in-next 380ms cubic-bezier(0.2, 0.85, 0.2, 1); }
+  [data-flip='cover'] .mw-book.is-turning .mw-layer-out { z-index: 3; animation: mw-cover-rest 380ms ease-in forwards; }
+  [data-flip='cover'] .mw-book.is-turning.is-reverse .mw-layer-in { animation-name: mw-cover-in-prev; }
+
+  /* 正翻：把旧页掀走；回翻：把新页翻落下来盖住旧页 */
+  [data-flip='book'] .mw-book.is-turning .mw-layer-in { z-index: 2; animation: mw-book-in-next 380ms ease-out; }
+  [data-flip='book'] .mw-book.is-turning .mw-layer-out {
+    z-index: 3;
     transform-origin: left center;
-    animation: mw-book-out-next 340ms cubic-bezier(0.36, 0.7, 0.24, 1) forwards;
-    backface-visibility: hidden;
+    animation: mw-book-out-next 380ms cubic-bezier(0.36, 0.7, 0.24, 1) forwards;
   }
   /* 翻过去的那一面压出一道书脊阴影，观感不再像「整块纸平移」 */
-  [data-flip='book'] .mw-layer-out .mw-page::after {
+  [data-flip='book'] .mw-book.is-turning .mw-layer-out::after {
     content: '';
     position: absolute;
     inset: 0;
     pointer-events: none;
     background: linear-gradient(90deg, rgba(0, 0, 0, 0.34) 0%, rgba(0, 0, 0, 0.08) 42%, rgba(0, 0, 0, 0) 100%);
-    animation: mw-book-shade 340ms ease-in forwards;
+    animation: mw-book-shade 380ms ease-in forwards;
   }
-  [data-flip='book'] .mw-book.is-reverse .mw-layer-out .mw-page::after {
-    background: linear-gradient(270deg, rgba(0, 0, 0, 0.34) 0%, rgba(0, 0, 0, 0.08) 42%, rgba(0, 0, 0, 0) 100%);
-  }
-  [data-flip='book'] .mw-layer-in .mw-page { animation: mw-book-in-next 340ms ease-out; }
-  [data-flip='book'] .mw-book.is-reverse .mw-layer-out .mw-page {
+  [data-flip='book'] .mw-book.is-turning.is-reverse .mw-layer-in {
+    z-index: 4;
     transform-origin: right center;
-    animation-name: mw-book-out-prev;
+    animation: mw-book-in-prev 380ms cubic-bezier(0.3, 0.78, 0.28, 1);
   }
-  [data-flip='book'] .mw-book.is-reverse .mw-layer-in .mw-page { animation-name: mw-book-in-prev; }
+  [data-flip='book'] .mw-book.is-turning.is-reverse .mw-layer-in::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: linear-gradient(270deg, rgba(0, 0, 0, 0.34) 0%, rgba(0, 0, 0, 0.08) 42%, rgba(0, 0, 0, 0) 100%);
+    animation: mw-book-shade 380ms ease-in forwards;
+  }
+  [data-flip='book'] .mw-book.is-turning.is-reverse .mw-layer-out {
+    z-index: 2;
+    transform-origin: center;
+    animation: mw-book-rest 380ms ease-in forwards;
+  }
+  [data-flip='book'] .mw-book.is-turning.is-reverse .mw-layer-out::after { content: none; }
 
   /* 连续滚动时关掉 3D，避免长文档掉帧 */
   [data-layout='continuous'] .mw-book {

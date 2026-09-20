@@ -27,7 +27,8 @@ export function listNotes(taskId?: number | null, keyword?: string): Note[] {
     params.push(like, like, like, like)
   }
   const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
-  return all<NoteRow>(`${NOTE_SELECT} ${where} ORDER BY n.updated_at DESC`, ...params).map(mapNote)
+  // 手动排序优先：没参与过拖拽排序的条目 sort_order 都是 0，仍按修改时间倒序，与旧版一致
+  return all<NoteRow>(`${NOTE_SELECT} ${where} ORDER BY n.sort_order ASC, n.updated_at DESC`, ...params).map(mapNote)
 }
 
 export function getNote(id: number): Note | undefined {
@@ -154,6 +155,13 @@ export function setNoteProgress(id: number, page: number, pageCount?: number): N
   }
   run(`UPDATE notes SET ${fields.join(', ')} WHERE id = ?`, ...params, id)
   return getNote(id)
+}
+
+/** 手动排序：按给定的 id 顺序重写 sort_order（只动传进来的这些条目） */
+export function reorderNotes(ids: number[]): void {
+  ids.forEach((id, index) => {
+    run('UPDATE notes SET sort_order = ? WHERE id = ?', index, id)
+  })
 }
 
 /** 读书笔记标记：书签 / 重点页 / 注释 */
