@@ -171,8 +171,8 @@ export function listMarks(noteId: number): NoteMark[] {
 
 export function createMark(input: NoteMarkInput): NoteMark {
   const id = insert(
-    `INSERT INTO note_marks (note_id, kind, page, label, quote, body, color, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO note_marks (note_id, kind, page, label, quote, body, color, region, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     input.noteId,
     input.kind,
     input.page ?? 0,
@@ -180,6 +180,7 @@ export function createMark(input: NoteMarkInput): NoteMark {
     input.quote ?? '',
     input.body ?? '',
     input.color ?? '',
+    input.region ?? '',
     nowIso()
   )
   const row = all<NoteMarkRow>('SELECT * FROM note_marks WHERE id = ?', id)[0]
@@ -189,7 +190,7 @@ export function createMark(input: NoteMarkInput): NoteMark {
 export function updateMark(id: number, patch: Partial<NoteMarkInput>): NoteMark | undefined {
   const fields: string[] = []
   const params: SqlParam[] = []
-  for (const key of ['kind', 'page', 'label', 'quote', 'body', 'color'] as const) {
+  for (const key of ['kind', 'page', 'label', 'quote', 'body', 'color', 'region'] as const) {
     if (patch[key] !== undefined) {
       fields.push(`${key} = ?`)
       params.push(patch[key] as SqlParam)

@@ -1503,6 +1503,141 @@
     overflow-x: auto;
     font-size: 0.9em;
   }
+  /* 纯文本正文整篇就是一个 <pre>：Tailwind 预置会把它钉成等宽字体，
+     这里让字体与字号都听阅读器的设置，否则「换字体」看着像没生效 */
+  .reader-text pre.reader-plain {
+    font-family: inherit;
+    font-size: inherit;
+  }
+
+  /* ==========================================================================
+     圈画批注（v1.2.5）：纸上圈一块 + 边上 / 上下空白列批注，配色全走主题令牌
+     ========================================================================== */
+
+  /* 带旁注的这一页要让内容溢出来：贴在纸边的批注列不能被纸自己裁掉 */
+  .mw-page.has-rail {
+    overflow: visible;
+  }
+
+  .mw-ink {
+    position: absolute;
+    left: 0;
+    top: 0;
+    z-index: 3;
+    pointer-events: none;
+  }
+  .mw-ink path {
+    fill: hsl(var(--primary) / 0.1);
+    stroke: hsl(var(--primary));
+    stroke-width: 2.25;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+  }
+
+  /* 编号圆点：和批注列里的序号一一对应 */
+  .mw-ink-dot {
+    position: absolute;
+    z-index: 4;
+    display: grid;
+    height: 18px;
+    width: 18px;
+    place-items: center;
+    border-radius: 9999px;
+    transform: translate(-50%, -50%);
+    background: hsl(var(--primary));
+    color: hsl(var(--primary-foreground));
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 1;
+    box-shadow: 0 2px 8px -2px rgba(0, 0, 0, 0.5);
+  }
+  .mw-ink-dot:hover {
+    filter: brightness(1.08);
+  }
+
+  /* 圈注模式的采集层：铺满整页，按住就能画 */
+  .mw-ink-catch {
+    position: absolute;
+    inset: 0;
+    z-index: 6;
+    cursor: crosshair;
+    touch-action: none;
+    background: hsl(var(--primary) / 0.04);
+    outline: 1px dashed hsl(var(--primary) / 0.5);
+    outline-offset: -3px;
+  }
+
+  /* 批注列：左右放得下就贴纸边，放不下落到纸的上下空白 */
+  .mw-note-rail {
+    position: absolute;
+    z-index: 5;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .mw-note-rail.is-side {
+    top: 0;
+    left: calc(100% + 10px);
+    width: 208px;
+  }
+  .mw-note-rail.is-below {
+    top: calc(100% + 10px);
+    left: 0;
+  }
+
+  .mw-note-card {
+    padding: 6px 8px;
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--r-lg);
+    background: hsl(var(--surface));
+    color: hsl(var(--foreground));
+    font-size: 11px;
+    line-height: 1.55;
+    box-shadow: 0 8px 20px -16px rgba(0, 0, 0, 0.65);
+  }
+  .mw-note-no {
+    display: grid;
+    height: 15px;
+    width: 15px;
+    place-items: center;
+    border-radius: 9999px;
+    background: hsl(var(--primary));
+    color: hsl(var(--primary-foreground));
+    font-size: 9px;
+    font-weight: 600;
+    line-height: 1;
+  }
+  .mw-note-kind {
+    color: hsl(var(--tint-primary));
+    font-weight: 600;
+  }
+  .mw-note-page {
+    color: hsl(var(--muted-foreground));
+  }
+  .mw-note-del {
+    margin-left: auto;
+    padding: 1px;
+    border-radius: calc(var(--r-lg) / 2);
+    color: hsl(var(--muted-foreground));
+  }
+  .mw-note-del:hover {
+    color: hsl(var(--danger));
+  }
+  .mw-note-quote {
+    display: -webkit-box;
+    margin-top: 3px;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    color: hsl(var(--muted-foreground));
+    font-style: italic;
+  }
+  .mw-note-body {
+    margin-top: 2px;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
   .reader-text code {
     background: hsl(var(--muted));
     border-radius: 4px;
@@ -1541,6 +1676,17 @@
     cursor: move;
     touch-action: none;
     box-shadow: 0 -1px 0 0 hsl(var(--border));
+  }
+
+  /* 层级角标：这张纸盖在谁上面 */
+  .cmp-layer {
+    border-radius: calc(var(--r-lg) / 2);
+    background: hsl(var(--muted));
+    padding: 0 4px;
+    font-size: 9px;
+    font-weight: 600;
+    line-height: 14px;
+    color: hsl(var(--muted-foreground));
   }
 
   .cmp-jump {

@@ -246,6 +246,8 @@ export interface NoteMark {
   body: string
   /** 标记颜色（留空走强调色） */
   color: string
+  /** 圈注区域：归一化到页面自身坐标的 JSON，空串 = 整页注释 */
+  region: string
   createdAt: string
 }
 
@@ -258,6 +260,7 @@ export interface NoteMarkInput {
   quote?: string
   body?: string
   color?: string
+  region?: string
 }
 
 /** 阅读器需要的文档信息：渲染件类型 + 页数 + 上次阅读位置 */

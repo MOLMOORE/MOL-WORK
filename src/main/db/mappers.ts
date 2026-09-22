@@ -185,6 +185,7 @@ export interface NoteMarkRow {
   quote: string
   body: string
   color: string
+  region?: string
   created_at: string
 }
 
@@ -198,6 +199,7 @@ export function mapNoteMark(row: NoteMarkRow): NoteMark {
     quote: str(row.quote),
     body: str(row.body),
     color: str(row.color),
+    region: str(row.region ?? ''),
     createdAt: str(row.created_at)
   }
 }

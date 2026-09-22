@@ -7,6 +7,7 @@ import { PROCRASTINATION_INTELLIGENCE_SQL } from './004_procrastination_intellig
 import { NOTE_DOCUMENTS_SQL } from './005_note_documents'
 import { NOTE_SUMMARY_READING_SQL } from './006_note_summary_reading'
 import { NOTE_SORT_ORDER_SQL } from './007_note_sort_order'
+import { NOTE_MARK_REGION_SQL } from './008_note_mark_region'
 
 export interface Migration {
   version: number
@@ -21,7 +22,8 @@ export const migrations: Migration[] = [
   { version: 4, name: 'procrastination-intelligence', sql: PROCRASTINATION_INTELLIGENCE_SQL },
   { version: 5, name: 'note-documents', sql: NOTE_DOCUMENTS_SQL },
   { version: 6, name: 'note-summary-reading', sql: NOTE_SUMMARY_READING_SQL },
-  { version: 7, name: 'note-sort-order', sql: NOTE_SORT_ORDER_SQL }
+  { version: 7, name: 'note-sort-order', sql: NOTE_SORT_ORDER_SQL },
+  { version: 8, name: 'note-mark-region', sql: NOTE_MARK_REGION_SQL }
 ]
 
 /**
