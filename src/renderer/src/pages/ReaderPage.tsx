@@ -24,12 +24,14 @@ import {
   Search,
   Maximize2,
   Minimize2,
+  Mouse,
   RotateCw,
   Scissors,
   GitCompare,
   Images,
   LayoutGrid,
   MoveHorizontal,
+  Layers,
   RotateCcw,
   Star,
   ArrowUpToLine,
@@ -175,6 +177,8 @@ export function ReaderPage(): JSX.Element {
     const saved = localStorage.getItem(INK_SHAPE_KEY)
     return saved !== null && INK_SHAPES.includes(saved as InkShape) ? (saved as InkShape) : 'free'
   })
+  /** 滚轮滚到页面边缘要不要翻页 */
+  const [wheelFlip, setWheelFlip] = useState(() => localStorage.getItem(WHEEL_FLIP_KEY) !== '0')
   /** 就地展开着的那条批注（note_marks.id）：贴着它圈住的位置显示气泡 */
   const [openNote, setOpenNote] = useState<number | null>(null)
 
@@ -187,6 +191,9 @@ export function ReaderPage(): JSX.Element {
   useEffect(() => {
     localStorage.setItem(INK_SHAPE_KEY, inkShape)
   }, [inkShape])
+  useEffect(() => {
+    localStorage.setItem(WHEEL_FLIP_KEY, wheelFlip ? '1' : '0')
+  }, [wheelFlip])
   /** 气泡是贴着某一页的圈画定位的：翻页、换书、退出书页模式就收起 */
   useEffect(() => {
     setOpenNote(null)
@@ -805,6 +812,8 @@ export function ReaderPage(): JSX.Element {
         return
       }
       if (mode !== 'pages') return
+      /* 关掉滚轮翻页：滚轮只滚这一页，翻页交给 ←／→、两侧热区和上方按键（Ctrl+滚轮缩放不受影响） */
+      if (!wheelFlip) return
       if (layoutRef.current === 'continuous') return
       const down = event.deltaY > 0
       const fits = node.scrollHeight <= node.clientHeight + 2
@@ -821,7 +830,7 @@ export function ReaderPage(): JSX.Element {
     }
     node.addEventListener('wheel', onWheel, { passive: false })
     return () => node.removeEventListener('wheel', onWheel)
-  }, [info, layout, mode, zoomBy])
+  }, [info, layout, mode, wheelFlip, zoomBy])
 
   // ---------- 左键按住拖动：放大后随手平移页面 ----------
   const onPanDown = (event: ReactPointerEvent<HTMLDivElement>): void => {
@@ -979,6 +988,23 @@ export function ReaderPage(): JSX.Element {
               options={FLIP_LABELS.map((item) => ({ key: item.key, label: item.label }))}
               onChange={(key) => setFlip(key as FlipEffect)}
             />
+            {mode === 'pages' && layout !== 'continuous' ? (
+              <ToggleChip
+                on={wheelFlip}
+                label="滚轮翻页"
+                hint={
+                  wheelFlip
+                    ? '滚轮滚到页面边缘就翻页：点一下关掉可以防误触（Ctrl+滚轮缩放不受影响）'
+                    : '滚轮翻页已关闭：滚轮只滚动这一页，翻页用 ←／→、两侧点击或上方按键'
+                }
+                icon={<Mouse className="h-3.5 w-3.5" />}
+                onClick={() => {
+                  const next = !wheelFlip
+                  setWheelFlip(next)
+                  showHint(next ? '已开启滚轮翻页：滚到页面边缘就翻页' : '已关闭滚轮翻页：滚轮只滚动当前页面')
+                }}
+              />
+            ) : null}
             <div className="flex items-center gap-1 rounded-lg border border-border bg-muted p-0.5">
               <IconButton label="缩小（Ctrl+滚轮 / Ctrl+-）" onClick={() => (mode === 'rich' ? handleWheelZoomRich(1 / 1.2) : zoomBy(1 / 1.2))}>
                 <Minus className="h-3.5 w-3.5" />
@@ -1429,6 +1455,8 @@ const NOTE_POP_W = 244
 const SHOW_INK_KEY = 'workstation.reader.showink.v1'
 const SHOW_NOTES_KEY = 'workstation.reader.shownotes.v1'
 const INK_SHAPE_KEY = 'workstation.reader.inkshape.v1'
+/** 滚轮翻页开关：默认开（沿用以前的行为），关掉只是不想滚页面时误翻页 */
+const WHEEL_FLIP_KEY = 'workstation.reader.wheelflip.v1'
 
 /** note_marks.region 存的是 { kind, points }；第三轮的老数据没有 kind，按自由手绘读 */
 function parseInk(json: string): InkRegion | null {
@@ -2893,6 +2921,8 @@ const CMP_MAX_ZOOM = 8
 const CMP_PAD = 18
 const CMP_GAP = 14
 const CMP_BAR = 28
+/** 纸框内边距：要和 index.css 里 .cmp-frame 的 padding 保持一致（放大锚点要按它换算） */
+const CMP_FRAME_PAD = 8
 
 /** 把任意倍率吸附到 1.15 的阶梯上（pdf.js 只按 0.01 的粒度缓存画布） */
 function ladder(value: number): number {
@@ -2931,6 +2961,37 @@ function compareSlots(count: number, area: { width: number; height: number }, ra
       z: count - index
     }
   })
+}
+
+/** 纸框可滚范围按「框尺寸 + 放大倍率」缓存：这两项没变时，DOM 量出来的最大值才是准的 */
+function cmpKey(card: CompareCard): string {
+  return card.w + 'x' + card.h + '@' + card.zoom
+}
+
+/** 这几页的层级编号是不是撞了（撞了就说明该重新编号） */
+function zCollides(map: Record<number, CompareCard>, list: number[]): boolean {
+  const seen = new Set<number>()
+  return list.some((page) => {
+    const z = map[page]?.z
+    if (z === undefined || seen.has(z)) return true
+    seen.add(z)
+    return false
+  })
+}
+
+/**
+ * 重新编出一串互不相同的层级（1 = 最底下），原有的相对叠放次序保持不变。
+ * 挑页 / 移出之后特别容易撞上：两张纸的 z 相等时，「上移 / 下移一层」是在交换两个一样的数，
+ * 点了自然毫无反应 —— 用户三轮反馈的「上下层无效」就是这么来的。
+ */
+function normalizeZ(map: Record<number, CompareCard>, list: number[]): Record<number, CompareCard> {
+  const order = list.filter((page) => map[page]).sort((a, b) => map[a].z - map[b].z || a - b)
+  order.forEach((page, index) => {
+    const card = map[page]
+    const z = index + 1
+    if (card.z !== z) map[page] = { ...card, z }
+  })
+  return map
 }
 
 /** 纸框不许跑出画布：跑出去的那部分既看不见也拖不回来 */
@@ -2996,16 +3057,19 @@ function CompareOverlay(props: {
   useEffect(() => {
     if (area.width < 60 || area.height < 60) return
     setCards((prev) => {
-      if (Object.keys(prev).length === pages.length && pages.every((page) => prev[page])) return prev
+      const known = Object.keys(prev).length === pages.length && pages.every((page) => prev[page])
+      if (known && !zCollides(prev, pages)) return prev
       const slots = compareSlots(pages.length, area, ratio)
       const next: Record<number, CompareCard> = {}
       pages.forEach((page, index) => {
         next[page] = clampCard(prev[page] ?? slots[index], area)
       })
-      return next
+      return normalizeZ(next, pages)
     })
   }, [pages, area, ratio])
 
+  /** 每个纸框「实际能滚多远」，由 DOM 量出来（见下面的 useLayoutEffect） */
+  const scrollMax = useRef<Record<number, { key: string; x: number; y: number }>>({})
   /** 这一页内容现在占多大（CSS 像素）：适配尺寸再乘这一页自己的放大倍率 */
   const contentSize = useCallback(
     (card: CompareCard): { width: number; height: number } => {
@@ -3017,14 +3081,28 @@ function CompareOverlay(props: {
 
   /**
    * 平移改成「纸框自己滚动」而不是位移：位移那套要自己算钳制范围，纸框一旦比画布矮就永远拖不到底
-   * （用户反馈的「只能看到左上那块」）。滚动条的范围由内容尺寸天然决定，四个角一定能滚出来。
+   * （用户反馈的「只能看到左上那块」）。
+   * 能滚多远改成优先采信 DOM 量出来的真值（见 scrollMax）：自己按公式推会把纸框那圈内边距漏掉，
+   * 于是右下角总差几像素拖不到。
    */
   const clampScroll = useCallback(
-    (card: CompareCard, left: number, top: number): { panX: number; panY: number } => {
-      const size = contentSize(card)
+    (page: number, card: CompareCard, left: number, top: number): { panX: number; panY: number } => {
+      const measured = scrollMax.current[page]
+      let maxX: number
+      let maxY: number
+      if (measured && measured.key === cmpKey(card)) {
+        // 框和倍率都没变：直接采信 DOM 的真实滚动范围
+        maxX = measured.x
+        maxY = measured.y
+      } else {
+        // 刚改过倍率或框幅，DOM 还是旧的，先用公式兜一下（渲染完会被 DOM 纠正）
+        const size = contentSize(card)
+        maxX = Math.max(0, size.width - card.w)
+        maxY = Math.max(0, size.height - card.h)
+      }
       return {
-        panX: Math.max(0, Math.min(Math.max(0, size.width - card.w), left)),
-        panY: Math.max(0, Math.min(Math.max(0, size.height - card.h), top))
+        panX: Math.max(0, Math.min(maxX, left)),
+        panY: Math.max(0, Math.min(maxY, top))
       }
     },
     [contentSize]
@@ -3039,10 +3117,16 @@ function CompareOverlay(props: {
         const zoom = Math.max(CMP_MIN_ZOOM, Math.min(CMP_MAX_ZOOM, card.zoom * factor))
         if (Math.abs(zoom - card.zoom) < 0.0005) return prev
         const times = zoom / card.zoom
-        /* 缩放以纸框左上角为原点（CSS zoom 就是这样），所以滚动位置按同一比例换算，指针指着的那一点才不动 */
+        /* 缩放以纸框边框左上角为原点（CSS zoom 就是这样），而内容前面还有一圈内边距：
+           换算时先减掉这圈再贴回去，指针指着的那一点才真不动 */
         const ax = card.w / 2 + (origin ? origin.x : 0)
         const ay = card.h / 2 + (origin ? origin.y : 0)
-        const spot = clampScroll({ ...card, zoom }, (card.panX + ax) * times - ax, (card.panY + ay) * times - ay)
+        const spot = clampScroll(
+          page,
+          { ...card, zoom },
+          (card.panX + ax - CMP_FRAME_PAD) * times + CMP_FRAME_PAD - ax,
+          (card.panY + ay - CMP_FRAME_PAD) * times + CMP_FRAME_PAD - ay
+        )
         return { ...prev, [page]: { ...card, zoom, panX: spot.panX, panY: spot.panY } }
       })
     },
@@ -3077,15 +3161,23 @@ function CompareOverlay(props: {
     const middle = event.button === 1
     if (event.button !== 0 && !middle) return
     if ((event.target as HTMLElement | null)?.closest('button')) return
-    /* 别抢纸框自己的滚动条：指针落在滚动条那一条上就不当作拖动 */
-    if (mode === 'pan' && (event.nativeEvent.offsetX > event.currentTarget.clientWidth || event.nativeEvent.offsetY > event.currentTarget.clientHeight)) return
+    /* 别抢纸框自己的滚动条：指针落在滚动条那一条上就不当作拖动。
+       判据要按纸框自己的矩形量：offsetX 是相对「被命中的那个元素」算的，
+       放大后按住纸面时它比纸框宽得多，拿它当判据会把右下那一大片全判成滚动条，
+       结果就是「放大后右下角左键拖不动、中键也拖不动，但滚动条好使」（用户反馈） */
+    if (mode === 'pan') {
+      const frame = event.currentTarget
+      const box = frame.getBoundingClientRect()
+      if (event.clientX - box.left > frame.clientWidth || event.clientY - box.top > frame.clientHeight) return
+    }
     const card = cards[page]
     if (!card) return
     event.preventDefault()
     event.stopPropagation()
     event.currentTarget.setPointerCapture?.(event.pointerId)
-    /* 抓到哪一页就把哪一页提到最上层，省得为了一次叠放先去调优先级 */
-    raise(page)
+    /* 只有真要把整张纸搬走（拖标题条 / 中键）才顺手置顶；
+       左键按住纸面是「平移细看」，以前连这个也置顶，手动调好的上下层一点就白调 */
+    if (mode === 'move' || middle) raise(page)
     drag.current = { mode: middle ? 'move' : mode, page, sx: event.clientX, sy: event.clientY, base: card }
   }
 
@@ -3104,14 +3196,14 @@ function CompareOverlay(props: {
       if (current.mode === 'resize') {
         const w = Math.max(140, Math.min(area.width - 8, base.w + dx))
         const h = Math.max(100, Math.min(Math.max(120, area.height - CMP_BAR - 8), base.h + dy))
-        const spot = clampScroll({ ...base, w, h }, base.panX, base.panY)
+        const spot = clampScroll(current.page, { ...base, w, h }, base.panX, base.panY)
         return {
           ...prev,
           [current.page]: clampCard({ ...card, w, h, panX: spot.panX, panY: spot.panY }, area)
         }
       }
       /* 按住纸面往哪拖，内容就往哪走：滚动位置是反过来的 */
-      const spot = clampScroll(base, base.panX - dx, base.panY - dy)
+      const spot = clampScroll(current.page, base, base.panX - dx, base.panY - dy)
       return { ...prev, [current.page]: { ...card, panX: spot.panX, panY: spot.panY } }
     })
   }
@@ -3148,22 +3240,55 @@ function CompareOverlay(props: {
     })
   }
 
+  /** 从上往下的页序（排在第一个的就盖在最上面）：角标与上移 / 下移的可用状态都读它 */
+  const stackOrder = useMemo(
+    () => [...pages].sort((a, b) => (cards[b]?.z ?? 0) - (cards[a]?.z ?? 0)),
+    [pages, cards]
+  )
+  /** 这一页在第几层（1 = 最上面） */
+  const layerNo = (page: number): number => stackOrder.indexOf(page) + 1
+
   /** 纸框的滚动位置以 DOM 为准：状态变了写回去，用户自己滚了也同步回状态 */
   const frameRefs = useRef<Record<number, HTMLDivElement | null>>({})
   useLayoutEffect(() => {
+    const fixes: Record<number, { panX: number; panY: number }> = {}
     pages.forEach((page) => {
       const el = frameRefs.current[page]
       const card = cards[page]
       if (!el || !card) return
-      if (Math.abs(el.scrollLeft - card.panX) > 0.5) el.scrollLeft = card.panX
-      if (Math.abs(el.scrollTop - card.panY) > 0.5) el.scrollTop = card.panY
+      /* 量的是 DOM 的真实滚动范围：滚动容器末端那圈 padding 各家浏览器算不算进可滚范围不一样，
+         自己按公式推的总差那么一截，于是右下两个角怎么拖都差一点（用户反馈的「看不全」） */
+      scrollMax.current[page] = {
+        key: cmpKey(card),
+        x: Math.max(0, el.scrollWidth - el.clientWidth),
+        y: Math.max(0, el.scrollHeight - el.clientHeight)
+      }
+      const max = scrollMax.current[page]
+      const wantX = Math.min(card.panX, max.x)
+      const wantY = Math.min(card.panY, max.y)
+      if (Math.abs(el.scrollLeft - wantX) > 0.5) el.scrollLeft = wantX
+      if (Math.abs(el.scrollTop - wantY) > 0.5) el.scrollTop = wantY
+      // 期望值超出实际能滚的范围就顺手收回状态：留着超大值，下次起拖会先空拖一段才动
+      if (Math.abs(wantX - card.panX) > 0.5 || Math.abs(wantY - card.panY) > 0.5) {
+        fixes[page] = { panX: wantX, panY: wantY }
+      }
     })
+    if (Object.keys(fixes).length > 0) {
+      setCards((prev) => {
+        const next = { ...prev }
+        Object.entries(fixes).forEach(([page, spot]) => {
+          const card = next[Number(page)]
+          if (card) next[Number(page)] = { ...card, ...spot }
+        })
+        return next
+      })
+    }
   }, [cards, pages])
   const onFrameScroll = (page: number, el: HTMLDivElement): void => {
     setCards((prev) => {
       const card = prev[page]
       if (!card) return prev
-      const spot = clampScroll(card, el.scrollLeft, el.scrollTop)
+      const spot = clampScroll(page, card, el.scrollLeft, el.scrollTop)
       if (Math.abs(spot.panX - card.panX) < 0.5 && Math.abs(spot.panY - card.panY) < 0.5) return prev
       return { ...prev, [page]: { ...card, panX: spot.panX, panY: spot.panY } }
     })
@@ -3186,6 +3311,25 @@ function CompareOverlay(props: {
     )
   }
 
+  /** 叠放：把这几页错开摞成一叠 —— 不重叠的话，上下层怎么调都看不出来（用户反馈的「无效」有一半是这个原因） */
+  const stack = (): void => {
+    if (pages.length < 2 || area.width < 60 || area.height < 60) return
+    const slots = compareSlots(pages.length, area, ratio)
+    const base = slots[0]
+    setCards((prev) => {
+      const next: Record<number, CompareCard> = {}
+      pages.forEach((page, index) => {
+        const card = prev[page]
+        if (!card) return
+        next[page] = clampCard(
+          { ...card, x: base.x + index * 30, y: base.y + index * 26, w: base.w, h: base.h },
+          area
+        )
+      })
+      return normalizeZ(next, pages)
+    })
+  }
+
   const toggle = (number: number): void => {
     if (pages.includes(number)) {
       onChange(pages.filter((item) => item !== number))
@@ -3201,7 +3345,7 @@ function CompareOverlay(props: {
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold text-foreground">页面对比</p>
           <p className="truncate text-[11px] text-muted-foreground">
-            拖动纸框摆位置（中键任何时候都能拖整页）· 滚轮或 −／+ 单独放大 · 放大后左键按住纸面拖到任意一角 · 右下角拉大纸框 · 上下调层
+            拖标题条或中键搬整页 · 滚轮或 −／+ 单独放大 · 放大后左键按住纸面拖到任意一角 · 右下角拉大纸框 · 上下调层（两页得先重叠，点「叠放」最直观）
           </p>
         </div>
         <div className="ml-auto flex shrink-0 items-center gap-1">
@@ -3210,6 +3354,16 @@ function CompareOverlay(props: {
           </span>
           <Button size="sm" variant="ghost" icon={<LayoutGrid className="h-3.5 w-3.5" />} onClick={relayout}>
             重排
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            icon={<Layers className="h-3.5 w-3.5" />}
+            onClick={stack}
+            disabled={pages.length < 2}
+            title="把挑出来的页错开摞成一叠，方便看谁盖着谁"
+          >
+            叠放
           </Button>
           <Button
             size="sm"
@@ -3264,20 +3418,11 @@ function CompareOverlay(props: {
                   type="button"
                   className="cmp-layer shrink-0"
                   title={
-                    '第 ' +
-                    (pages
-                      .map((item) => ({ item, z: cards[item]?.z ?? 0 }))
-                      .sort((a, b) => b.z - a.z)
-                      .findIndex((entry) => entry.item === page) +
-                      1) +
-                    ' 层（1 在最上面）：点一下把它提到最上层'
+                    '第 ' + layerNo(page) + ' / ' + pages.length + ' 层（1 在最上面）：点一下把它提到最上层'
                   }
                   onClick={() => raise(page)}
                 >
-                  {pages
-                    .map((item) => ({ item, z: cards[item]?.z ?? 0 }))
-                    .sort((a, b) => b.z - a.z)
-                    .findIndex((entry) => entry.item === page) + 1}
+                  {layerNo(page)}
                 </button>
                 <button
                   type="button"
@@ -3297,10 +3442,22 @@ function CompareOverlay(props: {
                   <button type="button" className="cmp-ico" title="放大这一页" onClick={() => setCardZoom(page, 1.3)}>
                     <Plus className="h-3 w-3" />
                   </button>
-                  <button type="button" className="cmp-ico" title="上移一层（盖到前面那页上面）" onClick={() => shiftZ(page, 1)}>
+                  <button
+                    type="button"
+                    className="cmp-ico"
+                    title={layerNo(page) <= 1 ? '已经在最上面了' : '上移一层（盖到前面那页上面）'}
+                    disabled={layerNo(page) <= 1}
+                    onClick={() => shiftZ(page, 1)}
+                  >
                     <ArrowUpToLine className="h-3 w-3" />
                   </button>
-                  <button type="button" className="cmp-ico" title="下移一层（让到后面那页下面）" onClick={() => shiftZ(page, -1)}>
+                  <button
+                    type="button"
+                    className="cmp-ico"
+                    title={layerNo(page) >= pages.length ? '已经在最下面了' : '下移一层（让到后面那页下面）'}
+                    disabled={layerNo(page) >= pages.length}
+                    onClick={() => shiftZ(page, -1)}
+                  >
                     <ArrowDownToLine className="h-3 w-3" />
                   </button>
                   <button type="button" className="cmp-ico" title="复位这一页" onClick={() => resetCard(page)}>

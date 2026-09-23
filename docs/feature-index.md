@@ -16,6 +16,7 @@
 | 页面骨架 / 状态汇总 | `ReaderPage()`（顶部状态区：mode / layout / flip / zoom / inkMode / compare） |
 | 阅读方式（书页 / 文字 / 排版） | `src/shared/constants.ts` 的 `TEXTUAL_DOC_FORMATS`、`prefersTextView()`、`mode`、`canTextView`、`textView`、`textBody` |
 | 翻页动效（直切/淡入/推移/覆盖/翻书） | `turning`、`step()`、`TURN_MS`、`resetPage()`、`shownRef/pageRef`；CSS `.mw-book*`、`@keyframes mw-*` |
+| 滚轮翻页开关 | `wheelFlip`、`WHEEL_FLIP_KEY`；书页模式滚轮 `onWheel`（Ctrl+滚轮缩放不受它管） |
 | 书页舞台（PDF / 原版式） | `PdfStage()`、`ContinuousPages()`、`PdfPageView()`；`src/renderer/src/lib/pdf.ts`（`openPdf/pageCanvas/peekCanvas/mountCanvas/pageSize/pageText`） |
 | 排版舞台（网页 / EPUB iframe） | `RichStage()` |
 | 文字舞台（TXT / MD / 抽取正文） | `TextStage()`、`READER_FONTS`、`FONT_KEY/FONTSIZE_KEY`；CSS `.reader-text`、`pre.reader-plain` |
@@ -23,7 +24,7 @@
 | 左右点击翻页热区 | `canZoneFlip`、`.mw-pagezone*`、`showHint()`（到头提示） |
 | 圈画批注（形状 / 锚定气泡） | `InkShape`、`InkRegion`、`INK_SHAPE_LABELS`、`parseInk`、`displayToPage / pageToDisplay / inkOutline / displayBox`、`InkStrokes`、`InkDots`、`NoteQuickBar`、`NoteRail`、`NotePopover`、`MarkComposer`、`handleInk`、`inkMode`、`inkShape`、`openNote`、`showInk/showNotes`；CSS `.mw-ink*`、`.mw-note-*` |
 | 侧栏（页面/目录/注释/查找/本页） | `PANEL_TABS`、`ReaderPanel()`、`thumbOnly`、`PageThumbPicker()` |
-| 页面对比工作台 | `CompareOverlay()`、`CompareCard`（panX/panY = 纸框滚动位置）、`compareSlots()`、`clampCard()`、`contentSize()`、`clampScroll()`、`frameRefs`/`onFrameScroll`、`shiftZ()`、`raise()`、`ladder()`、`budgetScale()`；CSS `.cmp-*`（`.cmp-frame` 是滚动容器，`.cmp-page` 用 CSS zoom） |
+| 页面对比工作台 | `CompareOverlay()`、`CompareCard`（panX/panY = 纸框滚动位置）、`compareSlots()`、`clampCard()`、`contentSize()`、`clampScroll()`、`scrollMax`+`cmpKey()`（能滚多远以 DOM 量到的为准）、`frameRefs`/`onFrameScroll`、层级：`normalizeZ()`/`zCollides()`/`stackOrder`/`layerNo()`/`shiftZ()`/`raise()`/`stack()`（叠放）、画质：`ladder()`/`budgetScale()`；CSS `.cmp-*`（`.cmp-frame` 是滚动容器，`.cmp-page` 用 CSS zoom） |
 | 页面提取 | `ExtractDialog()`、`parsePageSpec()`；主进程 `src/main/services/note-extract.service.ts`（IPC `note:extract-pages`） |
 | Esc 归属（先关浮层再退全屏） | `src/renderer/src/lib/escape.ts`、`blockEscapeFullscreen()`；兜底在 `components/layout/TitleBar.tsx` |
 | 快捷键 | `ReaderPage` 内 `onKey`（← → 空格 +/- 0 r b s e f l 1 2 3 Esc） |

@@ -1833,6 +1833,15 @@
     background: hsl(var(--muted));
     color: hsl(var(--foreground));
   }
+  /* 已经在最上 / 最下时按不动：淡掉，别让人以为点了没反应 */
+  .cmp-ico:disabled {
+    opacity: 0.32;
+    cursor: default;
+  }
+  .cmp-ico:disabled:hover {
+    background: transparent;
+    color: hsl(var(--muted-foreground));
+  }
 
   /* 纸框：内容比框大时直接由纸框自己出滚动条 —— 位移钳制那套总差一截（放大后右下两个角拖不到），
      滚动范围由内容尺寸决定，四个角一定能看到；框本身可拖、右下角可拉大 */
@@ -1840,6 +1849,7 @@
     position: relative;
     display: flex;
     overflow: auto;
+    /* 这圈内边距的大小在 ReaderPage 里是 CMP_FRAME_PAD（放大锚点要按它换算），改一处要改两处 */
     padding: 8px;
     background: #fff;
     border-radius: 0 0 var(--r-lg) var(--r-lg);
