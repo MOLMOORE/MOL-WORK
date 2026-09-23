@@ -1527,11 +1527,23 @@
     pointer-events: none;
   }
   .mw-ink path {
-    fill: hsl(var(--primary) / 0.1);
+    fill: hsl(var(--primary) / 0.12);
     stroke: hsl(var(--primary));
     stroke-width: 2.25;
     stroke-linejoin: round;
     stroke-linecap: round;
+    /* 整块都能点：点圈住的地方就把批注开在旁边（svg 根节点仍然不吃事件） */
+    pointer-events: auto;
+    cursor: pointer;
+    transition: fill 140ms ease, stroke-width 140ms ease;
+  }
+  .mw-ink path:hover {
+    fill: hsl(var(--primary) / 0.2);
+    stroke-width: 3;
+  }
+  .mw-ink path.is-active {
+    fill: hsl(var(--primary) / 0.24);
+    stroke-width: 3;
   }
 
   /* 编号圆点：和批注列里的序号一一对应 */
@@ -1553,6 +1565,9 @@
   }
   .mw-ink-dot:hover {
     filter: brightness(1.08);
+  }
+  .mw-ink-dot.is-active {
+    box-shadow: 0 0 0 3px hsl(var(--primary) / 0.28), 0 2px 8px -2px rgba(0, 0, 0, 0.5);
   }
 
   /* 圈注模式的采集层：铺满整页，按住就能画 */
@@ -1585,15 +1600,23 @@
     left: 0;
   }
 
+  /* 旁注卡片：贴边一条主色竖条 + 更实的底，一眼能看出是批注而不是正文 */
   .mw-note-card {
-    padding: 6px 8px;
+    position: relative;
+    padding: 8px 10px 8px 12px;
     border: 1px solid hsl(var(--border));
+    border-left: 3px solid hsl(var(--primary));
     border-radius: var(--r-lg);
-    background: hsl(var(--surface));
+    background: hsl(var(--card));
     color: hsl(var(--foreground));
-    font-size: 11px;
-    line-height: 1.55;
-    box-shadow: 0 8px 20px -16px rgba(0, 0, 0, 0.65);
+    font-size: 12px;
+    line-height: 1.6;
+    box-shadow: 0 10px 26px -18px rgba(0, 0, 0, 0.8), 0 0 0 1px hsl(var(--primary) / 0.14);
+  }
+  /* 边栏一条虚线导轨：像书页天头地脚的批注栏，一眼分清纸与注 */
+  .mw-note-rail.is-side {
+    padding-left: 9px;
+    border-left: 1px dashed hsl(var(--primary) / 0.5);
   }
   .mw-note-no {
     display: grid;
@@ -1638,6 +1661,95 @@
     overflow-wrap: anywhere;
   }
 
+  /* 页面上方的快捷按键：这一页的注释都在纸顶上排一排，点一下就地展开 */
+  .mw-note-quick {
+    position: absolute;
+    z-index: 7;
+    top: 6px;
+    left: 6px;
+    right: 34px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    pointer-events: none;
+  }
+  .mw-note-chip {
+    pointer-events: auto;
+    display: inline-flex;
+    max-width: 168px;
+    align-items: center;
+    gap: 4px;
+    border: 1px solid hsl(var(--border));
+    border-radius: 9999px;
+    background: hsl(var(--surface) / 0.94);
+    color: hsl(var(--foreground));
+    padding: 1px 7px 1px 2px;
+    font-size: 10px;
+    line-height: 17px;
+    box-shadow: 0 4px 14px -10px rgba(0, 0, 0, 0.9);
+    cursor: pointer;
+    transition: border-color 140ms ease, background-color 140ms ease, transform 140ms ease;
+  }
+  .mw-note-chip:hover {
+    transform: translateY(-1px);
+    border-color: hsl(var(--primary) / 0.7);
+  }
+  .mw-note-chip.is-active {
+    border-color: hsl(var(--primary));
+    background: hsl(var(--primary) / 0.16);
+  }
+  .mw-note-chip-no {
+    display: grid;
+    height: 15px;
+    width: 15px;
+    place-items: center;
+    border-radius: 9999px;
+    background: hsl(var(--primary));
+    color: hsl(var(--primary-foreground));
+    font-size: 9px;
+    font-weight: 700;
+    line-height: 1;
+  }
+  /* 实心编号 = 圈注（旁边有圈画），空心编号 = 整页旁注，扫一眼就知道点开会是什么 */
+  .mw-note-chip.is-page .mw-note-chip-no,
+  .mw-note-card .mw-note-no {
+    background: hsl(var(--muted));
+    color: hsl(var(--foreground));
+    box-shadow: inset 0 0 0 1px hsl(var(--border));
+  }
+  .mw-note-chip-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* 就地气泡：贴着圈住的那块显示，带一条指向圈画的小引线 */
+  .mw-note-pop {
+    position: absolute;
+    z-index: 8;
+    padding: 8px 10px;
+    border: 1px solid hsl(var(--primary) / 0.55);
+    border-radius: var(--r-lg);
+    background: hsl(var(--surface));
+    color: hsl(var(--foreground));
+    font-size: 12px;
+    line-height: 1.6;
+    box-shadow: 0 16px 40px -18px rgba(0, 0, 0, 0.85);
+    animation: mw-fade-in 140ms ease-out;
+  }
+  .mw-note-pop::before {
+    content: '';
+    position: absolute;
+    top: 14px;
+    left: -7px;
+    width: 10px;
+    height: 10px;
+    transform: rotate(45deg);
+    border-bottom: 1px solid hsl(var(--primary) / 0.55);
+    border-left: 1px solid hsl(var(--primary) / 0.55);
+    background: hsl(var(--surface));
+  }
+
   .reader-text code {
     background: hsl(var(--muted));
     border-radius: 4px;
@@ -1678,7 +1790,7 @@
     box-shadow: 0 -1px 0 0 hsl(var(--border));
   }
 
-  /* 层级角标：这张纸盖在谁上面 */
+  /* 层级角标：这张纸盖在谁上面（点一下提到最上层） */
   .cmp-layer {
     border-radius: calc(var(--r-lg) / 2);
     background: hsl(var(--muted));
@@ -1687,6 +1799,12 @@
     font-weight: 600;
     line-height: 14px;
     color: hsl(var(--muted-foreground));
+    cursor: pointer;
+    transition: background-color 140ms ease, color 140ms ease;
+  }
+  .cmp-layer:hover {
+    background: hsl(var(--primary) / 0.18);
+    color: hsl(var(--primary));
   }
 
   .cmp-jump {
@@ -1716,16 +1834,19 @@
     color: hsl(var(--foreground));
   }
 
-  /* 纸框：内容比框大时靠拖动平移，框本身可拖、右下角可拉大 */
+  /* 纸框：内容比框大时直接由纸框自己出滚动条 —— 位移钳制那套总差一截（放大后右下两个角拖不到），
+     滚动范围由内容尺寸决定，四个角一定能看到；框本身可拖、右下角可拉大 */
   .cmp-frame {
     position: relative;
-    display: grid;
-    place-items: center;
-    overflow: hidden;
+    display: flex;
+    overflow: auto;
+    padding: 8px;
     background: #fff;
     border-radius: 0 0 var(--r-lg) var(--r-lg);
     box-shadow: 0 12px 30px -14px rgba(0, 0, 0, 0.55), 0 0 0 1px hsl(var(--border));
     touch-action: none;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
   }
   .cmp-frame.is-movable {
     cursor: move;
@@ -1737,16 +1858,19 @@
     cursor: grabbing;
   }
 
-  /* 内容层：pdf.js 按阶梯倍率重画高清画布，这一层只用 CSS 补差与平移，所以拖动跟手 */
+  /* 内容层：pdf.js 按阶梯倍率重画高清画布，这一层用 CSS zoom 补差 —— zoom 会真的撑开尺寸，
+     所以纸框知道该出多长的滚动条；margin:auto 让没铺满的页面居中，且不会裁掉溢出 */
   .cmp-page {
-    transform-origin: center center;
-    will-change: transform;
+    margin: auto;
+    flex-shrink: 0;
+    will-change: zoom;
   }
 
   .cmp-grip {
     position: absolute;
-    right: 0;
-    bottom: 0;
+    right: 1px;
+    bottom: 1px;
+    z-index: 2;
     height: 16px;
     width: 16px;
     cursor: nwse-resize;
@@ -1757,7 +1881,8 @@
     opacity: 0;
     transition: opacity 140ms ease;
   }
-  .cmp-frame:hover .cmp-grip {
+  /* 纸框现在带滚动条，拉手挪到了框外面：hover 要听整张卡的 */
+  .cmp-card:hover .cmp-grip {
     opacity: 1;
   }
 

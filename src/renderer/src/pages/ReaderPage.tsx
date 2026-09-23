@@ -40,6 +40,7 @@ import {
   EyeOff,
   X
 } from 'lucide-react'
+import { TEXTUAL_DOC_FORMATS } from '@shared/constants'
 import type { Note, NoteDocInfo, NoteMark, NoteMarkKind, NoteViewMode } from '@shared/types/domain'
 import { Button, IconButton } from '../components/ui/Button'
 import { Spinner } from '../components/ui/Feedback'
@@ -86,6 +87,18 @@ const READER_FONTS: { key: string; label: string; stack: string }[] = [
   { key: 'serif', label: '衬线西文', stack: "Georgia, 'Times New Roman', serif" },
   { key: 'mono', label: '等宽', stack: "'Cascadia Mono', 'JetBrains Mono', Consolas, 'Courier New', monospace" }
 ]
+/**
+ * 阅读方式按格式分两类（用户 2026-09-23 指定）：
+ * - PDF / PPT / Excel：版式本身就是内容，只走书页，整页放大缩小，不碰字体；
+ * - Word 家族：正文在导入时已经抽进库里，默认按「文字」读，字体、字号、页面缩放都能调，
+ *   要核对原版式再手动切回「书页」。
+ * 判据放在渲染层：主进程 readNoteDoc() 只要看到 PDF 渲染件就回 pages，
+ * 这样老资料不用重新导入也能立刻按文字读。
+ */
+function prefersTextView(doc: NoteDocInfo): boolean {
+  return doc.viewMode === 'pages' && TEXTUAL_DOC_FORMATS.includes((doc.sourceFormat ?? '').toUpperCase()) && doc.text.trim() !== ''
+}
+
 const FONT_KEY = 'workstation.reader.font.v1'
 const FONTSIZE_KEY = 'workstation.reader.fontsize.v1'
 
@@ -118,49 +131,15 @@ export function ReaderPage(): JSX.Element {
   /** 文本 / 排版模式的正文字体，选一次就一直记住 */
   const [fontFamily, setFontFamily] = useState(() => localStorage.getItem(FONT_KEY) || 'auto')
   const fontStack = READER_FONTS.find((item) => item.key === fontFamily)?.stack ?? ''
-  /**
-   * 书页是一张画出来的图，改不动字体：原版式文档（Word / PDF）只要抽得出正文，
-   * 就允许切到「文字」视图，切过去之后字体与字号照样能调。
-   */
+  /** 原版式文档要不要按「文字」读（Word 家族默认要，PDF / PPT 没有这一项） */
   const [textView, setTextView] = useState(false)
-  /** 从 PDF 现抽的文字层（Word / PPT 导入时已经抽好存在正文里，直接用） */
-  const [pdfText, setPdfText] = useState('')
-  const [pdfTextBusy, setPdfTextBusy] = useState(false)
-  const canTextView = !!info && info.viewMode === 'pages' && (info.text.trim().length > 80 || !!pdf)
+  const canTextView = !!info && prefersTextView(info)
   /** 舞台实际采用的阅读方式：下面所有逻辑都读这个，不再直接读 info.viewMode */
   const mode: NoteViewMode = canTextView && textView ? 'text' : info?.viewMode ?? 'text'
   useEffect(() => {
     if (!canTextView) setTextView(false)
   }, [canTextView])
-  /** 真切到文字视图了才去抽文字层，抽一次记着，来回切不重抽 */
-  useEffect(() => {
-    if (!textView || !pdf || (info?.text.trim().length ?? 0) > 80 || pdfText !== '') return
-    let cancelled = false
-    void (async () => {
-      setPdfTextBusy(true)
-      const parts: string[] = []
-      const total = Math.min(pdf.pageCount, 400)
-      for (let number = 1; number <= total; number += 1) {
-        if (cancelled) return
-        try {
-          parts.push(await pageText(await pdf.doc.getPage(number)))
-        } catch {
-          /* 扫描页没有文字层，跳过 */
-        }
-        /* 每十页让一次主线程，长文档不至于卡住界面 */
-        if (number % 10 === 0) await new Promise((resolve) => window.setTimeout(resolve, 0))
-      }
-      const joined = parts.join('\n\n').trim()
-      if (!cancelled) {
-        setPdfText(joined === '' ? '这份 PDF 没有可提取的文字层（多半是扫描版），只能按书页原样看。' : joined)
-        setPdfTextBusy(false)
-      }
-    })()
-    return () => {
-      cancelled = true
-    }
-  }, [textView, pdf, info, pdfText])
-
+  /** 文字视图不再现场抽全文：只读库里已有的正文，秒开、也不会卡在「正在准备…」 */
   /** 切到文字视图后「页面 / 本页」这两个书页专属标签就没内容了，顺手挪到注释 */
   useEffect(() => {
     if (mode !== 'text') return
@@ -191,6 +170,13 @@ export function ReaderPage(): JSX.Element {
   /** 两个显示开关各管各的：纸上的圈画、边上与上下空白的批注 */
   const [showInk, setShowInk] = useState(() => localStorage.getItem(SHOW_INK_KEY) !== '0')
   const [showNotes, setShowNotes] = useState(() => localStorage.getItem(SHOW_NOTES_KEY) !== '0')
+  /** 圈注形状：自由 / 矩形 / 圆圈 / 多边形，选一次记住 */
+  const [inkShape, setInkShape] = useState<InkShape>(() => {
+    const saved = localStorage.getItem(INK_SHAPE_KEY)
+    return saved !== null && INK_SHAPES.includes(saved as InkShape) ? (saved as InkShape) : 'free'
+  })
+  /** 就地展开着的那条批注（note_marks.id）：贴着它圈住的位置显示气泡 */
+  const [openNote, setOpenNote] = useState<number | null>(null)
 
   useEffect(() => {
     localStorage.setItem(SHOW_INK_KEY, showInk ? '1' : '0')
@@ -198,6 +184,13 @@ export function ReaderPage(): JSX.Element {
   useEffect(() => {
     localStorage.setItem(SHOW_NOTES_KEY, showNotes ? '1' : '0')
   }, [showNotes])
+  useEffect(() => {
+    localStorage.setItem(INK_SHAPE_KEY, inkShape)
+  }, [inkShape])
+  /** 气泡是贴着某一页的圈画定位的：翻页、换书、退出书页模式就收起 */
+  useEffect(() => {
+    setOpenNote(null)
+  }, [page, id, mode])
   /** 页面对比：挑出来并排看的页码（最多 4 页） */
   const [compare, setCompare] = useState<number[]>([])
   const [compareOpen, setCompareOpen] = useState(false)
@@ -262,6 +255,7 @@ export function ReaderPage(): JSX.Element {
         if (cancelled) return
         setInfo(doc)
         setDraft(doc.text)
+        setTextView(prefersTextView(doc))
         resetPage(Math.max(1, doc.note.lastPage || 1))
         if (doc.viewMode === 'pages' && doc.data) {
           const opened = await openPdf(doc.data, (outline) => {
@@ -628,7 +622,8 @@ export function ReaderPage(): JSX.Element {
           setLayout('continuous')
           break
         case 'Escape':
-          if (inkMode) setInkMode(false)
+          if (openNote !== null) setOpenNote(null)
+          else if (inkMode) setInkMode(false)
           else if (composer) setComposer(null)
           else if (panel) setPanel(null)
           else if (fullscreen) void api.win.setFullscreen(false).catch(() => undefined)
@@ -641,7 +636,7 @@ export function ReaderPage(): JSX.Element {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step, goPage, pageCount, panel, composer, info, mode, flip, navigate, page, marks, layout, fullscreen, compareOpen, extractOpen, inkMode])
+  }, [step, goPage, pageCount, panel, composer, info, mode, flip, navigate, page, marks, layout, fullscreen, compareOpen, extractOpen, inkMode, openNote])
 
   // ---------- 标记 ----------
   const toggleMark = async (kind: NoteMarkKind, atPage?: number): Promise<void> => {
@@ -697,11 +692,14 @@ export function ReaderPage(): JSX.Element {
     })
     setMarks((list) => [...list, created])
     setComposer(null)
+    /* 刚写完的这条立刻在旁边展开，确认它落在圈住的位置上 */
+    setOpenNote(created.id)
   }
 
-  /** 圈完一笔：拿归一化后的轨迹去开注释框，写完才落库 */
-  const handleInk = useCallback((points: InkPoint[], target: number) => {
-    setComposer({ kind: 'note', quote: '', region: JSON.stringify({ points }), atPage: target })
+  /** 圈完一块：形状与归一化轨迹一起带进注释框，写完才落库 */
+  const handleInk = useCallback((shape: InkShape, points: InkPoint[], target: number) => {
+    setOpenNote(null)
+    setComposer({ kind: 'note', quote: '', region: JSON.stringify({ kind: shape, points }), atPage: target })
   }, [])
 
   // ---------- 保存正文（仅文本模式） ----------
@@ -881,9 +879,9 @@ export function ReaderPage(): JSX.Element {
 
   // 侧栏、注释框、圈注模式、对比 / 提取浮层开着时，Esc 先关它们；再按一次才退出全屏
   useEffect(() => {
-    if (!panel && !composer && !compareOpen && !extractOpen && !inkMode) return undefined
+    if (!panel && !composer && !compareOpen && !extractOpen && !inkMode && openNote === null) return undefined
     return blockEscapeFullscreen()
-  }, [panel, composer, compareOpen, extractOpen, inkMode])
+  }, [panel, composer, compareOpen, extractOpen, inkMode, openNote])
 
   /** 连续滚动 / 文本模式下的滚动翻页 */
   const scrollPages = (direction: number, screens = 1): void => {
@@ -927,19 +925,8 @@ export function ReaderPage(): JSX.Element {
   }
 
   const modeLabel = mode === 'pages' ? '书页' : mode === 'rich' ? '排版' : '文本'
-  /** 文字视图里到底显示哪篇正文：自带的（含编辑草稿）优先，PDF 用现抽的文字层 */
-  const textBody =
-    info === null
-      ? ''
-      : info.viewMode === 'text'
-        ? editing
-          ? draft
-          : info.text
-        : pdfText !== ''
-          ? pdfText
-          : pdfTextBusy
-            ? '正在抽取文字层…'
-            : '正在准备文字视图…'
+  /** 文字视图显示的就是入库正文（正在编辑时显示草稿）；书页与排版模式用不到它 */
+  const textBody = info === null ? '' : editing ? draft : info.text
 
   return (
     <div className="reader-shell flex h-full w-full flex-col overflow-hidden bg-background">
@@ -1083,7 +1070,7 @@ export function ReaderPage(): JSX.Element {
           {canTextView ? (
             <Segmented
               value={textView ? 'text' : 'pages'}
-              title="阅读方式：书页保留原版式，文字可以换字体与字号"
+              title="阅读方式：书页按原版式整页放大，文字可以换字体与字号"
               options={[
                 { key: 'pages', label: '书页' },
                 { key: 'text', label: '文字' }
@@ -1105,7 +1092,7 @@ export function ReaderPage(): JSX.Element {
               <ToggleChip
                 on={inkMode}
                 label="圈注"
-                hint={inkMode ? '再点一下退出圈注（Esc 也可以）' : '在页面上按住拖动圈出一块，松手就能给它写批注'}
+                hint={inkMode ? '当前形状：' + (INK_SHAPE_LABELS.find((item) => item.key === inkShape)?.label ?? '') + ' · 再点一下退出圈注（Esc 也可以）' : '在页面上圈出一块（可选形状），松手就能给它写批注'}
                 icon={<Highlighter className="h-3.5 w-3.5" />}
                 onClick={() =>
                   setInkMode((value) => {
@@ -1114,6 +1101,14 @@ export function ReaderPage(): JSX.Element {
                     return next
                   })}
               />
+              {inkMode ? (
+                <Segmented
+                  value={inkShape}
+                  title="圈注形状：这一笔用什么形状圈"
+                  options={INK_SHAPE_LABELS.map((item) => ({ key: item.key, label: item.label }))}
+                  onChange={(key) => setInkShape(key as InkShape)}
+                />
+              ) : null}
               <ToggleChip
                 on={showInk}
                 label="圈画"
@@ -1198,6 +1193,8 @@ export function ReaderPage(): JSX.Element {
             onPointerLeave={endPan}
             onPointerCancel={endPan}
             onClickCapture={onStageClickCapture}
+            /* 点纸面空白处收起就地气泡（圈画、圆点、页顶按键与气泡自己都不往这儿冒泡） */
+            onClick={() => setOpenNote(null)}
             onDoubleClick={() => {
               /* 圈注模式下双击是在画圈中途松手，不该顺手放大 */
               if (mode !== 'pages' || inkMode) return
@@ -1220,6 +1217,9 @@ export function ReaderPage(): JSX.Element {
                 showNotes={showNotes}
                 noteSide={noteSide}
                 onInk={handleInk}
+                inkShape={inkShape}
+                openNoteId={openNote}
+                onOpenNote={setOpenNote}
                 onRemoveNote={(markId) => void removeMark(markId)}
                   onScrollNode={attachScrollNode}
                   onJump={goPage}
@@ -1302,7 +1302,8 @@ export function ReaderPage(): JSX.Element {
             <span>B 书签</span>
             <span>S 重点</span>
             <span>E 注释</span>
-            <span>圈注可圈住局部</span>
+            <span>圈注可选形状</span>
+            <span>点圈看在旁边</span>
             <span>R 旋转</span>
             <span>F / F11 全屏 · Esc 退出</span>
             {readMinutes > 0 ? (
@@ -1402,25 +1403,45 @@ function Segmented(props: {
   )
 }
 
-/* ==================== 圈画批注（v1.2.5）：在纸上圈一块，边上写批注 ==================== */
+/* ==================== 圈画批注（v1.2.5）：任意形状圈一块 + 就地气泡 + 页顶快捷按键 ==================== */
 /** 圈注轨迹上的一点：归一化到页面自身坐标（0~1，x 向右 y 向下），缩放与旋转都不影响它 */
 type InkPoint = [number, number]
+/** 圈注形状：自由手绘 / 矩形 / 圆圈（椭圆）/ 多边形（逐点落点，点回起点闭合成形） */
+type InkShape = 'free' | 'rect' | 'ellipse' | 'polygon'
+/** 一处圈画：形状 + 顶点。矩形与圆圈只存对角的两个点，画的时候再展开 */
+interface InkRegion {
+  kind: InkShape
+  points: InkPoint[]
+}
+
+const INK_SHAPE_LABELS: { key: InkShape; label: string; hint: string }[] = [
+  { key: 'free', label: '自由', hint: '按住拖动，想怎么圈就怎么圈' },
+  { key: 'rect', label: '矩形', hint: '按住拖出一个矩形框' },
+  { key: 'ellipse', label: '圆圈', hint: '按住拖出一个椭圆，往斜角拖就是圆圈' },
+  { key: 'polygon', label: '多边形', hint: '单击逐个落点，点回起点或按 Enter 闭合成形，Esc 作废' }
+]
+const INK_SHAPES = INK_SHAPE_LABELS.map((item) => item.key)
 
 /** 旁注列宽度；两个显示开关各自记住，圈画和整页注释可以分开看 */
 const NOTE_RAIL_W = 208
+/** 就地气泡宽度：贴着圈住的那块显示，右边放不下就翻到左边 */
+const NOTE_POP_W = 244
 const SHOW_INK_KEY = 'workstation.reader.showink.v1'
 const SHOW_NOTES_KEY = 'workstation.reader.shownotes.v1'
+const INK_SHAPE_KEY = 'workstation.reader.inkshape.v1'
 
-/** note_marks.region 里存的就是 { points: [[x,y],…] }，空串 / 解析失败都当没有圈画 */
-function parseInk(json: string): InkPoint[] | null {
+/** note_marks.region 存的是 { kind, points }；第三轮的老数据没有 kind，按自由手绘读 */
+function parseInk(json: string): InkRegion | null {
   if (json === '') return null
   try {
-    const raw = JSON.parse(json) as { points?: unknown }
+    const raw = JSON.parse(json) as { points?: unknown; kind?: unknown }
     const list = Array.isArray(raw.points) ? (raw.points as unknown[]) : []
     const points = list
       .filter((point): point is number[] => Array.isArray(point) && point.length === 2)
       .map((point): InkPoint => [Number(point[0]), Number(point[1])])
-    return points.length > 3 ? points : null
+    const kind = typeof raw.kind === 'string' && INK_SHAPES.includes(raw.kind as InkShape) ? (raw.kind as InkShape) : 'free'
+    if (kind === 'rect' || kind === 'ellipse') return points.length >= 2 ? { kind, points: points.slice(0, 2) } : null
+    return points.length > 2 ? { kind, points } : null
   } catch {
     return null
   }
@@ -1443,32 +1464,84 @@ function pageToDisplay(x: number, y: number, rotation: number): InkPoint {
   return [x, y]
 }
 
-/** 纸面上的圈画线条：SVG 铺在画布上，线宽固定，缩放纸面不会跟着变粗 */
+/** 矩形与圆圈只存对角两点，画之前展开成顶点；圆圈取 36 段折线，放大到多少倍都看不出台阶 */
+function inkOutline(region: InkRegion): InkPoint[] {
+  const first = region.points[0]
+  const last = region.points[region.points.length - 1]
+  if (region.kind === 'rect') return [first, [last[0], first[1]], last, [first[0], last[1]]]
+  if (region.kind === 'ellipse') {
+    const cx = (first[0] + last[0]) / 2
+    const cy = (first[1] + last[1]) / 2
+    const rx = Math.abs(last[0] - first[0]) / 2
+    const ry = Math.abs(last[1] - first[1]) / 2
+    return Array.from({ length: 36 }, (_, index) => {
+      const angle = (index / 36) * Math.PI * 2
+      return [cx + Math.cos(angle) * rx, cy + Math.sin(angle) * ry] as InkPoint
+    })
+  }
+  return region.points
+}
+
+/** 一组页面坐标的点在显示框里的外接矩形（0~1）：用来定位气泡与热区 */
+function displayBox(points: InkPoint[], rotation: number): { x0: number; y0: number; x1: number; y1: number } {
+  const list = points.map((point) => pageToDisplay(point[0], point[1], rotation))
+  const xs = list.map((point) => point[0])
+  const ys = list.map((point) => point[1])
+  return { x0: Math.min(...xs), y0: Math.min(...ys), x1: Math.max(...xs), y1: Math.max(...ys) }
+}
+
+/** 纸面上的圈画：SVG 铺在画布上，线宽固定，缩放纸面不会跟着变粗；点这一块就把批注气泡开在旁边 */
 function InkStrokes(props: {
-  strokes: { id: number; points: InkPoint[] }[]
+  strokes: { id: number; region: InkRegion; active: boolean }[]
   box: { width: number; height: number }
   rotation: number
+  onOpen?: (id: number) => void
 }): JSX.Element | null {
-  const { strokes, box, rotation } = props
+  const { strokes, box, rotation, onOpen } = props
   if (strokes.length === 0) return null
   return (
-    <svg className="mw-ink" width={box.width} height={box.height} viewBox={'0 0 ' + box.width + ' ' + box.height} aria-hidden>
+    <svg
+      className="mw-ink"
+      width={box.width}
+      height={box.height}
+      viewBox={'0 0 ' + box.width + ' ' + box.height}
+      aria-hidden
+    >
       {strokes.map((stroke) => {
-        const path = stroke.points
+        const d = inkOutline(stroke.region)
           .map((point, index) => {
             const [dx, dy] = pageToDisplay(point[0], point[1], rotation)
             return (index === 0 ? 'M' : 'L') + (dx * box.width).toFixed(1) + ',' + (dy * box.height).toFixed(1)
           })
           .join('')
-        return <path key={stroke.id} d={path + 'Z'} />
+        return (
+          <path
+            key={stroke.id}
+            d={d + 'Z'}
+            className={stroke.active ? 'is-active' : undefined}
+            onClick={
+              onOpen
+                ? (event) => {
+                    event.stopPropagation()
+                    onOpen(stroke.id)
+                  }
+                : undefined
+            }
+          />
+        )
       })}
     </svg>
   )
 }
 
-/** 每处圈画旁边的小圆点：和旁注列里的编号一一对应，点一下就把对应批注滚出来 */
-function InkDots(props: { items: { id: number; index: number; at: InkPoint }[]; rotation: number }): JSX.Element | null {
-  const { items } = props
+/** 每处圈画角上的编号圆点：和页顶快捷按键、气泡里的编号一一对应，点一下就地展开批注 */
+function InkDots(props: {
+  items: { id: number; index: number; at: InkPoint }[]
+  rotation: number
+  activeId: number | null
+  onOpen: (id: number) => void
+}): JSX.Element | null {
+  const { items, activeId, onOpen } = props
   if (items.length === 0) return null
   return (
     <>
@@ -1476,13 +1549,12 @@ function InkDots(props: { items: { id: number; index: number; at: InkPoint }[]; 
         <button
           key={item.id}
           type="button"
-          title="跳到这条圈注"
-          onClick={() => {
-            document
-              .querySelector('[data-note-card="' + item.id + '"]')
-              ?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+          title="在这一页旁边展开这条圈注"
+          onClick={(event) => {
+            event.stopPropagation()
+            onOpen(item.id)
           }}
-          className="mw-ink-dot"
+          className={cn('mw-ink-dot', activeId === item.id && 'is-active')}
           style={{ left: item.at[0] * 100 + '%', top: item.at[1] * 100 + '%' }}
         >
           {item.index}
@@ -1492,7 +1564,36 @@ function InkDots(props: { items: { id: number; index: number; at: InkPoint }[]; 
   )
 }
 
-/** 批注卡列表：贴在纸的右边，纸两侧没地方就落到纸的上下空白 */
+/** 页面上方的快捷按键：这一页所有注释都在纸顶上排一排，点一下就展开，不用去页面下面找 */
+function NoteQuickBar(props: {
+  items: { mark: NoteMark; index: number }[]
+  activeId: number | null
+  onOpen: (id: number) => void
+}): JSX.Element | null {
+  const { items, activeId, onOpen } = props
+  if (items.length === 0) return null
+  return (
+    <div className="mw-note-quick" title="这一页的注释：点一下就在旁边展开">
+      {items.map(({ mark, index }) => (
+        <button
+          key={mark.id}
+          type="button"
+          className={cn('mw-note-chip', mark.region === '' ? 'is-page' : 'is-ink', activeId === mark.id && 'is-active')}
+          title={(mark.region === '' ? '整页旁注 ' : '圈注 ') + index + '：' + mark.body.slice(0, 60)}
+          onClick={(event) => {
+            event.stopPropagation()
+            onOpen(mark.id)
+          }}
+        >
+          <span className="mw-note-chip-no">{index}</span>
+          <span className="mw-note-chip-text">{mark.body.split('\n')[0].slice(0, 12)}</span>
+        </button>
+      ))}
+    </div>
+  )
+}
+
+/** 整页旁注列：贴在纸的右边，纸两侧没地方就落到纸的上下空白 */
 function NoteRail(props: {
   items: { mark: NoteMark; index: number }[]
   side: boolean
@@ -1507,7 +1608,7 @@ function NoteRail(props: {
         <article key={mark.id} className="mw-note-card" data-note-card={mark.id}>
           <header className="flex items-center gap-1.5">
             <span className="mw-note-no">{index}</span>
-            <span className="mw-note-kind">{mark.region !== '' ? '圈注' : '旁注'}</span>
+            <span className="mw-note-kind">旁注</span>
             <span className="mw-note-page">{mark.page > 0 ? '第 ' + mark.page + ' 页' : '正文'}</span>
             <button type="button" className="mw-note-del" title="删除这条注释" onClick={() => onRemove(mark.id)}>
               <Trash2 className="h-3 w-3" />
@@ -1517,6 +1618,40 @@ function NoteRail(props: {
           <p className="mw-note-body">{mark.body}</p>
         </article>
       ))}
+    </div>
+  )
+}
+
+/** 就地气泡：贴着圈住的那块显示（右边放不下就翻到左边），点纸上的圈或页顶按键都会开在这里 */
+function NotePopover(props: {
+  mark: NoteMark
+  index: number
+  left: number
+  top: number
+  onRemove: (id: number) => void
+  onClose: () => void
+}): JSX.Element {
+  const { mark, index, left, top, onRemove, onClose } = props
+  return (
+    <div
+      className="mw-note-pop"
+      style={{ left, top, width: NOTE_POP_W }}
+      onPointerDown={(event) => event.stopPropagation()}
+      onClick={(event) => event.stopPropagation()}
+    >
+      <header className="flex items-center gap-1.5">
+        <span className="mw-note-no">{index}</span>
+        <span className="mw-note-kind">{mark.region === '' ? '整页旁注' : '圈注'}</span>
+        <span className="mw-note-page">{mark.page > 0 ? '第 ' + mark.page + ' 页' : '正文'}</span>
+        <button type="button" className="mw-note-del" title="删除这条注释" onClick={() => onRemove(mark.id)}>
+          <Trash2 className="h-3 w-3" />
+        </button>
+        <button type="button" className="mw-note-del" title="收起" onClick={onClose}>
+          <X className="h-3 w-3" />
+        </button>
+      </header>
+      {mark.quote !== '' ? <p className="mw-note-quote">「{mark.quote}」</p> : null}
+      <p className="mw-note-body">{mark.body}</p>
     </div>
   )
 }
@@ -1562,14 +1697,20 @@ interface StageProps {
   showNotes?: boolean
   /** 旁注贴纸边（true）还是落到纸的上下空白（false） */
   noteSide?: boolean
-  onInk?: (points: InkPoint[], page: number) => void
+  /** 圈注形状：按住拖动（自由 / 矩形 / 圆圈）或逐点落点（多边形） */
+  onInk?: (kind: InkShape, points: InkPoint[], page: number) => void
+  inkShape?: InkShape
+  /** 当前展开着的那条批注（就地气泡），null = 没有 */
+  openNoteId?: number | null
+  onOpenNote?: (id: number | null) => void
   onRemoveNote?: (id: number) => void
 }
 
 function PdfStage(props: StageProps): JSX.Element {
   const {
     pdf, page, pageCount, scale, rotation, layout, turning,
-    onScrollNode, onJump, onActivePage, notes, inkMode, showInk, showNotes, noteSide, onInk, onRemoveNote
+    onScrollNode, onJump, onActivePage, notes, inkMode, showInk, showNotes, noteSide, onInk, onRemoveNote,
+    inkShape, openNoteId, onOpenNote
   } = props
 
   /* 预取相邻页：真正翻页时那一页已经在缓存里，动效第一帧就是成品画面，
@@ -1603,6 +1744,9 @@ function PdfStage(props: StageProps): JSX.Element {
         noteSide={noteSide}
         onInk={onInk}
         onRemoveNote={onRemoveNote}
+        inkShape={inkShape}
+        openNoteId={openNoteId}
+        onOpenNote={onOpenNote}
       />
     )
   }
@@ -1636,6 +1780,9 @@ function PdfStage(props: StageProps): JSX.Element {
                   noteSide={noteSide}
                   onInk={onInk}
                   onRemoveNote={onRemoveNote}
+                  inkShape={inkShape}
+                  openNoteId={openNoteId}
+                  onOpenNote={onOpenNote}
                 />
               ) : (
                 <div key={`blank${number}`} className="mw-page mw-page-blank" style={{ width: box.width, height: box.height }} />
@@ -1668,7 +1815,8 @@ function PdfStage(props: StageProps): JSX.Element {
 function ContinuousPages(props: Omit<StageProps, 'turning' | 'layout'>): JSX.Element {
   const {
     pdf, page, pageCount, scale, rotation, onScrollNode, onJump, onActivePage,
-    notes, inkMode, showInk, showNotes, noteSide, onInk, onRemoveNote
+    notes, inkMode, showInk, showNotes, noteSide, onInk, onRemoveNote,
+    inkShape, openNoteId, onOpenNote
   } = props
   const listRef = useRef<HTMLDivElement>(null)
   const nodeRef = useRef<HTMLDivElement | null>(null)
@@ -1729,6 +1877,9 @@ function ContinuousPages(props: Omit<StageProps, 'turning' | 'layout'>): JSX.Ele
             noteSide={noteSide}
             onInk={onInk}
             onRemoveNote={onRemoveNote}
+            inkShape={inkShape}
+            openNoteId={openNoteId}
+            onOpenNote={onOpenNote}
           />
         ))}
       </div>
@@ -1749,17 +1900,23 @@ function PdfPageView(props: {
   onJump?: (page: number) => void
   /** 这一页要显示的注释（圈注与整页旁注都算在内） */
   notes?: NoteMark[]
-  /** 圈注模式：在当前页上按住拖动圈出一块，松手写批注 */
+  /** 圈注模式：在当前页上按住拖动圈出一块（形状由 inkShape 决定） */
   inkMode?: boolean
   showInk?: boolean
   showNotes?: boolean
   noteSide?: boolean
-  onInk?: (points: InkPoint[], page: number) => void
+  /** 圈注形状：按住拖动（自由 / 矩形 / 圆圈）或逐点落点（多边形） */
+  onInk?: (kind: InkShape, points: InkPoint[], page: number) => void
+  inkShape?: InkShape
+  /** 当前展开着的那条批注（就地气泡），null = 没有 */
+  openNoteId?: number | null
+  onOpenNote?: (id: number | null) => void
   onRemoveNote?: (id: number) => void
 }): JSX.Element {
   const {
     pdf, pageNumber, scale, rotation, active, ghost, lazy, priority = 0, onJump,
-    notes, inkMode, showInk = true, showNotes = true, noteSide = false, onInk, onRemoveNote
+    notes, inkMode, showInk = true, showNotes = true, noteSide = false, onInk, onRemoveNote,
+    inkShape, openNoteId = null, onOpenNote
   } = props
   const holder = useRef<HTMLDivElement>(null)
   const boxRef = useRef<HTMLDivElement>(null)
@@ -1770,29 +1927,51 @@ function PdfPageView(props: {
   const mountKey = pdf.uid + '|' + pageNumber + '|' + rounded + '|' + rotation
   const mounted = useRef('')
 
-  /* ---------- 这一页的注释：纸上的圈画 + 边上或上下空白的批注 ---------- */
+  /* ---------- 这一页的注释：纸上的圈画（点一下开在旁边）+ 页顶快捷按键 + 边上旁注 ---------- */
   const pageNotes = (notes ?? []).filter((mark) => mark.page === pageNumber)
-  const inkAll = pageNotes.reduce<{ mark: NoteMark; points: InkPoint[] }[]>((acc, mark) => {
-    const points = parseInk(mark.region)
-    if (points) acc.push({ mark, points })
+  const inkAll = pageNotes.reduce<{ mark: NoteMark; region: InkRegion }[]>((acc, mark) => {
+    const region = parseInk(mark.region)
+    if (region) acc.push({ mark, region })
     return acc
   }, [])
-  /** 边上的批注列表：圈注跟着「显示圈画」走，整页注释跟着「显示旁注」走 */
-  const railItems = pageNotes
-    .filter((mark) => (mark.region !== '' ? showInk : showNotes))
-    .map((mark, index) => ({ mark, index: index + 1 }))
-  /** 纸面上的编号圆点：序号与旁边列表严格对齐 */
+  /** 边上那一列只放整页旁注：圈注改成贴着圈住的部分就地展开，不再排到页面下面 */
+  const railItems = showNotes
+    ? pageNotes.filter((mark) => mark.region === '').map((mark, index) => ({ mark, index: index + 1 }))
+    : []
+  /** 页面上方的快捷按键：这一页看得见的注释都排进来，编号与圆点、气泡一致 */
+  const chips = [
+    ...(showInk ? inkAll.map((item) => item.mark) : []),
+    ...(showNotes ? pageNotes.filter((mark) => mark.region === '') : [])
+  ].map((mark, index) => ({ mark, index: index + 1 }))
+  /** 纸面上的编号圆点：序号与页顶按键严格对齐 */
   const dots = showInk
     ? inkAll.flatMap((item) => {
-        const at = railItems.findIndex((entry) => entry.mark.id === item.mark.id)
+        const at = chips.findIndex((entry) => entry.mark.id === item.mark.id)
         if (at < 0) return []
-        const first = item.points[0]
+        const first = inkOutline(item.region)[0]
         return [{ id: item.mark.id, index: at + 1, at: pageToDisplay(first[0], first[1], rotation) }]
       })
     : []
+  /** 展开着的那条批注 */
+  const opened = openNoteId === null ? null : chips.find((entry) => entry.mark.id === openNoteId)?.mark ?? null
+  const openedIndex = opened === null ? 0 : chips.findIndex((entry) => entry.mark.id === opened.id) + 1
+  /** 气泡位置：贴着圈住的那块右边，纸的右边放不下就翻到左边；整页旁注钉在纸顶右侧 */
+  const popSpot = (() => {
+    if (opened === null) return { left: 0, top: 0 }
+    const entry = inkAll.find((item) => item.mark.id === opened.id)
+    if (!entry) return { left: Math.max(8, box.width - NOTE_POP_W - 8), top: 34 }
+    const area = displayBox(inkOutline(entry.region), rotation)
+    const right = area.x1 * box.width + 12
+    const left =
+      right + NOTE_POP_W > box.width ? Math.max(6, area.x0 * box.width - 12 - NOTE_POP_W) : right
+    const top = Math.min(Math.max(30, area.y0 * box.height), Math.max(30, box.height - 96))
+    return { left, top }
+  })()
+  /** 点圈画 / 圆点 / 页顶按键：同一条再点一下就收起 */
+  const toggleNote = (markId: number): void => onOpenNote?.(openNoteId === markId ? null : markId)
   /** 正在画的这一笔：先按显示框记，落库前统一转成页面自身坐标 */
-  const [stroke, setStroke] = useState<InkPoint[] | null>(null)
-  const drawing = useRef<InkPoint[] | null>(null)
+  const [sketch, setSketch] = useState<InkRegion | null>(null)
+  const drawing = useRef<InkRegion | null>(null)
 
   const normPoint = (event: ReactPointerEvent<HTMLDivElement>): InkPoint => {
     const rect = event.currentTarget.getBoundingClientRect()
@@ -1802,36 +1981,97 @@ function PdfPageView(props: {
       Math.min(1, Math.max(0, (event.clientY - rect.top) / rect.height))
     ]
   }
+  /** 一笔收尾：转成页面自身坐标交给上层去写批注 */
+  const commit = (region: InkRegion | null): void => {
+    drawing.current = null
+    setSketch(null)
+    if (!region || !onInk) return
+    const points = region.points.map((point) => displayToPage(point[0], point[1], rotation))
+    if (region.kind === 'polygon' ? points.length < 3 : points.length < 2) return
+    onInk(region.kind, points, pageNumber)
+  }
+  const drop = (): void => {
+    drawing.current = null
+    setSketch(null)
+  }
   const inkDown = (event: ReactPointerEvent<HTMLDivElement>): void => {
-    if (event.button !== 0) return
+    if (event.button !== 0 || !inkShape) return
     event.preventDefault()
     event.stopPropagation()
     event.currentTarget.setPointerCapture?.(event.pointerId)
-    const first = normPoint(event)
-    drawing.current = [first]
-    setStroke([first])
+    const point = normPoint(event)
+    const current = drawing.current
+    if (inkShape === 'polygon') {
+      if (!current || current.kind !== 'polygon') {
+        drawing.current = { kind: 'polygon', points: [point] }
+        setSketch(drawing.current)
+        return
+      }
+      const first = current.points[0]
+      const backToStart =
+        Math.hypot((point[0] - first[0]) * box.width, (point[1] - first[1]) * box.height) < 14
+      if (current.points.length >= 3 && backToStart) {
+        commit(current)
+        return
+      }
+      drawing.current = { kind: 'polygon', points: [...current.points, point] }
+      setSketch(drawing.current)
+      return
+    }
+    drawing.current = { kind: inkShape, points: [point, point] }
+    setSketch(drawing.current)
   }
   const inkMove = (event: ReactPointerEvent<HTMLDivElement>): void => {
-    const list = drawing.current
-    if (!list) return
+    const current = drawing.current
+    if (!current) return
     const point = normPoint(event)
-    const last = list[list.length - 1]
-    /* 太密的点没意义还拖慢重绘：纸面上挪不到 3px 就丢掉 */
-    if (Math.abs(point[0] - last[0]) * box.width + Math.abs(point[1] - last[1]) * box.height < 3) return
-    list.push(point)
-    setStroke([...list])
+    /* 多边形：橡皮筋只是预览，落库的顶点存在 drawing 里，不收游标 */
+    if (current.kind === 'polygon') {
+      setSketch({ kind: 'polygon', points: [...current.points, point] })
+      return
+    }
+    if (current.kind === 'free') {
+      const last = current.points[current.points.length - 1]
+      /* 太密的点没意义还拖慢重绘：纸面上挪不到 3px 就丢掉 */
+      if (Math.abs(point[0] - last[0]) * box.width + Math.abs(point[1] - last[1]) * box.height < 3) return
+      current.points.push(point)
+      setSketch({ kind: 'free', points: [...current.points] })
+      return
+    }
+    current.points = [current.points[0], point]
+    setSketch({ kind: current.kind, points: [...current.points] })
   }
   const inkUp = (): void => {
-    const list = drawing.current
-    drawing.current = null
-    setStroke(null)
-    if (!list || list.length < 6 || !onInk) return
-    onInk(
-      list.map((point) => displayToPage(point[0], point[1], rotation)),
-      pageNumber
-    )
+    const current = drawing.current
+    if (!current || current.kind === 'polygon') return
+    if (current.kind === 'free') {
+      if (current.points.length < 6) drop()
+      else commit(current)
+      return
+    }
+    const [a, b] = [current.points[0], current.points[current.points.length - 1]]
+    /* 拖得太小当误触 */
+    if (Math.abs(b[0] - a[0]) * box.width < 8 || Math.abs(b[1] - a[1]) * box.height < 8) drop()
+    else commit({ kind: current.kind, points: [a, b] })
   }
-
+  /* 多边形画到一半时：Enter 闭合成形，Esc 作废这一笔（capture 抢在退全屏之前） */
+  useEffect(() => {
+    if (!sketch || sketch.kind !== 'polygon') return undefined
+    const onKey = (event: KeyboardEvent): void => {
+      if (event.key === 'Enter') {
+        event.preventDefault()
+        event.stopPropagation()
+        commit(drawing.current ?? sketch)
+      } else if (event.key === 'Escape') {
+        event.preventDefault()
+        event.stopPropagation()
+        drop()
+      }
+    }
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sketch])
 
   /* 缓存里已有这一页：这一帧就贴上，不等异步队列（翻页残影靠这个才不闪） */
   useLayoutEffect(() => {
@@ -1902,7 +2142,7 @@ function PdfPageView(props: {
         'mw-page',
         active && 'is-active',
         ghost && 'is-ghost',
-        railItems.length > 0 && 'has-rail',
+        (chips.length > 0 || opened !== null) && 'has-rail',
         state === 'loading' && 'is-loading',
         state === 'error' && 'is-error'
       )}
@@ -1912,20 +2152,46 @@ function PdfPageView(props: {
       {/* 画布由 pdf.js 直接挂到这个宿主节点上：React 不往里面渲染任何东西，避免两方争抢同一批子节点 */}
       <div ref={holder} className="mw-page-host" />
       <span className="mw-page-no">{pageNumber}</span>
-      {showInk ? <InkStrokes strokes={inkAll.map((item) => ({ id: item.mark.id, points: item.points }))} box={box} rotation={rotation} /> : null}
-      {stroke ? (
+      {showInk ? (
         <InkStrokes
-          strokes={[{ id: -1, points: stroke.map((point) => displayToPage(point[0], point[1], rotation)) }]}
+          strokes={inkAll.map((item) => ({
+            id: item.mark.id,
+            region: item.region,
+            active: opened !== null && opened.id === item.mark.id
+          }))}
           box={box}
           rotation={rotation}
+          onOpen={toggleNote}
         />
       ) : null}
-      <InkDots items={dots} rotation={rotation} />
-      <NoteRail items={railItems} side={noteSide} pageWidth={box.width} onRemove={(markId) => onRemoveNote?.(markId)} />
+      {sketch ? (
+        <InkStrokes strokes={[{ id: -1, region: sketch, active: false }]} box={box} rotation={rotation} />
+      ) : null}
+      <InkDots items={dots} rotation={rotation} activeId={openNoteId} onOpen={toggleNote} />
+      <NoteQuickBar items={chips} activeId={openNoteId} onOpen={toggleNote} />
+      <NoteRail
+        items={railItems}
+        side={noteSide}
+        pageWidth={box.width}
+        onRemove={(markId) => onRemoveNote?.(markId)}
+      />
+      {opened ? (
+        <NotePopover
+          mark={opened}
+          index={openedIndex}
+          left={popSpot.left}
+          top={popSpot.top}
+          onRemove={(markId) => {
+            onOpenNote?.(null)
+            onRemoveNote?.(markId)
+          }}
+          onClose={() => onOpenNote?.(null)}
+        />
+      ) : null}
       {inkMode && active ? (
         <div
           className="mw-ink-catch"
-          title="按住拖动圈出要注释的部分"
+          title={INK_SHAPE_LABELS.find((item) => item.key === inkShape)?.hint ?? '按住拖动圈出要注释的部分'}
           onPointerDown={inkDown}
           onPointerMove={inkMove}
           onPointerUp={inkUp}
@@ -2617,6 +2883,7 @@ interface CompareCard {
   panY: number
   /** 显示优先级：数大的盖在数小的上面，可以手动调 */
   z: number
+  /** panX / panY = 纸框自己的滚动位置（内容比框大时才能滚，见 clampScroll） */
 }
 /** 画布重画倍率走 1.15 阶梯：缩放不必每一档都重画，阶梯之间用 CSS 缩放补差，拖动才跟手 */
 const CMP_LADDER = 1.15
@@ -2739,19 +3006,28 @@ function CompareOverlay(props: {
     })
   }, [pages, area, ratio])
 
-  /** 平移范围：纸比框大才允许移动，并且不许拖到完全看不见 */
-  const clampPan = useCallback(
-    (card: CompareCard, panX: number, panY: number): { panX: number; panY: number } => {
+  /** 这一页内容现在占多大（CSS 像素）：适配尺寸再乘这一页自己的放大倍率 */
+  const contentSize = useCallback(
+    (card: CompareCard): { width: number; height: number } => {
       const fit = Math.min(card.w / pdf.baseWidth, card.h / pdf.baseHeight)
-      const box = pageSize(pdf.baseWidth, pdf.baseHeight, fit * card.zoom, 0)
-      const maxX = Math.max(0, (box.width - card.w) / 2 + 24)
-      const maxY = Math.max(0, (box.height - card.h) / 2 + 24)
-      return {
-        panX: Math.max(-maxX, Math.min(maxX, panX)),
-        panY: Math.max(-maxY, Math.min(maxY, panY))
-      }
+      return { width: pdf.baseWidth * fit * card.zoom, height: pdf.baseHeight * fit * card.zoom }
     },
     [pdf]
+  )
+
+  /**
+   * 平移改成「纸框自己滚动」而不是位移：位移那套要自己算钳制范围，纸框一旦比画布矮就永远拖不到底
+   * （用户反馈的「只能看到左上那块」）。滚动条的范围由内容尺寸天然决定，四个角一定能滚出来。
+   */
+  const clampScroll = useCallback(
+    (card: CompareCard, left: number, top: number): { panX: number; panY: number } => {
+      const size = contentSize(card)
+      return {
+        panX: Math.max(0, Math.min(Math.max(0, size.width - card.w), left)),
+        panY: Math.max(0, Math.min(Math.max(0, size.height - card.h), top))
+      }
+    },
+    [contentSize]
   )
 
   /** 单独放大某一页：带锚点时指针指着的那一点原地不动，放大后按住就能拖着看 */
@@ -2763,13 +3039,14 @@ function CompareOverlay(props: {
         const zoom = Math.max(CMP_MIN_ZOOM, Math.min(CMP_MAX_ZOOM, card.zoom * factor))
         if (Math.abs(zoom - card.zoom) < 0.0005) return prev
         const times = zoom / card.zoom
-        const panX = origin ? origin.x - (origin.x - card.panX) * times : card.panX
-        const panY = origin ? origin.y - (origin.y - card.panY) * times : card.panY
-        const spot = clampPan({ ...card, zoom }, panX, panY)
+        /* 缩放以纸框左上角为原点（CSS zoom 就是这样），所以滚动位置按同一比例换算，指针指着的那一点才不动 */
+        const ax = card.w / 2 + (origin ? origin.x : 0)
+        const ay = card.h / 2 + (origin ? origin.y : 0)
+        const spot = clampScroll({ ...card, zoom }, (card.panX + ax) * times - ax, (card.panY + ay) * times - ay)
         return { ...prev, [page]: { ...card, zoom, panX: spot.panX, panY: spot.panY } }
       })
     },
-    [clampPan]
+    [clampScroll]
   )
 
   /* 滚轮缩放：React 的 onWheel 是 passive 监听，拦不住浏览器自己的页面缩放，这里挂原生监听 */
@@ -2800,6 +3077,8 @@ function CompareOverlay(props: {
     const middle = event.button === 1
     if (event.button !== 0 && !middle) return
     if ((event.target as HTMLElement | null)?.closest('button')) return
+    /* 别抢纸框自己的滚动条：指针落在滚动条那一条上就不当作拖动 */
+    if (mode === 'pan' && (event.nativeEvent.offsetX > event.currentTarget.clientWidth || event.nativeEvent.offsetY > event.currentTarget.clientHeight)) return
     const card = cards[page]
     if (!card) return
     event.preventDefault()
@@ -2825,13 +3104,14 @@ function CompareOverlay(props: {
       if (current.mode === 'resize') {
         const w = Math.max(140, Math.min(area.width - 8, base.w + dx))
         const h = Math.max(100, Math.min(Math.max(120, area.height - CMP_BAR - 8), base.h + dy))
-        const spot = clampPan({ ...base, w, h }, base.panX, base.panY)
+        const spot = clampScroll({ ...base, w, h }, base.panX, base.panY)
         return {
           ...prev,
           [current.page]: clampCard({ ...card, w, h, panX: spot.panX, panY: spot.panY }, area)
         }
       }
-      const spot = clampPan(base, base.panX + dx, base.panY + dy)
+      /* 按住纸面往哪拖，内容就往哪走：滚动位置是反过来的 */
+      const spot = clampScroll(base, base.panX - dx, base.panY - dy)
       return { ...prev, [current.page]: { ...card, panX: spot.panX, panY: spot.panY } }
     })
   }
@@ -2857,12 +3137,35 @@ function CompareOverlay(props: {
         .map((item) => ({ page: item, z: prev[item]?.z ?? 0 }))
         .sort((a, b) => b.z - a.z)
       const index = order.findIndex((item) => item.page === page)
-      const swapWith = order[index + step]
+      /* order 是「从上往下」排的：上移一层要换的是前一个（index - 1），之前写反了，
+         结果最上面那张点了没反应、下面的点了反而沉到底，看着就是「层级功能不能用」 */
+      const swapWith = order[index - step]
       if (index < 0 || !swapWith) return prev
       const mine = prev[page]
       const theirs = prev[swapWith.page]
       if (!mine || !theirs) return prev
       return { ...prev, [page]: { ...mine, z: theirs.z }, [swapWith.page]: { ...theirs, z: mine.z } }
+    })
+  }
+
+  /** 纸框的滚动位置以 DOM 为准：状态变了写回去，用户自己滚了也同步回状态 */
+  const frameRefs = useRef<Record<number, HTMLDivElement | null>>({})
+  useLayoutEffect(() => {
+    pages.forEach((page) => {
+      const el = frameRefs.current[page]
+      const card = cards[page]
+      if (!el || !card) return
+      if (Math.abs(el.scrollLeft - card.panX) > 0.5) el.scrollLeft = card.panX
+      if (Math.abs(el.scrollTop - card.panY) > 0.5) el.scrollTop = card.panY
+    })
+  }, [cards, pages])
+  const onFrameScroll = (page: number, el: HTMLDivElement): void => {
+    setCards((prev) => {
+      const card = prev[page]
+      if (!card) return prev
+      const spot = clampScroll(card, el.scrollLeft, el.scrollTop)
+      if (Math.abs(spot.panX - card.panX) < 0.5 && Math.abs(spot.panY - card.panY) < 0.5) return prev
+      return { ...prev, [page]: { ...card, panX: spot.panX, panY: spot.panY } }
     })
   }
 
@@ -2898,7 +3201,7 @@ function CompareOverlay(props: {
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold text-foreground">页面对比</p>
           <p className="truncate text-[11px] text-muted-foreground">
-            拖动纸框摆位置（中键任何时候都能拖整页）· 滚轮或 −／+ 单独放大 · 放大后左键按住平移细看 · 右下角拉大纸框 · 上下调层
+            拖动纸框摆位置（中键任何时候都能拖整页）· 滚轮或 −／+ 单独放大 · 放大后左键按住纸面拖到任意一角 · 右下角拉大纸框 · 上下调层
           </p>
         </div>
         <div className="ml-auto flex shrink-0 items-center gap-1">
@@ -2944,7 +3247,7 @@ function CompareOverlay(props: {
           return (
             <div
               key={page}
-              className="absolute select-none"
+              className="cmp-card absolute select-none"
               style={{ left: card.x, top: card.y, width: card.w, zIndex: card.z }}
               onMouseDown={middleDown}
             >
@@ -2957,12 +3260,25 @@ function CompareOverlay(props: {
                 onPointerCancel={endDrag}
               >
                 <MoveHorizontal className="h-3 w-3 shrink-0 opacity-45" />
-                <span className="cmp-layer shrink-0" title="显示优先级：数大的盖在上面">
+                <button
+                  type="button"
+                  className="cmp-layer shrink-0"
+                  title={
+                    '第 ' +
+                    (pages
+                      .map((item) => ({ item, z: cards[item]?.z ?? 0 }))
+                      .sort((a, b) => b.z - a.z)
+                      .findIndex((entry) => entry.item === page) +
+                      1) +
+                    ' 层（1 在最上面）：点一下把它提到最上层'
+                  }
+                  onClick={() => raise(page)}
+                >
                   {pages
                     .map((item) => ({ item, z: cards[item]?.z ?? 0 }))
                     .sort((a, b) => b.z - a.z)
                     .findIndex((entry) => entry.item === page) + 1}
-                </span>
+                </button>
                 <button
                   type="button"
                   className="cmp-jump max-w-[7rem] truncate"
@@ -2997,9 +3313,13 @@ function CompareOverlay(props: {
               </div>
 
               <div
+                ref={(el) => {
+                  frameRefs.current[page] = el
+                }}
                 data-cmp-page={page}
                 className={cn('cmp-frame', panned ? 'is-pannable' : 'is-movable')}
                 style={{ width: card.w, height: card.h }}
+                onScroll={(event) => onFrameScroll(page, event.currentTarget)}
                 onPointerDown={(event) => startDrag(event, page, panned ? 'pan' : 'move')}
                 onPointerMove={onDragMove}
                 onPointerUp={endDrag}
@@ -3016,21 +3336,21 @@ function CompareOverlay(props: {
                   )
                 }}
               >
-                <div
-                  className="cmp-page"
-                  style={{ transform: `translate(${card.panX}px, ${card.panY}px) scale(${cssScale})` }}
-                >
+                {/* 内容用 CSS zoom 真放大（会撑开尺寸），纸框自己出滚动条：
+                    这样无论放大到多少倍，四个角都一定能拖到、看到，不再依赖手算的位移钳制 */}
+                <div className="cmp-page" style={{ zoom: cssScale }}>
                   <PdfPageView pdf={pdf} pageNumber={page} scale={renderScale} rotation={0} priority={30} />
                 </div>
-                <span
-                  className="cmp-grip"
-                  title="拖动调整这一页的纸框大小"
-                  onPointerDown={(event) => startDrag(event, page, 'resize')}
-                  onPointerMove={onDragMove}
-                  onPointerUp={endDrag}
-                  onPointerCancel={endDrag}
-                />
               </div>
+              {/* 拉手放在纸框外面：框现在会滚动，放在里面会跟着内容跑掉 */}
+              <span
+                className="cmp-grip"
+                title="拖动调整这一页的纸框大小"
+                onPointerDown={(event) => startDrag(event, page, 'resize')}
+                onPointerMove={onDragMove}
+                onPointerUp={endDrag}
+                onPointerCancel={endDrag}
+              />
             </div>
           )
         })}

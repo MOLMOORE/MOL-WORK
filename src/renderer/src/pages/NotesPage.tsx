@@ -19,7 +19,7 @@ import {
   Upload
 } from 'lucide-react'
 import type { Note, NoteImportOptions, NoteImportProgress, NoteImportSummary, NoteKind, ReviewRating } from '@shared/types/domain'
-import { IMPORT_FORMAT_GROUPS } from '@shared/constants'
+import { IMPORT_FORMAT_GROUPS, TEXTUAL_DOC_FORMATS } from '@shared/constants'
 import { Card, SectionHeader } from '../components/ui/Card'
 import { Badge, EmptyState, Spinner } from '../components/ui/Feedback'
 import { Button, IconButton } from '../components/ui/Button'
@@ -37,6 +37,11 @@ import { addDays, cn, formatDateTime, formatDay, relativeDay } from '../lib/util
 
 /** 三种阅读模式的中文名：列表与编辑器共用 */
 const VIEW_MODE_LABEL: Record<string, string> = { text: '文本', pages: '书页', rich: '排版' }
+/** Word 家族虽然存了原版式书页，但打开时默认走文字视图：标签与摘要都按文字说 */
+const isTextualDoc = (note: Note): boolean =>
+  note.viewMode === 'pages' && TEXTUAL_DOC_FORMATS.includes((note.sourceFormat ?? '').toUpperCase())
+const viewModeLabel = (note: Note): string =>
+  isTextualDoc(note) ? '文字' : VIEW_MODE_LABEL[note.viewMode] ?? '文本'
 /** 导入进度条上的阶段说明 */
 const IMPORT_STAGE_LABEL: Record<string, string> = {
   queue: '排队中',
@@ -621,12 +626,12 @@ export function NotesPage(): JSX.Element {
                   <p className="mt-1 line-clamp-2 min-w-0 text-[11px] leading-relaxed text-muted-foreground">
                     {note.summary !== ''
                       ? note.summary
-                      : note.viewMode === 'text'
+                      : note.viewMode === 'text' || isTextualDoc(note)
                         ? note.content.replace(/[#>*`]/g, '').slice(0, 80) || '暂无正文'
                         : `按 ${note.sourceFormat ?? '原文件'} 原版式显示，图片与排版都在`}
                   </p>
                   <div className="mt-1.5 flex items-center gap-2 text-[10px] text-muted-foreground">
-                    <span className="rounded bg-muted px-1.5 py-0.5">{VIEW_MODE_LABEL[note.viewMode] ?? '文本'}</span>
+                    <span className="rounded bg-muted px-1.5 py-0.5">{viewModeLabel(note)}</span>
                     {note.pageCount > 0 ? <span className="tabular-nums">{note.pageCount} 页</span> : null}
                     {note.readonly ? <span>只读</span> : null}
                     {note.lastPage > 1 && note.viewMode !== 'text' ? (
@@ -870,7 +875,7 @@ export function NotesPage(): JSX.Element {
           onClose={() => setDetailOpen(false)}
           title={current.title}
           description={
-            `${VIEW_MODE_LABEL[current.viewMode] ?? '文本'} · ${current.pageCount > 0 ? `${current.pageCount} 页 · ` : ''}` +
+            `${viewModeLabel(current)} · ${current.pageCount > 0 ? `${current.pageCount} 页 · ` : ''}` +
             (current.readonly ? '只读原版式' : `更新于 ${current.updatedAt.replace('T', ' ').slice(0, 16)}`)
           }
           width="max-w-2xl"

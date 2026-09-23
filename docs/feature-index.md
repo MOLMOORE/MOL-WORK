@@ -1,0 +1,75 @@
+# 功能文件索引（feature index）
+
+> 规则见 `AGENTS.md` 第 0 / 6 节。**改动前先在这里定位文件，改动后立刻回来校准。**
+> 本文件只回答「去哪儿找」，实现细节与历史看 `docs/modifications/by-feature/`。
+> 维护要求：不写散文、不写历史；条目 = 功能 → 文件 → 符号（函数 / 常量 / CSS 类名）。
+
+## 0. 技术栈与硬约束
+- Electron + React 18 + Vite（electron-vite 三端）+ TypeScript；Tailwind 3.4；图标 lucide-react
+- 主进程数据层 `node:sqlite`；渲染层来源 file://，pdf.js 用 legacy 构建 + 主线程假 worker
+- 源文件一律 CRLF、无 BOM；PowerShell 写文件要用单引号 here-string 或走 node 脚本
+- 阅读界面不套应用外壳：`App.tsx` 里 `/reader/:noteId` 是独立路由（无 AppLayout）
+
+## 1. 阅读界面（`src/renderer/src/pages/ReaderPage.tsx`，单文件大页面）
+| 功能线 | 主要符号 |
+| --- | --- |
+| 页面骨架 / 状态汇总 | `ReaderPage()`（顶部状态区：mode / layout / flip / zoom / inkMode / compare） |
+| 阅读方式（书页 / 文字 / 排版） | `src/shared/constants.ts` 的 `TEXTUAL_DOC_FORMATS`、`prefersTextView()`、`mode`、`canTextView`、`textView`、`textBody` |
+| 翻页动效（直切/淡入/推移/覆盖/翻书） | `turning`、`step()`、`TURN_MS`、`resetPage()`、`shownRef/pageRef`；CSS `.mw-book*`、`@keyframes mw-*` |
+| 书页舞台（PDF / 原版式） | `PdfStage()`、`ContinuousPages()`、`PdfPageView()`；`src/renderer/src/lib/pdf.ts`（`openPdf/pageCanvas/peekCanvas/mountCanvas/pageSize/pageText`） |
+| 排版舞台（网页 / EPUB iframe） | `RichStage()` |
+| 文字舞台（TXT / MD / 抽取正文） | `TextStage()`、`READER_FONTS`、`FONT_KEY/FONTSIZE_KEY`；CSS `.reader-text`、`pre.reader-plain` |
+| 缩放 / 平移 / 双击放大 | `fitScale`、`scale`、`zoomBy`、`canPan`、`onPanDown/Move/End`、`handleWheelZoomRich`、stage `onDoubleClick` |
+| 左右点击翻页热区 | `canZoneFlip`、`.mw-pagezone*`、`showHint()`（到头提示） |
+| 圈画批注（形状 / 锚定气泡） | `InkShape`、`InkRegion`、`INK_SHAPE_LABELS`、`parseInk`、`displayToPage / pageToDisplay / inkOutline / displayBox`、`InkStrokes`、`InkDots`、`NoteQuickBar`、`NoteRail`、`NotePopover`、`MarkComposer`、`handleInk`、`inkMode`、`inkShape`、`openNote`、`showInk/showNotes`；CSS `.mw-ink*`、`.mw-note-*` |
+| 侧栏（页面/目录/注释/查找/本页） | `PANEL_TABS`、`ReaderPanel()`、`thumbOnly`、`PageThumbPicker()` |
+| 页面对比工作台 | `CompareOverlay()`、`CompareCard`（panX/panY = 纸框滚动位置）、`compareSlots()`、`clampCard()`、`contentSize()`、`clampScroll()`、`frameRefs`/`onFrameScroll`、`shiftZ()`、`raise()`、`ladder()`、`budgetScale()`；CSS `.cmp-*`（`.cmp-frame` 是滚动容器，`.cmp-page` 用 CSS zoom） |
+| 页面提取 | `ExtractDialog()`、`parsePageSpec()`；主进程 `src/main/services/note-extract.service.ts`（IPC `note:extract-pages`） |
+| Esc 归属（先关浮层再退全屏） | `src/renderer/src/lib/escape.ts`、`blockEscapeFullscreen()`；兜底在 `components/layout/TitleBar.tsx` |
+| 快捷键 | `ReaderPage` 内 `onKey`（← → 空格 +/- 0 r b s e f l 1 2 3 Esc） |
+
+## 2. 笔记列表（`src/renderer/src/pages/NotesPage.tsx`）
+- 阅读方式标签：`isTextualDoc()`、`viewModeLabel()`（Word 类显示「文字」而不是「书页」）
+- 排序：`NOTE_SORTS`、`DEFAULT_DIRS`、`loadSortDirs()`、`sortNotes()`、`chooseSort()`、`toggleSortDir()`、`applyReorder()`（拖拽落库）
+- 导入：`stageImport()`、`confirmImport()`、`handleDropFiles()`（拖拽遮罩文案）、`importOptions()`
+- 详情弹窗：`openDetail()` 与详情 JSX（「资料简介」等文案在此）
+- 存储：`KIND_TABS`、`VIEW_MODE_LABEL`；store `src/renderer/src/stores/noteStore.ts`
+
+## 3. 数据层（`src/main/db/`）
+- 迁移：`migrations/00N_*.ts` + 注册表 `migrations/index.ts`（当前 v8：`note-mark-region`）
+- 行→对象：`mappers.ts`；仓储：`repositories/note.repo.ts`（含 `reorderNotes`、`noteMarks`、`saveNoteMark`）
+- 类型单一来源：`src/shared/types/domain.ts`（`Note`、`NoteDocInfo`、`NoteMark.region`）
+- 跨端共享清单：`src/shared/constants.ts`（`IMPORT_EXTENSIONS`、`TEXTUAL_DOC_FORMATS`、主题皮肤表）
+
+## 4. 导入与阅读模式（`src/main/services/`）
+- 分派表：`import/index.ts`（`parseDocument` 的 switch、`prepareDocument`、`TEXT_EXTS/PAGINATED_EXTS/RICH_EXTS/EDITABLE_DOC_EXTS`）
+- 各格式解析：`import/ooxml.ts`（docx/pptx/xlsx/epub/odf）、`import/pdf.ts`、`import/text.util.ts`、`import/legacy-office.ts`、`import/to-pdf.ts`（LibreOffice/Office 转 PDF）、`import/html-bundle.ts`
+- 阅读模式判定：`note.service.ts` 的 `readNoteDoc()`（有 PDF 渲染件就回 `pages`）
+- IPC 面：`src/main/ipc/note.ipc.ts`（`note:doc` / `note:marks` / `note:mark-save` / `note:extract-pages` / `note:reorder` …）+ `src/shared/types/ipc.ts` + `src/renderer/src/lib/ipc.ts`（新增通道三处同步）
+
+## 5. 窗口与外壳
+- 自绘标题栏（最小化/最大化/关闭、全屏）：`src/renderer/src/components/layout/TitleBar.tsx`；主进程 `src/main/index.ts`
+- 应用外壳 / 侧栏 / 皮肤装饰：`AppLayout.tsx`、`Sidebar.tsx`、`SkinChrome.tsx`、`PageGrid.tsx`、`GridBoard.tsx`
+- 全局状态：`src/renderer/src/stores/appStore.ts`（主题、皮肤、设置）
+
+## 6. 主题与皮肤（`src/renderer/src/styles/index.css`）
+- 令牌：`[data-theme]` / `[data-skin]` 上的 `--n-*`、`--p-*`、`--r-*`；皮肤规则块按 `html[data-skin=...]` 分组（magazine / glass / terminal / brutal / dash / cream / retro …）
+- **新增组件样式一律走主题令牌**（`hsl(var(--...))`），不要写死颜色，否则会破坏皮肤适配
+- 阅读与批注相关组件层：`.mw-*`（书页、圈画、旁注）、`.cmp-*`（对比工作台）、`.reader-*`
+
+## 7. 工具集 / 任务 / 统计 / 番茄（速查）
+- 工具：`src/main/tools/registry.ts`（注册即生效）、`tools/runners/*.runner.ts`、`src/main/utils/{binaries,command,dependency-check}.ts`、页面 `ToolsPage.tsx` + `components/tool/*`
+- 任务：`pages/TasksPage.tsx`、`components/task/*`、`services/task.service.ts`、`repositories/task.repo.ts`
+- 统计：`pages/StatsPage.tsx`、`components/stats/*`、`services/stats.service.ts`、`overview.service.ts`
+- 番茄与专注：`pages/PomodoroPage.tsx`、`stores/pomodoroStore.ts`、`services/schedule.service.ts`、`repositories/focus.repo.ts`
+- 复习：`components/review/ReviewQueue.tsx`、`services/review.service.ts`
+
+## 8. 版本信息双写点（发版必改）
+- `CHANGELOG.md`（顶部追加）与 `src/renderer/src/pages/SettingsPage.tsx` 的 `CHANGELOG` 常量（顶部追加同一条）
+- `package.json` 的 `version`；打包配置 `electron-builder.yml`；产物目录 `release/`（历史包进 `release/archive/`）
+
+## 9. 修改记录
+- 按版本：`docs/modifications/by-version/`（一次提交一篇）
+- 按功能：`docs/modifications/by-feature/`（同一功能线追加在篇首）
+- 回看往届只读对应那一篇；找不到就先看本索引定位功能线，别全仓 grep
+- 这套文档规矩本身的来历与自查结论：`by-feature/docs-index.md`

@@ -528,6 +528,13 @@ export function resolveClockSettings(
   return { style, layout: safeLayout }
 }
 
+/**
+ * 文字为主的原版式格式：导入时会转成 PDF 书页（保留原版式），但正文也抽进了库里，
+ * 阅读界面默认按「文字」打开，可以换字体、调字号、放大；要核对排版再手动切回书页。
+ * PDF / PPT / Excel 不在其列 —— 它们的版式就是内容，只整页缩放。
+ */
+export const TEXTUAL_DOC_FORMATS = ['DOC', 'DOCX', 'RTF', 'WPS', 'ODT']
+
 /** 笔记导入支持的扩展名：文件选择框、拖拽判定与格式说明共用同一份清单 */
 export const IMPORT_EXTENSIONS: string[] = [
   '.pdf', '.docx', '.doc', '.odt', '.rtf', '.wps',
