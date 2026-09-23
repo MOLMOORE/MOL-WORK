@@ -1,7 +1,21 @@
 # 阅读 · 书页/文字阅读方式与字体字号
 
-> 功能线速查：ReaderPage.tsx（mode/canTextView/textView/textBody/READER_FONTS/TextStage/RichStage）+ index.css（.reader-text / pre.reader-plain）
+> 功能线速查：ReaderPage.tsx（mode/canTextView/textView/textBody/pagedText/hasPages/READER_FONTS/TextStage/TextBook/txSheet/TX_*/usedColumnCount）+ index.css（.reader-text / pre.reader-plain / .tx-sheet .tx-zoom .tx-flow .tx-grip）
 > 记录格式见 `docs/modifications/README.md`；新改动**追加在本行下方的最前面**。
+
+## 2026-09-23 · v1.2.5 第 6 轮
+- 需求：文字模式也先给一张纸（用户能自己改边界、正文跟着重排），并且要有书页那套功能（单页 / 双页 / 连续 + 五种翻页动效）。
+- 根因（挡路的地方）：`mode === 'text'` 在十几处判据里被当成「没有页」写死 —— 进度落库、页码显示、左右热区、滚轮翻页、左键平移、批注页号、canPan 全部直接 return 或塞 0。
+- 改法：新增 `TextBook` 舞台。一张纸里放一个多栏正文流：`.tx-zoom` 负责裁切 + 整页放大（CSS zoom，不重排），`.tx-flow` 用 `column-count` 排栏，**一栏 = 一页**，第 k 页 = `translateX(-(k-1)*(栏宽+栏间距))`；双页就是一张纸两栏，和书页的 `page / page+1` 语义一致，翻页动效直接复用 `.mw-book / .mw-layer` 那套。
+  判据换成 `pagedText`（文字模式且布局不是连续）与 `hasPages`，上面那十几处一律改读 `hasPages`。
+- 栏宽为什么不能只给 `column-width`：MDN / Readium 都写明浏览器会把栏**拉伸填满**容器，所以宽度按 `n*栏宽 + (n-1)*栏间距` 算死，配合 `column-count: n` 才正好。
+- 栏数怎么定：`column-count` 给少了 Chromium 会**自己往外长栏**（实测问 1 栏得 10 栏，scrollWidth 超容器），给多了留空栏 —— `usedColumnCount()` 量最后一个块的**右沿**落在第几栏来校正。
+  坑：第一版量**左沿**，正好压在栏分界上的块会因亚像素误差在 8/9 之间来回弹（Playwright 实测 6 步不收敛）；改量右沿（再往回让半个字）后 380~900px 十四种纸宽全部一步收敛，另加「弹超过 4 次就取大值」兜底。
+- 边界：纸的右 / 下 / 右下角三个 `.tx-grip` 可拖，尺寸存 `workstation.reader.txpage.v1`；没拖过就跟着舞台自适应（单页最宽 980、双页 1500、高 = 舞台 - 76），点缩放条上的百分比交还给窗口。
+- 性能：正文 `useMemo` 只认 `text`，翻页 / 缩放 / 拖边界都复用同一棵 DOM，不会每翻一页重解析 Markdown；`.tx-flow` 不加 `will-change`（超长文档会撑出一个几十万像素宽的合成层）。
+- 位置：`ReaderPage.tsx`（TextBook / usedColumnCount / pagedText / hasPages / txSheet / resizeTxSheet / handleTextPageCount / stepZoom / TX_* 常量）、`index.css`（.tx-sheet / .tx-zoom / .tx-flow / .tx-grip*）。
+- 验证：Playwright `work/patch/txpage.mjs`、`txpage2.mjs` 量出长栏、空栏、右沿判据与 zoom 换算；L0 tsc + build。
+- 遗留：侧栏「页面 / 本页」在文字模式下仍隐藏（缩略图要每栏重画一遍）；排版模式（网页 / EPUB）仍不分页；老数据里 `page = 0` 的书签注释不会出现在任何一页。
 
 ## 2026-09-23 · v1.2.5 第 4 轮（推翻上一版做法）
 - 现象：点「文字」一直停在「正在准备文字视图…」，看着像卡死。

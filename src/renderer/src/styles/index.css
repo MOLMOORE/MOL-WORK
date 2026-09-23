@@ -1909,3 +1909,115 @@
     color: hsl(var(--foreground));
   }
 }
+
+/* ==========================================================================
+   文字模式的「纸」与行内标记（v1.2.5 第六轮）
+   一栏 = 一页：栏宽靠 column-count + 容器宽度算死（只给 column-width 会被拉伸填满），
+   栏数靠「最后一个块的最后一个片段落在第几栏」量出来，实测两步收敛。
+   配色一律走主题令牌，换皮肤 / 换深浅色都跟着变。
+   ========================================================================== */
+@layer components {
+  /* Electron 的窗口拖动区域是整窗命中测试算出来的：自绘标题栏那 34px 会压在整页浮层顶上，
+     浮层顶部的按钮「按了没反应」（对比界面的「重排」）就是被 drag 区域吃了。
+     浮层显式声明 no-drag，点击才收得到。 */
+  .cmp-shell,
+  .mw-overlay {
+    -webkit-app-region: no-drag;
+  }
+
+  /* 纸面：尺寸 = 页面边界 × 缩放；正文在 .tx-zoom 里按未缩放的排版像素排栏。
+     裁切交给 .tx-zoom：纸上有旁注时 .mw-page.has-rail 会放开 overflow，
+     这时再靠纸自己裁，其余的栏就会从纸边漏出来 */
+  .tx-sheet {
+    position: relative;
+    background: #fff;
+    overflow: visible;
+  }
+  .tx-zoom {
+    position: absolute;
+    left: 0;
+    top: 0;
+    overflow: hidden;
+  }
+  .tx-flow {
+    position: absolute;
+    column-fill: auto;
+    overflow: hidden;
+    color: hsl(var(--foreground));
+  }
+  /* 还没量准栏数的那一帧先藏起来，免得看到半页内容跳一下 */
+  .tx-sheet.is-measuring .tx-flow {
+    visibility: hidden;
+  }
+
+  /* 拖边界的手柄：右、下、右下角，鼠标在纸上时才出现，不抢正文选中 */
+  .tx-grip {
+    position: absolute;
+    z-index: 4;
+    opacity: 0;
+    transition: opacity 140ms ease;
+    touch-action: none;
+  }
+  .tx-sheet:hover .tx-grip,
+  .tx-grip:active {
+    opacity: 1;
+  }
+  .tx-grip-w {
+    top: 0;
+    right: -5px;
+    width: 11px;
+    height: 100%;
+    cursor: ew-resize;
+  }
+  .tx-grip-h {
+    bottom: -5px;
+    left: 0;
+    width: 100%;
+    height: 11px;
+    cursor: ns-resize;
+  }
+  .tx-grip-wh {
+    right: -6px;
+    bottom: -6px;
+    width: 16px;
+    height: 16px;
+    cursor: nwse-resize;
+    border-right: 3px solid hsl(var(--muted-foreground) / 0.6);
+    border-bottom: 3px solid hsl(var(--muted-foreground) / 0.6);
+    border-bottom-right-radius: var(--r-lg);
+  }
+
+  /* 荧光笔：底色压在字下面，box-decoration-break 让跨行、跨栏的每一段都带满底色 */
+  mark.tx-hl {
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
+    padding: 0.05em 0;
+    border-radius: 2px;
+    background: hsl(var(--warning) / 0.42);
+    color: inherit;
+    cursor: pointer;
+  }
+  /* 带旁注的行内标记：再加一条主色下带，和纯高亮区分开 */
+  mark.tx-hl.is-annotated {
+    box-shadow: inset 0 -0.13em 0 hsl(var(--primary) / 0.5);
+  }
+  mark.tx-hl.is-active {
+    background: hsl(var(--warning) / 0.68);
+    box-shadow: inset 0 -0.13em 0 hsl(var(--primary));
+  }
+
+  /* 选中正文后浮出来的小条：涂荧光笔 / 在旁边写注释 */
+  .tx-selbar {
+    position: absolute;
+    z-index: 6;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 3px;
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--r-lg);
+    background: hsl(var(--surface) / 0.98);
+    color: hsl(var(--foreground));
+    box-shadow: 0 12px 26px -16px rgba(0, 0, 0, 0.8);
+  }
+}

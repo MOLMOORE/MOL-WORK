@@ -3,6 +3,15 @@
 > 功能线速查：ReaderPage.tsx（CompareOverlay/CompareCard/compareSlots/clampCard/setCardZoom/shiftZ/raise/normalizeZ/zCollides/cmpKey/stackOrder/layerNo/stack/relayout/clampScroll/scrollMax/contentSize/frameRefs/ladder/budgetScale）+ index.css（.cmp-*）
 > 记录格式见 `docs/modifications/README.md`；新改动**追加在本行下方的最前面**。
 
+## 2026-09-23 · v1.2.5 第 6 轮
+- 需求：顶栏「重排」按钮范围不准，鼠标明明在上面按下却识别不到。
+- 根因：**不是热区大小问题**。`.cmp-shell` 是 `fixed inset-0`，顶栏正好落在窗口最上面那 34px —— 自绘标题栏 `.titlebar-drag` 的 `-webkit-app-region: drag` 区域是整窗命中测试算出来的，压在它上面的浮层不声明 no-drag，按下就被当成移动窗口，只有偶尔没位移时才漏出 click（所以是「有时」点不动）。
+  同一条证据：右端的关闭键一直好用 —— 它正对着 `.titlebar-actions`（no-drag）在 drag 区上挖的那个洞。
+- 改法：`.cmp-shell, .mw-overlay { -webkit-app-region: no-drag }`；`ReaderOverlay`（提取 / 注释弹窗）根节点补 `mw-overlay` 类，一并解决「弹窗顶部按钮落在同一带里」的隐患。
+- 参考：Electron 自定义标题栏与 Chromium 拖拽区域的同型 issue（modal 顶部按钮点不动，加 no-drag 解决）。
+- 位置：`index.css`（cmp 段末尾）、`ReaderPage.tsx`（ReaderOverlay 根类名）。
+- 遗留：声明 no-drag 后，从对比浮层顶部按住拖动窗口这个动作没有了（浮层是模态，关掉就能拖，可接受）。
+
 ## 2026-09-23 · v1.2.5 第 5 轮
 - 需求：①「上下层显示」还是点了没反应；② 放大后左键拖不动右下（中键在同一片也失灵），但下边右边的滚动条一直能拖。
 - 根因：

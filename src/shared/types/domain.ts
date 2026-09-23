@@ -13,7 +13,7 @@ export type NoteViewMode = 'text' | 'pages' | 'rich'
 /** 书库里的渲染文件类型（没有渲染件时为 null） */
 export type NoteDocKind = 'pdf' | 'html' | null
 /** 读书笔记标记：书签 / 重点页 / 注释 */
-export type NoteMarkKind = 'bookmark' | 'star' | 'note'
+export type NoteMarkKind = 'bookmark' | 'star' | 'note' | 'highlight'
 export type EventType = 'task' | 'review' | 'reminder' | 'focus'
 export type ReviewStatus = 'active' | 'suspended' | 'mastered'
 /** 0=重来 1=困难 2=一般 3=简单 */
@@ -246,7 +246,7 @@ export interface NoteMark {
   body: string
   /** 标记颜色（留空走强调色） */
   color: string
-  /** 圈注区域：归一化到页面自身坐标的 JSON，空串 = 整页注释 */
+  /** 批注定位信息：圈画是归一化到页面的 {kind,points}，文字页的行内标记是 {kind:range,start,end}，空串 = 整页注释 */
   region: string
   createdAt: string
 }
