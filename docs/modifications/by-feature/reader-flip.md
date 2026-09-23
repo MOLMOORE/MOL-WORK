@@ -3,6 +3,13 @@
 > 功能线速查：ReaderPage.tsx（turning/step/resetPage/canZoneFlip/wheelFlip）+ index.css（.mw-book* / .mw-layer* / @keyframes mw-* / .mw-pagezone*）
 > 记录格式见 `docs/modifications/README.md`；新改动**追加在本行下方的最前面**。
 
+## 2026-09-23 · v1.2.5 第 7 轮（热区缩成小按键）
+- 需求：左右翻页的判定范围太广，只保留小按键那块区域。
+- 根因：`.mw-pagezone` 是「整列高 + 14% 宽（min 64px）」的透明按钮，平时 `opacity: 0`，鼠标进到那一大片里悬停才显形 —— 挪鼠标路过就翻页。
+- 改法：按键自己就是可视体：38×66 圆角、左右各 10px、垂直居中，常驻 45% 不透明度、悬停点亮（配色走 `--surface` / `--border` / `--tint-primary`，深浅色与各皮肤都跟）。可点范围 = 看得见的那颗。判据 `canZoneFlip` 不变（放大 / 可拖动 / 连续 / 圈注时照旧收起），双击放大仍被 `stopPropagation` 挡住。
+- 顺手：底栏提示改「点两侧小按键翻页」「放大后按住左键拖动」；文字模式没放大到溢出时左键让给选词（详见 `reader-text-view.md` 第 7 轮）。
+- 位置：`index.css`（`.mw-pagezone*`）、`ReaderPage.tsx`（两颗按键的 `title`、`<footer>` 提示）。
+- 验证：L0（tsc + build + dist 回读）。
 ## 2026-09-23 · v1.2.5 第 5 轮
 - 需求：普通滚轮翻页要能关，防误触。
 - 改法：新增 wheelFlip 状态（localStorage 键 workstation.reader.wheelflip.v1，默认开 = 原行为）；滚轮回调里在 Ctrl 判据之后加「wheelFlip 为假就 return」，所以 Ctrl+滚轮缩放、「连续」布局的原生滚动都不受影响；工具条「翻页动效」右边加 ToggleChip「滚轮翻页」，只在书页模式且 layout 非 continuous 时出现（连续模式本来就不走这条路径），切换时 showHint 提示一下。

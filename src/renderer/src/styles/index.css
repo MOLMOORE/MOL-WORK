@@ -1226,54 +1226,38 @@
     background: hsl(var(--n-h) var(--n-s) var(--n-l-card));
   }
 
-  /* 点击左右两侧翻页：放大 / 可拖动时自动收起，避免和拖动平移抢操作 */
+  /* 点击翻页：只留左右两个小按键。原来那条 14% 宽、整列高的透明热区太容易误触，
+     现在能点到的就是看得见的那颗按键（放大 / 可拖动 / 圈注时依旧自动收起） */
   .mw-pagezone {
     position: absolute;
-    top: 0;
-    bottom: 0;
+    top: 50%;
     z-index: 5;
-    width: 14%;
-    min-width: 64px;
     display: grid;
     place-items: center;
-    border: none;
-    background: transparent;
-    color: hsl(var(--n-h) var(--n-s) 30%);
-    opacity: 0;
-    transition: opacity 150ms ease, background-color 150ms ease;
+    width: 38px;
+    height: 66px;
+    transform: translateY(-50%);
+    border: 1px solid hsl(var(--border));
+    border-radius: 999px;
+    background: hsl(var(--surface) / 0.9);
+    color: hsl(var(--muted-foreground));
+    opacity: 0.45;
+    transition: opacity 150ms ease, color 150ms ease, background-color 150ms ease;
     cursor: pointer;
   }
   .mw-pagezone-left {
-    left: 0;
-    justify-items: start;
-    padding-left: 10px;
+    left: 10px;
   }
   .mw-pagezone-right {
-    right: 0;
-    justify-items: end;
-    padding-right: 10px;
+    right: 10px;
   }
   .mw-pagezone:hover {
     opacity: 1;
-  }
-  .mw-pagezone-left:hover {
-    background: linear-gradient(90deg, hsl(var(--primary) / 0.14), transparent);
-  }
-  .mw-pagezone-right:hover {
-    background: linear-gradient(270deg, hsl(var(--primary) / 0.14), transparent);
+    color: hsl(var(--tint-primary));
   }
   .mw-pagezone span {
     display: grid;
     place-items: center;
-    width: 30px;
-    height: 30px;
-    border-radius: 999px;
-    background: hsl(0 0% 100% / 0.82);
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.28);
-  }
-  [data-theme='dark'] .mw-pagezone span {
-    background: hsl(var(--n-h) var(--n-s) 14% / 0.86);
-    color: hsl(var(--n-fg));
   }
 
   /* 就地提示：翻到头了、刚提取完，浮在书页下方，不抢任何操作（配色全走主题令牌） */
@@ -1508,6 +1492,13 @@
   .reader-text pre.reader-plain {
     font-family: inherit;
     font-size: inherit;
+    /* 整篇正文就是它：不能带代码块的深底 / 内边距 / 横向滚动，
+       否则深色模式下白纸上会压着一大块黑斑，还会挡住分栏断行 */
+    background: transparent;
+    border-radius: 0;
+    padding: 0;
+    overflow: visible;
+    margin: 0;
   }
 
   /* ==========================================================================
@@ -1930,7 +1921,9 @@
      这时再靠纸自己裁，其余的栏就会从纸边漏出来 */
   .tx-sheet {
     position: relative;
-    background: #fff;
+    /* 纸色走主题令牌：深色模式再也不要「黑底上一张刺眼的白纸」 */
+    background: hsl(var(--card));
+    box-shadow: 0 2px 10px -2px rgba(0, 0, 0, 0.35), 0 0 0 1px hsl(var(--border));
     overflow: visible;
   }
   .tx-zoom {
@@ -1942,12 +1935,10 @@
   .tx-flow {
     position: absolute;
     column-fill: auto;
-    overflow: hidden;
+    /* 容器只有一栏宽：排不下的正文自己长成新的一栏，画到框外也没关系，
+       裁切归 .tx-zoom（它的宽度只比正文区多一点，多出来的栏不会从纸边漏出来） */
+    overflow: visible;
     color: hsl(var(--foreground));
-  }
-  /* 还没量准栏数的那一帧先藏起来，免得看到半页内容跳一下 */
-  .tx-sheet.is-measuring .tx-flow {
-    visibility: hidden;
   }
 
   /* 拖边界的手柄：右、下、右下角，鼠标在纸上时才出现，不抢正文选中 */
@@ -2019,5 +2010,67 @@
     background: hsl(var(--surface) / 0.98);
     color: hsl(var(--foreground));
     box-shadow: 0 12px 26px -16px rgba(0, 0, 0, 0.8);
+  }
+
+  /* 浮条里的两个按键：与顶栏工具组同一套「点亮走主色」的手感 */
+  .tx-selbar-btn {
+    display: grid;
+    place-items: center;
+    padding: 4px 6px;
+    border: none;
+    border-radius: var(--r-md);
+    background: transparent;
+    color: hsl(var(--muted-foreground));
+    cursor: pointer;
+    transition: background-color 140ms ease, color 140ms ease;
+  }
+  .tx-selbar-btn:hover {
+    background: hsl(var(--muted));
+    color: hsl(var(--foreground));
+  }
+
+  /* 顶栏注释工具组：注释 / 圈注 / 圈画 / 旁注 共用一个边框，按键一律「图标 + 文字」，
+     点亮的那项走主色底 —— 免得一个裸图标夹在三个带框按键中间，看着像四套风格 */
+  .mw-toolgroup {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 2px;
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--r-lg);
+    background: hsl(var(--muted));
+  }
+  .mw-tool {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    height: 24px;
+    padding: 0 7px;
+    border: none;
+    border-radius: calc(var(--r-lg) - 2px);
+    background: transparent;
+    color: hsl(var(--muted-foreground));
+    font-size: 11px;
+    line-height: 1;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background-color 140ms ease, color 140ms ease;
+  }
+  .mw-tool:hover {
+    color: hsl(var(--foreground));
+    background: hsl(var(--background) / 0.65);
+  }
+  .mw-tool[data-on] {
+    background: hsl(var(--primary) / 0.16);
+    color: hsl(var(--tint-primary));
+    font-weight: 500;
+    box-shadow: inset 0 0 0 1px hsl(var(--primary) / 0.45);
+  }
+  .mw-tool-sep {
+    flex: none;
+    width: 1px;
+    height: 16px;
+    margin: 0 2px;
+    background: hsl(var(--border));
   }
 }

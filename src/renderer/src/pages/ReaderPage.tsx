@@ -38,8 +38,8 @@ import {
   ArrowDownToLine,
   Trash2,
   Type,
-  Eye,
-  EyeOff,
+  CircleDashed,
+  StickyNote,
   X
 } from 'lucide-react'
 import { TEXTUAL_DOC_FORMATS } from '@shared/constants'
@@ -151,6 +151,10 @@ export function ReaderPage(): JSX.Element {
     if (mode !== 'text') return
     setPanel((current) => (current === 'thumbs' || current === 'page-text' ? 'notes' : current))
   }, [mode])
+  /** 从「文字」切回「书页」：页数要交还给 PDF，否则文字页量出来的页数会把书页卡在 1 页翻不动 */
+  useEffect(() => {
+    if (mode === 'pages' && pdf) setPageCount(pdf.pageCount)
+  }, [mode, pdf])
 
   useEffect(() => {
     localStorage.setItem(FONTSIZE_KEY, String(fontSize))
@@ -247,18 +251,31 @@ export function ReaderPage(): JSX.Element {
   const layoutRef = useRef<StageLayout>('single')
   const stepRef = useRef<(delta: number) => void>(() => undefined)
 
+  /** 一张纸最多就是一屏：再大既看不到整页，也会把整篇正文挤成「一页」，翻页按键形同虚设 */
+  const txLimit = useMemo(
+    () => ({
+      width: Math.max(TX_MIN_W, Math.min(TX_MAX_W, stageSize.width - 24)),
+      height: Math.max(TX_MIN_H, Math.min(TX_MAX_H, stageSize.height - 24))
+    }),
+    [stageSize]
+  )
   /** 文字页的纸张尺寸（未缩放）：双页时这是一张纸的宽，里面排两栏 */
   const txSheet = useMemo(() => {
-    if (txPage !== null) return txPage
-    const cap = layout === 'double' ? 1500 : 980
-    const width = Math.min(cap, Math.max(TX_MIN_W, stageSize.width - 96))
-    const height = Math.min(1400, Math.max(TX_MIN_H, stageSize.height - 76))
-    return { width, height }
-  }, [txPage, layout, stageSize])
-  /** 拖过纸边就固定下来，Ctrl+0 复位时再交回给舞台 */
-  const resizeTxSheet = useCallback((width: number, height: number) => {
-    setTxPage({ width: Math.round(width), height: Math.round(height) })
-  }, [])
+    const capW = Math.min(layout === 'double' ? 1500 : 980, txLimit.width)
+    if (txPage !== null)
+      return { width: Math.min(txPage.width, capW), height: Math.min(txPage.height, txLimit.height) }
+    return { width: capW, height: Math.max(TX_MIN_H, txLimit.height - 16) }
+  }, [txPage, layout, txLimit])
+  /** 拖过纸边就固定下来（一屏封顶），Ctrl+0 复位时再交回给舞台 */
+  const resizeTxSheet = useCallback(
+    (width: number, height: number) => {
+      setTxPage({
+        width: Math.round(Math.min(width, txLimit.width)),
+        height: Math.round(Math.min(height, txLimit.height))
+      })
+    },
+    [txLimit]
+  )
 
   /** 就地提示一条，1.6s 后自己消失；连着按方向键时不重复刷屏 */
   const showHint = useCallback((message: string) => {
@@ -720,16 +737,18 @@ export function ReaderPage(): JSX.Element {
   const saveComposer = async (body: string, quote: string): Promise<void> => {
     const region = composer?.region ?? ''
     const target = composer?.atPage ?? page
+    /** 连续滚动没有页号，标成「正文」，别写成「第 0 页」 */
+    const stamp = hasPages && target > 0 ? '第 ' + target + ' 页' : '正文'
     const created = await api.note.saveMark({
       noteId: id,
       kind: 'note',
       page: hasPages ? target : 0,
       label:
         region === ''
-          ? `注释：第 ${target} 页`
+          ? '注释：' + stamp
           : parseRange(region)
-            ? `旁注：第 ${target} 页`
-            : `圈注：第 ${target} 页`,
+            ? '旁注：' + stamp
+            : '圈注：' + stamp,
       quote,
       body,
       region
@@ -773,19 +792,19 @@ export function ReaderPage(): JSX.Element {
         showHint('已取消这段高亮')
         return
       }
-      const target = pageRef.current
+      const target = hasPages ? pageRef.current : 0
       const created = await api.note.saveMark({
         noteId: id,
         kind: 'highlight',
         page: target,
-        label: '高亮：第 ' + target + ' 页',
+        label: target > 0 ? '高亮：第 ' + target + ' 页' : '高亮：正文',
         quote: quote.slice(0, 600),
         region
       })
       setMarks((list) => [...list, created])
       showHint('已涂亮这一段：点一下标记可以看它的原文，再点一次取消')
     },
-    [id, marks, showHint]
+    [id, marks, showHint, hasPages]
   )
 
   /** 选中一段正文 → 在旁边写条注释：区间和引文一起带进注释框 */
@@ -795,9 +814,9 @@ export function ReaderPage(): JSX.Element {
       kind: 'note',
       quote: quote.slice(0, 600),
       region: JSON.stringify({ kind: 'range', start: range.start, end: range.end }),
-      atPage: pageRef.current
+      atPage: hasPages ? pageRef.current : 0
     })
-  }, [])
+  }, [hasPages])
 
   /** 圈完一块：形状与归一化轨迹一起带进注释框，写完才落库 */
   const handleInk = useCallback((shape: InkShape, points: InkPoint[], target: number) => {
@@ -819,7 +838,8 @@ export function ReaderPage(): JSX.Element {
 
   // ---------- 缩放计算：适应基准 × 用户倍率，窗口变化时自动跟随 ----------
   const fitScale = useMemo(() => {
-    if (!pdf) return 1
+    /* 文字页的纸本来就是照着舞台尺寸定的，再套一层 PDF 适页倍率会让「拖边界」和看到的大小对不上 */
+    if (!pdf || mode === 'text') return 1
     const pad = 44
     const w = Math.max(120, stageSize.width - pad)
     const h = Math.max(120, stageSize.height - pad)
@@ -829,7 +849,7 @@ export function ReaderPage(): JSX.Element {
     if (fit === 'width' || layout === 'continuous') return w / box.width
     if (fit === 'page') return Math.min(w / base, h / box.height)
     return SCREEN_SCALE
-  }, [pdf, stageSize, fit, layout, rotation])
+  }, [pdf, mode, stageSize, fit, layout, rotation])
   const scale = Math.max(0.1, Math.min(12, fitScale * zoom))
   scaleRef.current = scale
   pageCountRef.current = pageCount
@@ -942,6 +962,9 @@ export function ReaderPage(): JSX.Element {
     if (!node || !info || !hasPages) return
     const target = event.target as HTMLElement | null
     if (target?.closest('button, a, input, select, textarea, iframe, [role="switch"], [role="button"]')) return
+    /* 没放大到溢出就别抢左键；文字页的左键要留给选词与选中正文，否则根本圈不出选区 */
+    if (!canPan) return
+    if (pagedText && target?.closest('.tx-flow')) return
     panRef.current = {
       x: event.clientX,
       y: event.clientY,
@@ -1065,94 +1088,67 @@ export function ReaderPage(): JSX.Element {
           </p>
         </div>
 
+        {/* 页码：只有真的有「页」的时候才有（连续滚动的文字模式没有页可跳） */}
         {hasPages ? (
-          <>
-            <div className="flex items-center gap-1">
-              <IconButton label="上一页（←）" onClick={() => step(-1)}>
-                <ChevronLeft className="h-4 w-4" />
-              </IconButton>
-              <input
-                value={page}
-                onChange={(event) => goPage(Number(event.target.value.replace(/\D/g, '')) || 1)}
-                className="h-7 w-14 rounded-md border border-border bg-input px-1 text-center text-xs text-foreground"
-                aria-label="页码"
-              />
-              <span className="text-xs text-muted-foreground">/ {pageCount}</span>
-              <IconButton label="下一页（→）" onClick={() => step(1)}>
-                <ChevronRight className="h-4 w-4" />
-              </IconButton>
-            </div>
-            <Segmented
-              value={layout}
-              title="页面摆放"
-              options={[
-                { key: 'single', label: '单页', icon: <Rows3 className="h-3.5 w-3.5" /> },
-                { key: 'double', label: '双页', icon: <Columns2 className="h-3.5 w-3.5" /> },
-                { key: 'continuous', label: '连续', icon: <List className="h-3.5 w-3.5" /> }
-              ]}
-              onChange={(key) => setLayout(key as StageLayout)}
+          <div className="flex items-center gap-1">
+            <IconButton label="上一页（←）" onClick={() => step(-1)}>
+              <ChevronLeft className="h-4 w-4" />
+            </IconButton>
+            <input
+              value={page}
+              onChange={(event) => goPage(Number(event.target.value.replace(/\D/g, '')) || 1)}
+              className="h-7 w-14 rounded-md border border-border bg-input px-1 text-center text-xs text-foreground"
+              aria-label="页码"
             />
-            <Segmented
-              value={flip}
-              title="翻页动效"
-              options={FLIP_LABELS.map((item) => ({ key: item.key, label: item.label }))}
-              onChange={(key) => setFlip(key as FlipEffect)}
-            />
-            {(mode === 'pages' || pagedText) && layout !== 'continuous' ? (
-              <ToggleChip
-                on={wheelFlip}
-                label="滚轮翻页"
-                hint={
-                  wheelFlip
-                    ? '滚轮滚到页面边缘就翻页：点一下关掉可以防误触（Ctrl+滚轮缩放不受影响）'
-                    : '滚轮翻页已关闭：滚轮只滚动这一页，翻页用 ←／→、两侧点击或上方按键'
-                }
-                icon={<Mouse className="h-3.5 w-3.5" />}
-                onClick={() => {
-                  const next = !wheelFlip
-                  setWheelFlip(next)
-                  showHint(next ? '已开启滚轮翻页：滚到页面边缘就翻页' : '已关闭滚轮翻页：滚轮只滚动当前页面')
-                }}
-              />
-            ) : null}
-            <div className="flex items-center gap-1 rounded-lg border border-border bg-muted p-0.5">
-              <IconButton label="缩小（Ctrl+滚轮 / Ctrl+-）" onClick={() => stepZoom(1 / 1.2)}>
-                <Minus className="h-3.5 w-3.5" />
-              </IconButton>
-              <button
-                type="button"
-                title="恢复适页（Ctrl+0）"
-                onClick={resetZoom}
-                className="w-14 shrink-0 cursor-pointer text-center text-[11px] tabular-nums text-foreground hover:text-tint-primary"
-              >
-                {zoomPercent}%
-              </button>
-              <IconButton label="放大（Ctrl+滚轮 / Ctrl++）" onClick={() => stepZoom(1.2)}>
-                <Plus className="h-3.5 w-3.5" />
-              </IconButton>
-            </div>
-            {mode === 'pages' ? (
-              <>
-                <Segmented
-                  value={fit}
-                  title="缩放基准"
-                  options={[
-                    { key: 'width', label: '适宽' },
-                    { key: 'page', label: '适页' },
-                    { key: 'actual', label: '100%' }
-                  ]}
-                  onChange={(key) => {
-                    setFit(key as FitMode)
-                    setZoom(1)
-                  }}
-                />
-                <IconButton label="旋转 90°（R）" onClick={() => setRotation((value) => (value + 90) % 360)}>
-                  <RotateCw className={cn('h-3.5 w-3.5', rotation !== 0 && 'text-tint-primary')} />
-                </IconButton>
-              </>
-            ) : null}
-          </>
-        ) : (
+            <span className="text-xs text-muted-foreground">/ {pageCount}</span>
+            <IconButton label="下一页（→）" onClick={() => step(1)}>
+              <ChevronRight className="h-4 w-4" />
+            </IconButton>
+          </div>
+        ) : null}
+        {/* 页面摆放：书页与文字页都是「单页 / 双页 / 连续」，切去「连续」也随时切得回来 */}
+        <Segmented
+          value={layout}
+          title="页面摆放"
+          options={[
+            { key: 'single', label: '单页', icon: <Rows3 className="h-3.5 w-3.5" /> },
+            { key: 'double', label: '双页', icon: <Columns2 className="h-3.5 w-3.5" /> },
+            { key: 'continuous', label: '连续', icon: <List className="h-3.5 w-3.5" /> }
+          ]}
+          onChange={(key) => {
+            const next = key as StageLayout
+            setLayout(next)
+            /* 一张纸放两页：从偶数页开始会把下一页挤到下一张纸上，切过去先对齐到奇数页 */
+            if (next === 'double' && page % 2 === 0) goPage(page - 1)
+          }}
+        />
+        {hasPages ? (
+          <Segmented
+            value={flip}
+            title="翻页动效"
+            options={FLIP_LABELS.map((item) => ({ key: item.key, label: item.label }))}
+            onChange={(key) => setFlip(key as FlipEffect)}
+          />
+        ) : null}
+        {(mode === 'pages' || pagedText) && layout !== 'continuous' ? (
+          <ToggleChip
+            on={wheelFlip}
+            label="滚轮翻页"
+            hint={
+              wheelFlip
+                ? '滚轮滚到页面边缘就翻页：点一下关掉可以防误触（Ctrl+滚轮缩放不受影响）'
+                : '滚轮翻页已关闭：滚轮只滚动这一页，翻页用 ←／→、两侧点击或上方按键'
+            }
+            icon={<Mouse className="h-3.5 w-3.5" />}
+            onClick={() => {
+              const next = !wheelFlip
+              setWheelFlip(next)
+              showHint(next ? '已开启滚轮翻页：滚到页面边缘就翻页' : '已关闭滚轮翻页：滚轮只滚动当前页面')
+            }}
+          />
+        ) : null}
+        {/* 字号：文字模式不管分页还是连续都要能改（书页是画布，字号与它无关） */}
+        {mode === 'text' ? (
           <div className="flex items-center gap-1 rounded-lg border border-border bg-muted p-0.5">
             <IconButton label="减小字号" onClick={() => setFontSize((value) => Math.max(12, value - 1))}>
               <span className="text-[10px] font-semibold">A−</span>
@@ -1162,8 +1158,51 @@ export function ReaderPage(): JSX.Element {
               <span className="text-[13px] font-semibold">A+</span>
             </IconButton>
           </div>
-        )}
-        {/* 文本 / 排版模式才有字体与内容缩放；书页是画布，字体与它无关 */}
+        ) : null}
+        {/* 缩放：三种模式共用这一个按键组，不再并排摆出两个一模一样的 */}
+        <div className="flex items-center gap-1 rounded-lg border border-border bg-muted p-0.5">
+          <IconButton label="缩小（Ctrl+滚轮 / Ctrl+-）" onClick={() => stepZoom(1 / 1.2)}>
+            <Minus className="h-3.5 w-3.5" />
+          </IconButton>
+          <button
+            type="button"
+            title={mode === 'pages' ? '恢复适页（Ctrl+0）' : pagedText ? '恢复适页（Ctrl+0）：页面边界也交还给窗口' : '恢复 100%（Ctrl+0）'}
+            onClick={() => {
+              if (mode === 'pages') {
+                resetZoom()
+                return
+              }
+              setZoom(1)
+              if (pagedText) setTxPage(null)
+            }}
+            className="w-14 shrink-0 cursor-pointer text-center text-[11px] tabular-nums text-foreground hover:text-tint-primary"
+          >
+            {zoomPercent}%
+          </button>
+          <IconButton label="放大（Ctrl+滚轮 / Ctrl++）" onClick={() => stepZoom(1.2)}>
+            <Plus className="h-3.5 w-3.5" />
+          </IconButton>
+        </div>
+        {mode === 'pages' ? (
+          <>
+            <Segmented
+              value={fit}
+              title="缩放基准"
+              options={[
+                { key: 'width', label: '适宽' },
+                { key: 'page', label: '适页' },
+                { key: 'actual', label: '100%' }
+              ]}
+              onChange={(key) => {
+                setFit(key as FitMode)
+                setZoom(1)
+              }}
+            />
+            <IconButton label="旋转 90°（R）" onClick={() => setRotation((value) => (value + 90) % 360)}>
+              <RotateCw className={cn('h-3.5 w-3.5', rotation !== 0 && 'text-tint-primary')} />
+            </IconButton>
+          </>
+        ) : null}
         {mode !== 'pages' ? (
           <>
             <label className="flex items-center gap-1 rounded-lg border border-border bg-input px-1.5 py-1">
@@ -1181,30 +1220,8 @@ export function ReaderPage(): JSX.Element {
                 ))}
               </select>
             </label>
-            {mode === 'text' ? (
-              <div className="flex items-center gap-1 rounded-lg border border-border bg-muted p-0.5">
-                <IconButton label="缩小（Ctrl+滚轮 / Ctrl+-）" onClick={() => stepZoom(1 / 1.2)}>
-                  <Minus className="h-3.5 w-3.5" />
-                </IconButton>
-                <button
-                  type="button"
-                  title={pagedText ? '恢复适页（Ctrl+0）：页面边界也交还给窗口' : '恢复 100%（Ctrl+0）'}
-                  onClick={() => {
-                    setZoom(1)
-                    if (pagedText) setTxPage(null)
-                  }}
-                  className="w-14 shrink-0 cursor-pointer text-center text-[11px] tabular-nums text-foreground hover:text-tint-primary"
-                >
-                  {zoomPercent}%
-                </button>
-                <IconButton label="放大（Ctrl+滚轮 / Ctrl++）" onClick={() => stepZoom(1.2)}>
-                  <Plus className="h-3.5 w-3.5" />
-                </IconButton>
-              </div>
-            ) : null}
           </>
         ) : null}
-
         <div className="flex items-center gap-1">
           {canTextView ? (
             <Segmented
@@ -1223,46 +1240,55 @@ export function ReaderPage(): JSX.Element {
           <IconButton label="标为重点页（S）" onClick={() => void toggleMark('star')}>
             <Star className={cn('h-4 w-4', hasStar && 'fill-current text-tint-warning')} />
           </IconButton>
-          <IconButton label="写注释（E）" onClick={() => setComposer({ kind: 'note', quote: '' })}>
-            <NotebookPen className="h-4 w-4" />
-          </IconButton>
-          {(mode === 'pages' && pdf !== null) || pagedText ? (
-            <>
-              <ToggleChip
-                on={inkMode}
-                label="圈注"
-                hint={inkMode ? '当前形状：' + (INK_SHAPE_LABELS.find((item) => item.key === inkShape)?.label ?? '') + ' · 再点一下退出圈注（Esc 也可以）' : '在页面上圈出一块（可选形状），松手就能给它写批注'}
-                icon={<Highlighter className="h-3.5 w-3.5" />}
-                onClick={() =>
-                  setInkMode((value) => {
-                    const next = !value
-                    showHint(next ? '圈注模式：在页面上按住拖动圈住要注释的部分，松手写批注（Esc 退出）' : '已退出圈注模式')
-                    return next
-                  })}
-              />
-              {inkMode ? (
-                <Segmented
-                  value={inkShape}
-                  title="圈注形状：这一笔用什么形状圈"
-                  options={INK_SHAPE_LABELS.map((item) => ({ key: item.key, label: item.label }))}
-                  onChange={(key) => setInkShape(key as InkShape)}
+          {/* 注释工具组：五项共用一个边框、同一套「图标 + 文字」按键，点亮的那项走主色 */}
+          <div className="mw-toolgroup">
+            <ToolButton
+              on={composer !== null}
+              label="注释"
+              hint="给这一页写一条注释（E）"
+              icon={<NotebookPen className="h-3.5 w-3.5" />}
+              onClick={() => setComposer({ kind: 'note', quote: '' })}
+            />
+            {(mode === 'pages' && pdf !== null) || pagedText ? (
+              <>
+                <span className="mw-tool-sep" />
+                <ToolButton
+                  on={inkMode}
+                  label="圈注"
+                  hint={inkMode ? '当前形状：' + (INK_SHAPE_LABELS.find((item) => item.key === inkShape)?.label ?? '') + ' · 再点一下退出圈注（Esc 也可以）' : '在页面上圈出一块（可选形状），松手就能给它写批注'}
+                  icon={<Highlighter className="h-3.5 w-3.5" />}
+                  onClick={() =>
+                    setInkMode((value) => {
+                      const next = !value
+                      showHint(next ? '圈注模式：在页面上按住拖动圈住要注释的部分，松手写批注（Esc 退出）' : '已退出圈注模式')
+                      return next
+                    })}
                 />
-              ) : null}
-              <ToggleChip
-                on={showInk}
-                label="圈画"
-                hint="显示 / 隐藏画在纸上的圈画与涂亮的正文"
-                icon={showInk ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
-                onClick={() => setShowInk((value) => !value)}
-              />
-              <ToggleChip
-                on={showNotes}
-                label="旁注"
-                hint="显示 / 隐藏贴在页面边上（或上下空白）的整页注释"
-                icon={showNotes ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
-                onClick={() => setShowNotes((value) => !value)}
-              />
-            </>
+                <span className="mw-tool-sep" />
+                <ToolButton
+                  on={showInk}
+                  label="圈画"
+                  hint="显示 / 隐藏画在纸上的圈画与涂亮的正文"
+                  icon={<CircleDashed className="h-3.5 w-3.5" />}
+                  onClick={() => setShowInk((value) => !value)}
+                />
+                <ToolButton
+                  on={showNotes}
+                  label="旁注"
+                  hint="显示 / 隐藏贴在页面边上（或上下空白）的整页注释"
+                  icon={<StickyNote className="h-3.5 w-3.5" />}
+                  onClick={() => setShowNotes((value) => !value)}
+                />
+              </>
+            ) : null}
+          </div>
+          {inkMode ? (
+            <Segmented
+              value={inkShape}
+              title="圈注形状：这一笔用什么形状圈"
+              options={INK_SHAPE_LABELS.map((item) => ({ key: item.key, label: item.label }))}
+              onChange={(key) => setInkShape(key as InkShape)}
+            />
           ) : null}
           <IconButton label="页内查找（Ctrl+F）" onClick={() => setPanel(panel === 'find' ? null : 'find')}>
             <Search className="h-4 w-4" />
@@ -1413,6 +1439,11 @@ export function ReaderPage(): JSX.Element {
                 zoom={zoom}
                 readonly={info.readonly}
                 onWheelZoom={handleWheelZoomRich}
+                ranges={rangeMarks}
+                showInk={showInk}
+                onHighlight={(range, quote) => void addHighlight(range, quote)}
+                onAnnotate={annotateRange}
+                onRemoveNote={(markId) => void removeMark(markId)}
               />
             )}
 
@@ -1423,7 +1454,7 @@ export function ReaderPage(): JSX.Element {
                   type="button"
                   tabIndex={-1}
                   aria-label="上一页"
-                  title="上一页（点击书页左侧）"
+                  title="上一页（点左侧小按键，或按 ←）"
                   className="mw-pagezone mw-pagezone-left"
                   onClick={() => step(-1)}
                   onDoubleClick={(event) => event.stopPropagation()}
@@ -1436,7 +1467,7 @@ export function ReaderPage(): JSX.Element {
                   type="button"
                   tabIndex={-1}
                   aria-label="下一页"
-                  title="下一页（点击书页右侧）"
+                  title="下一页（点右侧小按键，或按 →）"
                   className="mw-pagezone mw-pagezone-right"
                   onClick={() => step(1)}
                   onDoubleClick={(event) => event.stopPropagation()}
@@ -1462,17 +1493,17 @@ export function ReaderPage(): JSX.Element {
             <span className="h-3 w-px bg-border" />
             <span>← → 翻页</span>
             <span>空格 下一页</span>
-            <span>点书页左右侧翻页</span>
+            <span>点两侧小按键翻页</span>
             <span>到头会提示</span>
             <span>Ctrl+滚轮 缩放</span>
-            <span>按住左键拖动</span>
+            <span>放大后按住左键拖动</span>
             <span>B 书签</span>
             <span>S 重点</span>
             <span>E 注释</span>
             <span>圈注可选形状</span>
             <span>点圈看在旁边</span>
             {mode === 'text' ? <span>选中正文可涂亮或写旁注</span> : null}
-            {pagedText ? <span>拖纸边改页面边界</span> : null}
+            {pagedText ? <span>拖纸边改页面边界，文字量跟着变</span> : null}
             <span>R 旋转</span>
             <span>F / F11 全屏 · Esc 退出</span>
             {readMinutes > 0 ? (
@@ -1637,6 +1668,8 @@ const TX_MIN_H = 280
 const TX_MAX_H = 2600
 /** 一栏最多排到多少页，防止极端内容把 DOM 撑爆 */
 const TX_MAX_COLS = 4000
+/** 文字页可见窗口在正文区两侧各多留的一点余量：必须小于栏间距，否则邻栏会漏一条字出来 */
+const TX_BLEED = 8
 
 /** note_marks.region 存的是 { kind, points }；第三轮的老数据没有 kind，按自由手绘读 */
 function parseInk(json: string): InkRegion | null {
@@ -1780,6 +1813,102 @@ function rangeOffsets(root: HTMLElement, range: Range): TextRange | null {
   while (start < end && /\s/.test(full[start] ?? '')) start += 1
   while (end > start && /\s/.test(full[end - 1] ?? '')) end -= 1
   return end > start ? { start, end } : null
+}
+/** 选中一段正文后浮出来的那条小条：位置是相对宿主元素算的 */
+interface SelectionSpot {
+  range: TextRange
+  quote: string
+  left: number
+  top: number
+}
+
+/**
+ * 「选中正文 → 涂荧光 / 在旁边写注释」：分页的文字纸和连续滚动共用同一套。
+ * root = 正文容器（偏移量按它的 textContent 数），host = 浮条定位的宿主（需要 position: relative）。
+ */
+function useTextSelection(opts: {
+  rootRef: RefObject<HTMLElement | null>
+  hostRef: RefObject<HTMLElement | null>
+  onHighlight: (range: TextRange, quote: string) => void
+  onAnnotate: (range: TextRange, quote: string) => void
+}): { sel: SelectionSpot | null; pick: () => void; clear: () => void } {
+  const { rootRef, hostRef } = opts
+  const [sel, setSel] = useState<SelectionSpot | null>(null)
+  const clear = useCallback((): void => setSel(null), [])
+  /** 松手后读选区：两头削掉空白，量出来的起止就是正文里的字符位置 */
+  const pick = (): void => {
+    const root = rootRef.current
+    const host = hostRef.current
+    if (!root || !host) return
+    const selection = window.getSelection()
+    if (!selection || selection.isCollapsed || selection.rangeCount === 0) {
+      setSel(null)
+      return
+    }
+    const range = selection.getRangeAt(0)
+    if (!root.contains(range.commonAncestorContainer)) {
+      setSel(null)
+      return
+    }
+    const span = rangeOffsets(root, range)
+    if (!span) {
+      setSel(null)
+      return
+    }
+    const quote = (root.textContent ?? '').slice(span.start, span.end)
+    const rects = range.getClientRects()
+    const rect = rects.length > 0 ? rects[0] : range.getBoundingClientRect()
+    const hostRect = host.getBoundingClientRect()
+    setSel({
+      range: span,
+      quote,
+      left: Math.min(Math.max(4, rect.left - hostRect.left), Math.max(4, hostRect.width - 186)),
+      top: Math.max(4, rect.top - hostRect.top - 40)
+    })
+  }
+  return { sel, pick, clear }
+}
+
+/** 选中后浮出来的小条：涂荧光笔 / 给这段写注释 */
+function SelectionBar(props: {
+  sel: SelectionSpot
+  onHighlight: (range: TextRange, quote: string) => void
+  onAnnotate: (range: TextRange, quote: string) => void
+  onClose: () => void
+}): JSX.Element {
+  const { sel, onHighlight, onAnnotate, onClose } = props
+  return (
+    <div
+      className="tx-selbar"
+      style={{ left: sel.left, top: sel.top }}
+      onPointerDown={(event) => event.stopPropagation()}
+      onClick={(event) => event.stopPropagation()}
+    >
+      <button
+        type="button"
+        className="tx-selbar-btn"
+        title="把选中的这段涂成荧光笔（再点一下标记可取消）"
+        onClick={() => {
+          onHighlight(sel.range, sel.quote)
+          onClose()
+        }}
+      >
+        <Highlighter className="h-3.5 w-3.5" />
+      </button>
+      <button
+        type="button"
+        className="tx-selbar-btn"
+        title="给选中的这段在旁边写条注释"
+        onClick={() => {
+          onAnnotate(sel.range, sel.quote)
+          onClose()
+        }}
+      >
+        <NotebookPen className="h-3.5 w-3.5" />
+      </button>
+      <span className="max-w-[9rem] truncate text-[11px] text-muted-foreground">「{sel.quote.slice(0, 16)}」</span>
+    </div>
+  )
 }
 
 /** 纸面被旋转时显示框和页面自身不是一回事：存的时候一律转回页面坐标 */
@@ -1995,6 +2124,24 @@ function NotePopover(props: {
       {mark.quote !== '' ? <p className="mw-note-quote">「{mark.quote}」</p> : null}
       <p className="mw-note-body">{mark.body}</p>
     </div>
+  )
+}
+
+/** 注释工具组里的按键：图标 + 文字，点亮走主色底；全组共用一个边框，风格与「滚轮翻页」那类开关一致 */
+function ToolButton(props: { on: boolean; label: string; hint: string; icon: ReactNode; onClick: () => void }): JSX.Element {
+  const { on, label, hint, icon, onClick } = props
+  return (
+    <button
+      type="button"
+      className="mw-tool"
+      data-on={on || undefined}
+      title={hint}
+      aria-pressed={on}
+      onClick={onClick}
+    >
+      {icon}
+      {label}
+    </button>
   )
 }
 
@@ -2739,7 +2886,7 @@ function RichStage(props: {
   )
 }
 
-/* ==================== 文本舞台（可编辑） ==================== */
+/* ==================== 文本舞台（连续滚动 / 可编辑） ==================== */
 function TextStage(props: {
   text: string
   editing: boolean
@@ -2750,14 +2897,27 @@ function TextStage(props: {
   zoom: number
   readonly: boolean
   onWheelZoom: (factor: number) => void
+  /** 「连续」也要能涂荧光与选中注释：与分页文字纸同一套存法、同一套浮条 */
+  ranges: RangeMark[]
+  showInk: boolean
+  onHighlight: (range: TextRange, quote: string) => void
+  onAnnotate: (range: TextRange, quote: string) => void
+  onRemoveNote: (id: number) => void
 }): JSX.Element {
-  const { text, editing, onEdit, fontSize, fontFamily, zoom, readonly, onWheelZoom } = props
+  const {
+    text, editing, onEdit, fontSize, fontFamily, zoom, readonly, onWheelZoom,
+    ranges, showInk, onHighlight, onAnnotate, onRemoveNote
+  } = props
   const isPlain = !/[#*`>|-]{1}/.test(text.slice(0, 200)) && !/^#{1,6}\s/m.test(text)
-  const scrollRef = useRef<HTMLDivElement>(null)
+  const hostRef = useRef<HTMLDivElement | null>(null)
+  const bodyRef = useRef<HTMLElement | null>(null)
+  const { sel, pick, clear } = useTextSelection({ rootRef: bodyRef, hostRef, onHighlight, onAnnotate })
+  /** 点开的那条行内注释：连续滚动没有「页」，气泡就贴在点到的那段下面 */
+  const [pop, setPop] = useState<{ mark: NoteMark; index: number; left: number; top: number } | null>(null)
 
   /* Ctrl+滚轮缩放：React 的 onWheel 是 passive 监听，拦不住浏览器自己的缩放，挂原生监听 */
   useEffect(() => {
-    const node = scrollRef.current
+    const node = hostRef.current
     if (!node) return undefined
     const onWheel = (event: WheelEvent): void => {
       if (!event.ctrlKey && !event.metaKey) return
@@ -2765,18 +2925,61 @@ function TextStage(props: {
       onWheelZoom(Math.exp(-event.deltaY * 0.0022))
     }
     node.addEventListener('wheel', onWheel, { passive: false })
-    return () => node.removeEventListener('wheel', onWheel)
+    return () => {
+      node.removeEventListener('wheel', onWheel)
+    }
   }, [onWheelZoom])
 
+  /* ---------- 把行内标记画进正文：colW 给 0 = 只画不定位（连续滚动没有栏可归位） ---------- */
+  useLayoutEffect(() => {
+    const root = bodyRef.current
+    if (!root || editing) return
+    const items: RangeItem[] = (showInk ? ranges : []).map((item) => ({
+      id: item.mark.id,
+      start: item.start,
+      end: item.end,
+      quote: item.quote,
+      tone: item.tone
+    }))
+    applyTextRanges(root, items, { colW: 0, gap: 0, scale: 1 })
+  }, [ranges, showInk, text, isPlain, editing, zoom])
+
+  /** 点荧光标记：就地展开它那条注释；点别处收起 */
+  const onBodyClick = (event: ReactMouseEvent<HTMLElement>): void => {
+    const node = (event.target as HTMLElement | null)?.closest?.('mark[data-tx-id]') as HTMLElement | null
+    const host = hostRef.current
+    const markId = node === null ? Number.NaN : Number(node.dataset.txId)
+    const at = ranges.findIndex((item) => item.mark.id === markId)
+    if (!node || !host || at < 0) {
+      setPop(null)
+      return
+    }
+    if (pop !== null && pop.mark.id === markId) {
+      setPop(null)
+      return
+    }
+    const hr = host.getBoundingClientRect()
+    const r = node.getBoundingClientRect()
+    setPop({
+      mark: ranges[at].mark,
+      index: at + 1,
+      left: Math.min(Math.max(8, r.left - hr.left), Math.max(8, hr.width - NOTE_POP_W - 24)),
+      top: r.bottom - hr.top + host.scrollTop + 6
+    })
+  }
+
   return (
-    <div ref={scrollRef} className="reader-scroll h-full overflow-auto px-6 py-8">
+    <div ref={hostRef} className="reader-scroll relative h-full overflow-auto px-6 py-8">
       <article
+        ref={bodyRef}
         className="reader-text mx-auto max-w-[46rem]"
         style={{
-          fontSize: `${fontSize}px`,
+          fontSize: fontSize + 'px',
           fontFamily: fontFamily === '' ? undefined : fontFamily,
           zoom: zoom === 1 ? undefined : String(zoom)
         }}
+        onPointerUp={editing ? undefined : pick}
+        onClick={editing ? undefined : onBodyClick}
       >
         {editing ? (
           <textarea
@@ -2794,13 +2997,35 @@ function TextStage(props: {
         )}
         {readonly && !editing ? (
           <p className="mt-8 border-t border-border pt-3 text-xs text-muted-foreground">
-            这份资料是只读的（导入时按原版式保存）。想要做笔记，用右上角的「写注释」，它会像批注一样跟着页码存进这本书。
+            这份资料是只读的（导入时按原版式保存）。想要做笔记，用上方「注释」，它会像批注一样跟着页码存进这本书。
           </p>
         ) : null}
       </article>
+      {sel && !editing ? (
+        <SelectionBar
+          sel={sel}
+          onHighlight={(range, quote) => void onHighlight(range, quote)}
+          onAnnotate={onAnnotate}
+          onClose={clear}
+        />
+      ) : null}
+      {pop ? (
+        <NotePopover
+          mark={pop.mark}
+          index={pop.index}
+          left={pop.left}
+          top={pop.top}
+          onRemove={(markId) => {
+            setPop(null)
+            onRemoveNote(markId)
+          }}
+          onClose={() => setPop(null)}
+        />
+      ) : null}
     </div>
   )
 }
+
 /* ==================== 文字模式的纸：整篇正文按页面边界排成一栏一页 ==================== */
 /** 一条落在正文里的行内标记：偏移量对的是渲染后的正文，与排版无关 */
 interface RangeMark {
@@ -2859,16 +3084,24 @@ function TextBook(props: TextBookProps): JSX.Element {
   const flowRef = useRef<HTMLDivElement | null>(null)
   const sheetRef = useRef<HTMLDivElement | null>(null)
   const resize = useRef<{ axis: 'w' | 'h' | 'wh'; x: number; y: number; w: number; h: number } | null>(null)
-  /** 0 = 还没量过：这一帧先按一栏排并藏起来，量准了才露出来 */
-  const [cols, setCols] = useState(0)
   const [spots, setSpots] = useState<Record<number, RangeSpot>>({})
-  const [sel, setSel] = useState<{ range: TextRange; quote: string; left: number; top: number } | null>(null)
+  /* 选中一段正文 → 浮出「涂荧光 / 写旁注」：与连续滚动共用同一套 */
+  const { sel, pick: pickSelection, clear: clearSel } = useTextSelection({
+    rootRef: flowRef,
+    hostRef: sheetRef,
+    onHighlight,
+    onAnnotate
+  })
 
   const perSheet = layout === 'double' ? 2 : 1
   const colW = Math.max(140, (sheet.width - TX_PAD_X * 2 - (perSheet - 1) * TX_GAP) / perSheet)
   const colH = Math.max(140, sheet.height - TX_PAD_Y * 2)
   const sheetW = perSheet * colW + (perSheet - 1) * TX_GAP + TX_PAD_X * 2
-  const n = Math.max(1, cols)
+  /** 可见窗口：正文区 + 左右各 TX_BLEED 的余量。
+     纸的出血（44）比栏距（26）还宽，直接拿纸宽当窗口会把上一页 / 下一页的一条字留在纸上，
+     这就是「上一页会露出下一页的片段」；窗口收紧到栏距以内就不漏了。 */
+  const contentW = perSheet * colW + (perSheet - 1) * TX_GAP
+  const clipW = contentW + TX_BLEED * 2
   const isPlain = !/[#*`>|-]{1}/.test(text.slice(0, 200)) && !/^#{1,6}\s/m.test(text)
   /** 正文只认 text：翻页、缩放都复用同一棵 DOM，不会每翻一页重解析一遍 Markdown */
   const body = useMemo(
@@ -2891,41 +3124,21 @@ function TextBook(props: TextBookProps): JSX.Element {
     [onScrollNode]
   )
 
-  /* ---------- 量栏数：先按当前栏数排，量出真正用到第几栏再校正，两步就稳 ---------- */
-  const sigRef = useRef({ text: '', fontSize: 0, fontFamily: '', colW: 0, colH: 0, perSheet: 0 })
-  const triesRef = useRef(0)
-  const sig = sigRef.current
-  const dirty =
-    sig.text !== text || sig.fontSize !== fontSize || sig.fontFamily !== fontFamily || sig.colW !== colW || sig.colH !== colH || sig.perSheet !== perSheet
+  /* ---------- 报页数：容器只有一栏宽，正文排不下的部分自己长成新的一栏，
+     所以量一次「排到了第几栏」就是总页数；栏数不再回写布局，也就不会再出现
+     量不准 → 全挤进一页 → 翻不动 的反馈环（上一版就是这么卡的） ---------- */
   useLayoutEffect(() => {
     const root = flowRef.current
     if (!root || colW < 60 || colH < 60) return
-    if (dirty) {
-      sigRef.current = { text, fontSize, fontFamily, colW, colH, perSheet }
-      triesRef.current = 0
-    }
-    const used = usedColumnCount(root, colW, TX_GAP, scale)
-    if (used === cols) {
-      onPageCount(used)
-      return
-    }
-    if (triesRef.current > 3) {
-      /* 万一还在两个值之间来回弹：宁可多一页空白，也不能少一页内容 */
-      const final = Math.max(cols, used)
-      setCols(final)
-      onPageCount(final)
-      return
-    }
-    triesRef.current += 1
-    setCols(used)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cols, dirty, text, fontSize, fontFamily, colW, colH, perSheet, scale, onPageCount])
+    onPageCount(usedColumnCount(root, colW, TX_GAP, scale))
+  }, [text, fontSize, fontFamily, colW, colH, scale, onPageCount])
 
   /* ---------- 把行内标记画进正文：翻页残影那份是另一张纸，也要画 ---------- */
   useLayoutEffect(() => {
     const stage = stageRef.current
     if (!stage) return
-    const items: RangeItem[] = ranges.map((item) => ({
+    const shown = showInk ? ranges : []
+    const items: RangeItem[] = shown.map((item) => ({
       id: item.mark.id,
       start: item.start,
       end: item.end,
@@ -2948,12 +3161,12 @@ function TextBook(props: TextBookProps): JSX.Element {
       })
       return same ? prev : next
     })
-  }, [ranges, text, isPlain, cols, colW, colH, scale, turning])
+  }, [ranges, showInk, text, isPlain, colW, colH, scale, turning])
 
-  /* 翻页 / 换书 / 退出选中就把浮条收掉，别让它钉在旧位置 */
+  /* 翻页 / 换书就把浮条收掉，别让它钉在旧位置 */
   useEffect(() => {
-    setSel(null)
-  }, [page, text])
+    clearSel()
+  }, [page, text, clearSel])
 
   /** 落在某一栏里的行内标记：气泡与页顶按键都按这个位置摆 */
   const rangesOf = (pageNumber: number): SheetRange[] => {
@@ -2976,38 +3189,6 @@ function TextBook(props: TextBookProps): JSX.Element {
     onOpenNote(openNoteId === markId ? null : markId)
   }
 
-  /* ---------- 选中一段正文：浮出「涂荧光 / 写旁注」 ---------- */
-  const pickSelection = (): void => {
-    const root = flowRef.current
-    const host = sheetRef.current
-    if (!root || !host) return
-    const selection = window.getSelection()
-    if (!selection || selection.isCollapsed || selection.rangeCount === 0) {
-      setSel(null)
-      return
-    }
-    const range = selection.getRangeAt(0)
-    if (!root.contains(range.commonAncestorContainer)) {
-      setSel(null)
-      return
-    }
-    const span = rangeOffsets(root, range)
-    if (!span) {
-      setSel(null)
-      return
-    }
-    const quote = (root.textContent ?? '').slice(span.start, span.end)
-    const rects = range.getClientRects()
-    const rect = rects.length > 0 ? rects[0] : range.getBoundingClientRect()
-    const hostRect = host.getBoundingClientRect()
-    setSel({
-      range: span,
-      quote,
-      left: Math.min(Math.max(4, rect.left - hostRect.left), Math.max(4, hostRect.width - 186)),
-      top: Math.max(4, rect.top - hostRect.top - 40)
-    })
-  }
-
   /* ---------- 拖纸边：改的就是「页面边界」，正文跟着重排 ---------- */
   const startResize = (axis: 'w' | 'h' | 'wh') => (event: ReactPointerEvent<HTMLSpanElement>): void => {
     event.preventDefault()
@@ -3027,9 +3208,8 @@ function TextBook(props: TextBookProps): JSX.Element {
   const endResize = (): void => {
     if (!resize.current) return
     resize.current = null
-    showSelClear()
+    clearSel()
   }
-  const showSelClear = (): void => setSel(null)
 
   const buildSheet = (first: number, ghost: boolean): JSX.Element => {
     const pages = perSheet === 2 ? [first, first + 1] : [first]
@@ -3040,19 +3220,23 @@ function TextBook(props: TextBookProps): JSX.Element {
       <div
         key={ghost ? 'out' : 'in'}
         ref={ghost ? null : sheetRef}
-        className={cn('mw-page tx-sheet', ghost && 'is-ghost', hasNotes && 'has-rail', cols === 0 && 'is-measuring')}
+        className={cn('mw-page tx-sheet', ghost && 'is-ghost', hasNotes && 'has-rail')}
         style={{ width: sheetW * scale, height: sheet.height * scale }}
       >
-        <div className="tx-zoom" style={{ zoom: scale, width: sheetW, height: sheet.height }}>
+        <div
+          className="tx-zoom"
+          style={{ zoom: scale, left: TX_PAD_X - TX_BLEED, width: clipW, height: sheet.height }}
+        >
           <div
             ref={ghost ? null : flowRef}
             className="reader-text tx-flow"
             style={{
-              left: TX_PAD_X,
+              left: TX_BLEED,
               top: TX_PAD_Y,
-              width: n * colW + (n - 1) * TX_GAP,
+              width: colW,
               height: colH,
-              columnCount: n,
+              columnCount: 'auto',
+              columnWidth: colW,
               columnGap: TX_GAP,
               fontSize: fontSize + 'px',
               fontFamily: fontFamily === '' ? undefined : fontFamily,
@@ -3101,7 +3285,7 @@ function TextBook(props: TextBookProps): JSX.Element {
           <>
             <span
               className="tx-grip tx-grip-w"
-              title="按住拖动改页面宽度：正文会跟着重排，页数也会变"
+              title="按住拖动改页面宽度：正文跟着重排，装不下的推到下一页（一张纸最多一屏）"
               onPointerDown={startResize('w')}
               onPointerMove={moveResize}
               onPointerUp={endResize}
@@ -3109,7 +3293,7 @@ function TextBook(props: TextBookProps): JSX.Element {
             />
             <span
               className="tx-grip tx-grip-h"
-              title="按住拖动改页面高度：正文会跟着重排，页数也会变"
+              title="按住拖动改页面高度：正文跟着重排，装不下的推到下一页（一张纸最多一屏）"
               onPointerDown={startResize('h')}
               onPointerMove={moveResize}
               onPointerUp={endResize}
@@ -3124,31 +3308,12 @@ function TextBook(props: TextBookProps): JSX.Element {
               onPointerCancel={endResize}
             />
             {sel ? (
-              <div className="tx-selbar" style={{ left: sel.left, top: sel.top }} onPointerDown={(event) => event.stopPropagation()}>
-                <button
-                  type="button"
-                  className="rounded-md px-1.5 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                  title="把选中的这段涂成荧光笔（再点一下标记可取消）"
-                  onClick={() => {
-                    onHighlight(sel.range, sel.quote)
-                    setSel(null)
-                  }}
-                >
-                  <Highlighter className="h-3.5 w-3.5" />
-                </button>
-                <button
-                  type="button"
-                  className="rounded-md px-1.5 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                  title="给选中的这段在旁边写条注释"
-                  onClick={() => {
-                    onAnnotate(sel.range, sel.quote)
-                    setSel(null)
-                  }}
-                >
-                  <NotebookPen className="h-3.5 w-3.5" />
-                </button>
-                <span className="max-w-[9rem] truncate text-[11px] text-muted-foreground">「{sel.quote.slice(0, 16)}」</span>
-              </div>
+              <SelectionBar
+                sel={sel}
+                onHighlight={(range, quote) => void onHighlight(range, quote)}
+                onAnnotate={onAnnotate}
+                onClose={clearSel}
+              />
             ) : null}
           </>
         )}

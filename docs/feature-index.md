@@ -19,11 +19,11 @@
 | 滚轮翻页开关 | `wheelFlip`、`WHEEL_FLIP_KEY`；书页模式滚轮 `onWheel`（Ctrl+滚轮缩放不受它管） |
 | 书页舞台（PDF / 原版式） | `PdfStage()`、`ContinuousPages()`、`PdfPageView()`；`src/renderer/src/lib/pdf.ts`（`openPdf/pageCanvas/peekCanvas/mountCanvas/pageSize/pageText`） |
 | 排版舞台（网页 / EPUB iframe） | `RichStage()` |
-| 文字舞台（TXT / MD / 抽取正文） | 分页 `TextBook()`（一栏 = 一页）+ 连续 `TextStage()`；`txSheet`/`TX_PAGE_KEY`/`TX_PAD_*`/`TX_GAP`/`usedColumnCount()`、`READER_FONTS`、`FONT_KEY/FONTSIZE_KEY`；CSS `.reader-text`、`pre.reader-plain`、`.tx-sheet/.tx-zoom/.tx-flow/.tx-grip*` |
-| 正文行内标记（荧光 / 选中旁注） | `parseRange()`、`applyTextRanges()`、`wrapRange()`、`rangeOffsets()`、`addHighlight()`、`annotateRange()`、`rangeMarks`、`noteKindLabel()`；CSS `mark.tx-hl`、`.tx-selbar`；存 `note_marks.region` 的 `{kind:'range',start,end}` |
+| 文字舞台（TXT / MD / 抽取正文） | 分页 `TextBook()`（一栏 = 一页：容器只一栏宽，溢出的自己长成新栏）+ 连续 `TextStage()`；`txLimit`/`txSheet`/`TX_PAGE_KEY`/`TX_PAD_*`/`TX_GAP`/`TX_BLEED`/`clipW`/`usedColumnCount()`、`READER_FONTS`、`FONT_KEY/FONTSIZE_KEY`；CSS `.reader-text`、`pre.reader-plain`、`.tx-sheet/.tx-zoom/.tx-flow/.tx-grip*` |
+| 正文行内标记（荧光 / 选中旁注） | `parseRange()`、`applyTextRanges()`、`wrapRange()`、`rangeOffsets()`、`addHighlight()`、`annotateRange()`、`rangeMarks`、`noteKindLabel()`、**分页与连续共用 `useTextSelection()` + `SelectionBar`**（TextBook / TextStage 都挂）；CSS `mark.tx-hl`、`.tx-selbar`、`.tx-selbar-btn`；存 `note_marks.region` 的 `{kind:'range',start,end}` |
 | 缩放 / 平移 / 双击放大 | `fitScale`、`scale`、`zoomBy`、`canPan`、`onPanDown/Move/End`、`handleWheelZoomRich`、stage `onDoubleClick` |
-| 左右点击翻页热区 | `canZoneFlip`、`.mw-pagezone*`、`showHint()`（到头提示） |
-| 圈画批注（形状 / 锚定气泡） | `InkShape`、`InkRegion`、`INK_SHAPE_LABELS`、`parseInk`、`displayToPage / pageToDisplay / inkOutline / displayBox`、`InkStrokes`、`InkDots`、`NoteQuickBar`、`NoteRail`、`NotePopover`、**共用层 `sheetNotes()` + `PageInkLayer`**（书页与文字页都调它）、`MarkComposer`、`handleInk`、`inkMode`、`inkShape`、`openNote`、`showInk/showNotes`；CSS `.mw-ink*`、`.mw-note-*` |
+| 左右点击翻页热区 | `canZoneFlip`、`.mw-pagezone*`（只有两颗小按键是热区）、`showHint()`（到头提示） |
+| 圈画批注（形状 / 锚定气泡） | `InkShape`、`InkRegion`、`INK_SHAPE_LABELS`、`parseInk`、`displayToPage / pageToDisplay / inkOutline / displayBox`、`InkStrokes`、`InkDots`、`NoteQuickBar`、`NoteRail`、`NotePopover`、**共用层 `sheetNotes()` + `PageInkLayer`**（书页与文字页都调它）、`MarkComposer`、`handleInk`、`inkMode`、`inkShape`、`openNote`、`showInk/showNotes`；顶栏一族 `ToolButton` + CSS `.mw-toolgroup`、`.mw-tool*`、`.mw-note-*`、`.mw-ink*` |
 | 侧栏（页面/目录/注释/查找/本页） | `PANEL_TABS`、`ReaderPanel()`、`thumbOnly`、`PageThumbPicker()` |
 | 页面对比工作台（顶栏按钮要点得着：`.cmp-shell` 声明 no-drag） | `CompareOverlay()`、`CompareCard`（panX/panY = 纸框滚动位置）、`compareSlots()`、`clampCard()`、`contentSize()`、`clampScroll()`、`scrollMax`+`cmpKey()`（能滚多远以 DOM 量到的为准）、`frameRefs`/`onFrameScroll`、层级：`normalizeZ()`/`zCollides()`/`stackOrder`/`layerNo()`/`shiftZ()`/`raise()`/`stack()`（叠放）、画质：`ladder()`/`budgetScale()`；CSS `.cmp-*`（`.cmp-frame` 是滚动容器，`.cmp-page` 用 CSS zoom） |
 | 页面提取 | `ExtractDialog()`、`parsePageSpec()`；主进程 `src/main/services/note-extract.service.ts`（IPC `note:extract-pages`） |

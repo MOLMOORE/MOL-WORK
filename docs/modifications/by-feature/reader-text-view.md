@@ -3,6 +3,24 @@
 > 功能线速查：ReaderPage.tsx（mode/canTextView/textView/textBody/pagedText/hasPages/READER_FONTS/TextStage/TextBook/txSheet/TX_*/usedColumnCount）+ index.css（.reader-text / pre.reader-plain / .tx-sheet .tx-zoom .tx-flow .tx-grip）
 > 记录格式见 `docs/modifications/README.md`；新改动**追加在本行下方的最前面**。
 
+## 2026-09-23 · v1.2.5 第 7 轮（分页机制重做）
+- 需求：单页 / 双页显示不全、上一页会露出下一页的一条字、拖过页面边界后翻不动（全挤在一页）、切回书页也翻不动、分页下改不了字号也选不中文字、点「连续」顶栏丢掉一大半、深色模式白纸刺眼。
+- 根因（四条各自独立）：
+  1. **露邻栏**：可见窗口拿纸宽当尺寸，`sheetW = 正文宽 + 2×TX_PAD_X(44)`，而栏间距只有 26 → 邻栏起点落在窗口里 18px，每页左右都会带一条别人的字。
+  2. **翻不动**：上一版把量出来的栏数回写进 `column-count` 与容器宽度，布局 ↔ 测量互相追；再叠上纸可以被拖到 1900×2600，一张纸就装完整篇 → 页数 1。
+  3. **书页也翻不动**：`pageCount` 三种模式共用，文字页量出的 1 在切回书页后还留着（PDF 页数只在载入那一刻写过）。
+  4. **选不中**：`fitScale` 在文字模式仍按 PDF 页面算 → `canPan` 常真 → 左键被平移吃掉（`is-panning` 还给纸面加 `user-select: none`）。
+- 改法：
+  - 容器固定**一栏宽**（`column-width: colW` + `column-count: auto` + `column-fill: auto` + `overflow: visible`），排不下的正文自己长成新栏 —— 栏数只量一次用来报页数，不再回写布局（删 `sigRef`/`triesRef`/`dirty`/`is-measuring`）。参考 EPUB 阅读器（Readium / epub.js）的横向分页做法。
+  - 裁切窗口收紧：`clipW = 正文宽 + 2×TX_BLEED(8)`，`.tx-zoom` 的 `left = TX_PAD_X - 8`、流的 `left = 8`（两者要一起改，否则正文整体平移）→ 邻栏离窗口边缘还有 18px，必然被切掉。
+  - 纸最多一屏：新增 `txLimit`（舞台 -24），自适应与 `resizeTxSheet` 都按它夹；`fitScale` 在 `mode === 'text'` 直接返回 1，纸的显示尺寸 = 排版尺寸，拖边界看到的就是排版的量。
+  - 页数交还：`mode` 回到 pages 且 pdf 在 → `setPageCount(pdf.pageCount)`。
+  - 选词优先：`onPanDown` 先判 `canPan`，起拖点落在 `.tx-flow` 里就让给选词；双页切换时把偶数页对齐回奇数页。
+  - 顶栏：字号组条件从「非 hasPages」改成「mode === 'text'」（分页与连续都要）；缩放组三种模式共用一份（书页 = 适页复位，文字 = 复位 zoom 并 `setTxPage(null)`）；布局组移出 `hasPages` 包裹，切到「连续」也留得下来。
+  - 深色：`.tx-sheet` 走 `hsl(var(--card))` + 主题描边；`pre.reader-plain` 去掉代码块深底 / 内边距 / 横向滚动（整篇正文就是那个 `<pre>`，深色下会在白纸上压一块黑斑）。
+- 位置：`TextBook`（`contentW` / `clipW` / `TX_BLEED` / 量页数 effect）、`txLimit` / `txSheet` / `resizeTxSheet` / `fitScale` / 页数交还 effect / `onPanDown` / 顶栏整块；`index.css`（`.tx-sheet` / `.tx-flow` / `.reader-text pre.reader-plain`）。
+- 验证：Playwright `work/patch/txbook.html` + `txbook.mjs` / `txbook2.mjs` 复刻真实几何逐页扫（单页 26 页、双页、colW 320~1200、zoom 0.85~2、小数栏宽）：内容恒落在 [PAD_X, PAD_X+正文宽]，邻栏不进窗口；colH 300→1200 页数 58→14、colW 320→1200 页数 52→13（承载量确实跟着边界变）。另 `txpage3.*` 证明 `scrollWidth` 会多算 1~4 栏，页数只能量最后一个块右沿。L0：tsc 0 错 + build + dist 回读。
+- 遗留：亚像素下正好压在栏分界上的标记可能被 `floor()` 算到邻栏（取证的 `leak` 样本全是这种 ±1 归栏误差，不是真露字）；侧栏缩略图在文字模式仍隐藏；超长文档拖边界会掉帧。
 ## 2026-09-23 · v1.2.5 第 6 轮
 - 需求：文字模式也先给一张纸（用户能自己改边界、正文跟着重排），并且要有书页那套功能（单页 / 双页 / 连续 + 五种翻页动效）。
 - 根因（挡路的地方）：`mode === 'text'` 在十几处判据里被当成「没有页」写死 —— 进度落库、页码显示、左右热区、滚轮翻页、左键平移、批注页号、canPan 全部直接 return 或塞 0。

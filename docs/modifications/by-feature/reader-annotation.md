@@ -3,6 +3,17 @@
 > 功能线速查：ReaderPage.tsx（sheetNotes/PageInkLayer/InkStrokes/InkDots/NoteQuickBar/NoteRail/NotePopover/MarkComposer/handleInk/inkMode/showInk/showNotes/noteSide/noteKindLabel + 行内标记 parseRange/applyTextRanges/wrapRange/rangeOffsets/addHighlight/annotateRange）+ index.css（.mw-ink* / .mw-note-* / mark.tx-hl / .tx-selbar）+ note_marks.region（DB v8，圈画 {kind,points} 与文字页 {kind:range,start,end} 两种存法）
 > 记录格式见 `docs/modifications/README.md`；新改动**追加在本行下方的最前面**。
 
+## 2026-09-23 · v1.2.5 第 7 轮（图标统一 + 连续模式也能选中注释）
+- 需求：顶栏注释一族图标统一风格；「连续」滚动里选中正文既不能高亮也不能写注释。
+- 改法：
+  - 顶栏「注释 / 圈注 / 圈画 / 旁注」合进一个 `.mw-toolgroup`（一个外框 + 内部分隔线），按键一律 `ToolButton` = 图标 + 文字，点亮走主色底；图标各归各的语义：`NotebookPen` / `Highlighter` / `CircleDashed` / `StickyNote`（原来圈画与旁注都是 Eye，注释还是个裸图标夹在三个带框按键中间）。形状选择器仍在组外，只在圈注模式出现。
+  - 选中正文那套从 `TextBook` 里抽成 `useTextSelection`（读选区 → 算偏移量 → 定浮条位置）+ `SelectionBar`（涂荧光 / 写旁注），`TextStage`（连续滚动）接上同一套：`applyTextRanges` 传 `colW: 0` 表示「只画不定位」（连续模式没有栏可归位），点标记用 `NotePopover` 在滚动容器里就地展开（坐标 = 片段矩形 - 容器矩形 + scrollTop）。
+  - 偏移量口径两边一致：行内标记的起止是「渲染后正文的第几个字」，`TextStage` 的 `<article>` 里那段只读提示在正文**之后**，不影响前缀计数，所以连续与分页两边互认。
+  - `showInk`（圈画开关）现在也过滤正文里的荧光：`ranges` → `showInk ? ranges : []`（以前只关得掉纸上的圈，关不掉涂亮的字）。
+  - 无页可存时（连续模式）`addHighlight` / `annotateRange` 存 `page = 0`，标签写「正文」而不是「第 0 页」。
+- 位置：`ReaderPage.tsx`（`ToolButton` / `useTextSelection` / `SelectionBar` / `TextStage` 新 props / 顶栏工具组）、`index.css`（`.mw-toolgroup` / `.mw-tool` / `.mw-tool-sep` / `.tx-selbar-btn`）。
+- 验证：L0 + dist 回读；GUI 端到端留给用户手测。
+- 遗留：连续模式没有页号，行内标记在侧栏只显示「正文」；`TextBook` 的浮条与气泡仍按栏定位，改边界重排后气泡跟着那一栏走。
 ## 2026-09-23 · v1.2.5 第 6 轮
 - 需求：文字模式也要有注释功能，并多一种「选中一段文字 → 在旁边标注」；另外选中正文要能涂荧光笔。
 - 前置重构：`PdfPageView` 里那 240 行批注代码（圈画 SVG、编号圆点、页顶快捷按键、边上旁注、就地气泡、圈注手势与多边形键位）抽成
