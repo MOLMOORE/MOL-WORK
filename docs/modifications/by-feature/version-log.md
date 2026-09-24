@@ -12,3 +12,6 @@
 ## 固定动作（AGENTS.md 第 1、3 节 + 版本发布固定流程）
 1. `package.json` version；2. `CHANGELOG.md` 顶部追加；3. `SettingsPage.tsx` 的 `CHANGELOG` 数组顶部追加同一条；4. `npm run dist`；5. commit（+ 通过后 tag/merge/release）。
 - 注意：v1.2.5 是「一个版本号内多轮提交」，每轮在 CHANGELOG 的 v1.2.5 段里追加小标题，并在 `docs/modifications/by-version/` 单独写一篇 rN。
+- 发版打包两条硬经验（v1.2.5 发布当天踩到）：
+  1. 用户很可能正开着 `release/win-unpacked/个人工作站.exe` 绿色版，会锁住整个目录让 electron-builder 的 EnsureEmptyDir 报 Access is denied。先看进程再打包；**不要为了打包去关用户的窗口**，宁可 `--config.directories.output=release-tmp` 另地打包再把 exe / blockmap / latest.yml 挪回 `release/`。
+  2. 发版后若又改了任何进包的内容（比如精简 CHANGELOG），必须重跑一次 dist 并 `gh release upload v{ver} <exe> --clobber` 重传，再核对 `gh api .../releases/tags/v{ver}` 的 `digest` 与本地 `Get-FileHash` 一致 —— 两次构建的 NSIS 容器字节会差几十字节，光看大小看不出来。
