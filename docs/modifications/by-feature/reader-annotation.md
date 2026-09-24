@@ -1,6 +1,15 @@
 # 阅读 · 批注（圈注 / 旁注）
 
-> 功能线速查：ReaderPage.tsx（sheetNotes/PageInkLayer(quickLift)/InkStrokes(variant=find)/InkDots/NoteQuickBar(lift)/NoteRail/NotePopover/MarkComposer/handleInk/inkMode/showInk/showNotes/noteSide/noteKindLabel + 行内标记 parseRange/applyTextRanges/unwrapMarks/wrapRange/rangeOffsets/addHighlight/shortcutHighlight/annotateRange/rangeMarks/HL_COLORS/ToolButton + useTextSelection/SelectionBar）+ index.css（.mw-ink* / .mw-note-*（编号按键排在纸外） / mark.tx-hl[data-hl] / .tx-selbar* / .mw-toolgroup）+ note_marks.region（DB v8：圈画 {kind,points} 与文字页 {kind:range,start,end}）
+> 功能线速查：ReaderPage.tsx（sheetNotes/PageInkLayer(quickLift·railDrop·onRailHeight)/InkStrokes(variant=find)/InkDots/NoteQuickBar(lift)/NoteRail(drop·onHeight)/NotePopover/MarkComposer/handleInk/inkMode/showInk/showNotes/noteSide/noteKindLabel + PdfPageView(railReserve→垫 margin-bottom) + 行内标记 parseRange/applyTextRanges/unwrapMarks/wrapRange/rangeOffsets/addHighlight/shortcutHighlight/annotateRange/rangeMarks/HL_COLORS/ToolButton + useTextSelection/SelectionBar）+ index.css（`.mw-ink*` / `.mw-note-*`（编号按键排在纸外、卡片限高、旁注列可下挪） / `mark.tx-hl[data-hl]` / `.tx-selbar*` / `.mw-toolgroup`）+ note_marks.region（DB v8：圈画 {kind,points} 与文字页 {kind:range,start,end}）
+
+## 2026-09-24 · v1.2.5 第 10 轮（旁注列不再压住下一页）
+- 需求：旁注的显示又侵入页面内（截图：一条整宽度的旁注卡片压在下一页正文上），要显示得更合理。
+- 根因：落在纸下面的那一列（`.mw-note-rail.is-below`）是 `position:absolute`，完全不占排版 —— 连续滚动时页间距只有 32px，一条卡片 100~170px 就直接盖到下一页的正文上（CSS Overflow 规范：绝对定位后代的墨水区会扩大可滚动区、但不推文档流，正是这个行为）。上一轮只把「纸顶上的编号按键」抬了出去，纸下面这一列没管。
+- 改法：① `NoteRail` 用 `ResizeObserver` 量出自己多高（贴纸边时报 0），经 `PageInkLayer.onRailHeight` 报给 `PdfPageView`；连续滚动（`railReserve`）时给这张纸 `margin-bottom = 高度 + 10`，纸下面垫出等高的地方，下一页自然被推开。② 文字页的批注层是从纸的下边距里开始的，新增 `railDrop = TX_PAD_Y * scale + 6`，把这一列整个挪到纸的外面（`top: calc(100% + N)` 由组件写）。③ 旁注卡片限高 172px、超出在卡片内滚动，一条长批注也不会把垫出来的地方撑得太夸张。
+- 位置：`ReaderPage.tsx`（NoteRail / PageInkLayer / PdfPageView / ContinuousPages / TextBook 的 railDrop）、`index.css`（.mw-note-card 限高）。
+- 参考：CSS Overflow 3（绝对定位后代只扩滚动区、不推文档流）；MDN ResizeObserver —— 只量这一列、改的是祖先外边距，自己的盒子不跟着变，不会形成「loop completed with undelivered notifications」反馈环（另加 lastH 去重）。
+- 验证：L0（tsc 严格 + build）+ 同一份取证页量过：卡片 172px 时未垫高 → 下一页顶边 1826 < 列底 1976（压住 150px，正是用户看到的）；垫高后 2008 ≥ 1976 不再压。
+- 遗留：文字页（单页 / 双页）与逐页书页的旁注列落在纸下面，纸下方空间不足时要往下滚一点才看全（与纸外编号按键同一取舍）。
 
 ## 2026-09-24 · v1.2.5 第 9 轮（编号按键搬到纸外面 + 高亮快捷键）
 - 需求：① 加过注释后挂在页面左上角的那排小圆框（编号按键）要放到本页面之外，不要压在正文上；② 选中文字后按快捷键就能打上 / 删掉高亮。

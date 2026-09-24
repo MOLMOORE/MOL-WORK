@@ -1616,6 +1616,9 @@
     font-size: 12px;
     line-height: 1.6;
     box-shadow: 0 10px 26px -18px rgba(0, 0, 0, 0.8), 0 0 0 1px hsl(var(--primary) / 0.14);
+    /* 一条批注再长也有限高：整列落在纸下面时会占太多地方，超出的部分卡片内自己滚 */
+    max-height: 172px;
+    overflow-y: auto;
   }
   /* 边栏一条虚线导轨：像书页天头地脚的批注栏，一眼分清纸与注 */
   .mw-note-rail.is-side {
@@ -1994,9 +1997,9 @@
     border-radius: 2px;
     background: hsl(var(--card));
   }
-  /* 缩略图完全复用纸上的 .tx-zoom / .tx-flow，只补一个缩放原点：
-     再抄一份规则就会连裁切口径都对不上（第二页起没预览就是这么来的） */
-  .txp-zoom {
+  /* 缩略图 = 整张纸的等比小版，连纸边留白一起画，所以只补一个缩放原点：
+     再抄一份裁切规则就会和纸上对不上（第二页起没预览就是这么来的） */
+  .txp-sheet {
     transform-origin: top left;
   }
   .txp-lazy {

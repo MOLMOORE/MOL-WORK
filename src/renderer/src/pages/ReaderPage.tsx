@@ -1715,26 +1715,21 @@ export function ReaderPage(): JSX.Element {
           {/* 底部状态条：页码进度与快捷键提示 */}
           <footer className="reader-foot flex min-h-[1.75rem] shrink-0 flex-wrap items-center whitespace-nowrap gap-x-3 gap-y-0.5 border-t border-border bg-surface px-3 py-0.5 text-[11px] leading-tight text-muted-foreground">
             <span className="tabular-nums">
-              {hasPages ? `第 ${page} / ${pageCount} 页` : '连续阅读 · 点上方「单页」即可分页'}
+              {hasPages ? `第 ${page} / ${pageCount} 页` : '连续阅读'}
             </span>
             <span className="h-3 w-px bg-border" />
-            <span>← → 翻页（点两侧小按键也行）</span>
-            <span>空格 下一页</span>
-            <span>Ctrl+滚轮 缩放</span>
-            <span>放大后按住左键拖动</span>
-            <span>B 书签</span>
-            <span>S 重点</span>
-            <span>E 注释</span>
-            <span>圈注可选形状</span>
-            <span>点圈看在旁边</span>
-            {mode === 'text' ? <span>选中正文可涂亮或写旁注 · Ctrl+Shift+H 涂亮 / 取消</span> : null}
-            {pagedText ? <span>拖纸边改页面边界，文字量跟着变</span> : null}
-            <span>R 旋转</span>
-            <span>F / F11 全屏 · Esc 退出</span>
+            <span title="方向键翻页，点页面两侧的小按键也行；翻到头会提示一声">← → 翻页</span>
+            <span title="空格 / PageDown 下一页，Shift+空格 / PageUp 上一页，Home / End 首尾页">空格 下页</span>
+            <span title="Ctrl+滚轮或 +/- 缩放，0 复位；放大后按住左键拖动画面">Ctrl+滚轮 缩放</span>
+            <span title="给这一页加书签 / 标为重点页 / 写注释">B 书签 · S 重点 · E 注释</span>
+            <span title="1 单页 · 2 双页 · 3 连续，L 依次切换">1 2 3 布局</span>
+            {mode === 'pages' ? <span title="R 旋转这一页；圈注可选形状，点纸上的圈在旁边展开">R 旋转</span> : null}
+            {mode === 'text' ? <span title="选中正文后按下即涂亮，再按一次取消">Ctrl+Shift+H 高亮</span> : null}
+            <span title="F 或 F11 全屏；Esc 先收浮层、再退全屏">F 全屏</span>
             {readMinutes > 0 ? (
               <>
                 <span className="h-3 w-px bg-border" />
-                <span className="tabular-nums">本篇已读 {readMinutes} 分钟</span>
+                <span className="tabular-nums">已读 {readMinutes} 分钟</span>
               </>
             ) : null}
             <span className="ml-auto tabular-nums">{Math.round((page / Math.max(1, pageCount)) * 100)}%</span>
@@ -2452,17 +2447,47 @@ function NoteQuickBar(props: {
   )
 }
 
-/** 整页旁注列：贴在纸的右边，纸两侧没地方就落到纸的上下空白 */
+/**
+ * 整页旁注列：贴在纸的右边；纸两侧没地方就落到纸的下面。
+ * 落在下面时这一列是浮在纸外的（不占排版），所以要把自己的高度报给宿主，
+ * 由宿主在纸下面垫出等高的地方 —— 否则连续滚动时它会直接压住下一页的正文。
+ */
 function NoteRail(props: {
   items: { mark: NoteMark; index: number }[]
   side: boolean
   pageWidth: number
+  /** 落在纸下面时还要再往下挪多少：文字页的批注层是从纸的下边距里开始的 */
+  drop?: number
+  /** 这一列实际多高（贴纸边时报 0） */
+  onHeight?: (height: number) => void
   onRemove: (id: number) => void
 }): JSX.Element | null {
-  const { items, side, pageWidth, onRemove } = props
+  const { items, side, pageWidth, drop = 0, onHeight, onRemove } = props
+  const railRef = useRef<HTMLDivElement | null>(null)
+  const lastH = useRef(-1)
+  /* 只量这一列自己、改的是祖先的外边距，自己的盒子不跟着变 → 不会形成 ResizeObserver 反馈环 */
+  useEffect(() => {
+    if (!onHeight) return undefined
+    const node = railRef.current
+    const report = (): void => {
+      const next = node === null || side ? 0 : Math.round(node.getBoundingClientRect().height)
+      if (next === lastH.current) return
+      lastH.current = next
+      onHeight(next)
+    }
+    report()
+    if (node === null || typeof ResizeObserver === 'undefined') return undefined
+    const ro = new ResizeObserver(report)
+    ro.observe(node)
+    return () => ro.disconnect()
+  }, [items.length, side, drop, onHeight])
   if (items.length === 0) return null
   return (
-    <div className={cn('mw-note-rail', side ? 'is-side' : 'is-below')} style={side ? undefined : { width: pageWidth }}>
+    <div
+      ref={railRef}
+      className={cn('mw-note-rail', side ? 'is-side' : 'is-below')}
+      style={side ? undefined : { width: pageWidth, top: 'calc(100% + ' + (10 + drop) + 'px)' }}
+    >
       {items.map(({ mark, index }) => (
         <article key={mark.id} className="mw-note-card" data-note-card={mark.id}>
           <header className="flex items-center gap-1.5">
@@ -2621,6 +2646,10 @@ function PageInkLayer(props: {
   noteSide: boolean
   /** 注释编号按键再往上抬多少（文字页要把它们放到纸外面） */
   quickLift?: number
+  /** 落在纸下面时还要再往下挪多少：文字页的旁注列要从纸的下边距里挪到纸外 */
+  railDrop?: number
+  /** 旁注列的高度报给宿主：连续滚动时要在纸下面垫出等高的地方 */
+  onRailHeight?: (height: number) => void
   onInk?: (kind: InkShape, points: InkPoint[], page: number) => void
   inkShape?: InkShape
   openNoteId?: number | null
@@ -2629,6 +2658,7 @@ function PageInkLayer(props: {
 }): JSX.Element {
   const {
     pageNumber, box, rotation, items, ranges = [], inkMode, showInk, noteSide, quickLift = 0,
+    railDrop = 0, onRailHeight,
     onInk, inkShape, openNoteId = null, onOpenNote, onRemoveNote
   } = props
   const { inkAll, railItems, chips, dots } = items
@@ -2782,6 +2812,8 @@ function PageInkLayer(props: {
         items={railItems}
         side={noteSide}
         pageWidth={box.width}
+        drop={railDrop}
+        onHeight={onRailHeight}
         onRemove={(markId) => onRemoveNote?.(markId)}
       />
       {opened ? (
@@ -3031,6 +3063,7 @@ function ContinuousPages(props: Omit<StageProps, 'turning' | 'layout'>): JSX.Ele
             showInk={showInk}
             showNotes={showNotes}
             noteSide={noteSide}
+            railReserve
             onInk={onInk}
             onRemoveNote={onRemoveNote}
             inkShape={inkShape}
@@ -3062,6 +3095,8 @@ function PdfPageView(props: {
   showInk?: boolean
   showNotes?: boolean
   noteSide?: boolean
+  /** 连续滚动：旁注列落在纸下面时，纸下面要垫出等高的地方，别压住下一页 */
+  railReserve?: boolean
   /** 圈注形状：按住拖动（自由 / 矩形 / 圆圈）或逐点落点（多边形） */
   onInk?: (kind: InkShape, points: InkPoint[], page: number) => void
   inkShape?: InkShape
@@ -3075,7 +3110,7 @@ function PdfPageView(props: {
   const {
     pdf, pageNumber, scale, rotation, active, ghost, lazy, priority = 0, onJump,
     notes, inkMode, showInk = true, showNotes = true, noteSide = false, onInk, onRemoveNote,
-    inkShape, openNoteId = null, onOpenNote, find
+    inkShape, openNoteId = null, onOpenNote, find, railReserve = false
   } = props
   const rings = (find ?? []).map((ring, index) =>
     ring.page === pageNumber ? { id: index, region: ring.region, active: ring.active } : null
@@ -3084,6 +3119,8 @@ function PdfPageView(props: {
   const boxRef = useRef<HTMLDivElement>(null)
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading')
   const [visible, setVisible] = useState(!lazy)
+  /** 这一页的旁注列有多高（只有连续滚动会用到） */
+  const [railH, setRailH] = useState(0)
   const rounded = Math.round(scale * 100) / 100
   const box = pageSize(pdf.baseWidth, pdf.baseHeight, rounded, rotation)
   const mountKey = pdf.uid + '|' + pageNumber + '|' + rounded + '|' + rotation
@@ -3166,7 +3203,11 @@ function PdfPageView(props: {
         state === 'loading' && 'is-loading',
         state === 'error' && 'is-error'
       )}
-      style={{ width: box.width, height: box.height }}
+      style={{
+        width: box.width,
+        height: box.height,
+        marginBottom: railReserve && railH > 0 ? railH + 10 : undefined
+      }}
       onClick={() => onJump?.(pageNumber)}
     >
       {/* 画布由 pdf.js 直接挂到这个宿主节点上：React 不往里面渲染任何东西，避免两方争抢同一批子节点 */}
@@ -3177,6 +3218,7 @@ function PdfPageView(props: {
         box={box}
         rotation={rotation}
         items={items}
+        onRailHeight={railReserve ? setRailH : undefined}
         inkMode={inkMode && active}
         showInk={showInk}
         showNotes={showNotes}
@@ -3706,8 +3748,9 @@ function TextBook(props: TextBookProps): JSX.Element {
                   pageNumber={pageNumber}
                   box={{ width: colW * scale, height: colH * scale }}
                   rotation={0}
-                  /* 这一层是从纸的上边距里开始的：按键抬到纸外面，别压在正文上 */
+                  /* 这一层是从纸的上边距里开始的：按键抬到纸上方、旁注列挪到纸下面，都不压在正文上 */
                   quickLift={TX_PAD_Y * scale}
+                  railDrop={TX_PAD_Y * scale + 6}
                   items={items[index]}
                   ranges={rangesOf(pageNumber)}
                   inkMode={inkMode}
@@ -4301,8 +4344,10 @@ function LazyMount(props: {
 }
 
 /**
- * 文字页缩略图：拿和纸上完全一样的栏宽 / 栏高 / 字号排一份正文，再用 transform 等比缩小。
- * transform 不参与排版计算，所以缩略图的分页与纸上逐字一致；改字体、改字号、拖纸边都会立刻重排。
+ * 文字页缩略图：把「整张纸」原样缩小 —— 纸的四边留白、裁切窗口、正文偏移都用和纸上同一套数值，
+ * 所以预览就是本页的等比小版，而不是只有正文那一块。
+ * 缩放走 transform（不参与排版），栏宽 / 栏高 / 字号与纸上完全一致 ⇒ 分页逐字相同；
+ * 改字体、改字号、拖纸边都会立刻重排。
  */
 function TextPageThumb(props: {
   text: string
@@ -4314,33 +4359,39 @@ function TextPageThumb(props: {
   width: number
 }): JSX.Element {
   const { text, fontSize, fontFamily, colW, colH, page, width } = props
-  const ratio = Math.min(1, width / Math.max(1, colW))
+  /* 一张纸 = 正文区 + 四边留白，与 TextBook 里 sheet 的算法一致（预览按单栏那一页画） */
+  const paperW = colW + TX_PAD_X * 2
+  const paperH = colH + TX_PAD_Y * 2
+  const ratio = Math.min(1, width / paperW)
   const body = useMemo(() => <ReaderBody text={text} />, [text])
   return (
-    <LazyMount width={width} height={colH * ratio} label={page}>
-      {/* 和纸上同一套结构：裁切只在 .tx-zoom 那一层，正文自己 overflow:visible。
-          原来缩略图给正文也加了 overflow:hidden，第二页起的栏被自己那圈框裁掉，
-          再往左平移就什么都不剩 —— 这就是「除了第一页都没有预览」（Playwright 命中测过） */}
-      <div className="tx-zoom txp-zoom" style={{ width: colW, height: colH, transform: 'scale(' + ratio + ')' }}>
+    <LazyMount width={width} height={paperH * ratio} label={page}>
+      <div className="tx-sheet txp-sheet" style={{ width: paperW, height: paperH, transform: 'scale(' + ratio + ')' }}>
+        {/* 裁切窗口与纸上同一套：宽 = 正文 + 左右各 TX_BLEED，起点左移 TX_BLEED，高到栏底再往下 8px */}
         <div
-          className="reader-text tx-flow"
-          style={
-            {
-              left: 0,
-              top: 0,
-              width: colW,
-              height: colH,
-              columnCount: 'auto',
-              columnWidth: colW,
-              columnGap: TX_GAP,
-              fontSize: fontSize + 'px',
-              fontFamily: fontFamily === '' ? undefined : fontFamily,
-              transform: 'translateX(' + -(page - 1) * (colW + TX_GAP) + 'px)',
-              ['--tx-colh' as string]: colH + 'px'
-            } as CSSProperties
-          }
+          className="tx-zoom"
+          style={{ left: TX_PAD_X - TX_BLEED, width: colW + TX_BLEED * 2, height: TX_PAD_Y + colH + TX_BLEED }}
         >
-          {body}
+          <div
+            className="reader-text tx-flow"
+            style={
+              {
+                left: TX_BLEED,
+                top: TX_PAD_Y,
+                width: colW,
+                height: colH,
+                columnCount: 'auto',
+                columnWidth: colW,
+                columnGap: TX_GAP,
+                fontSize: fontSize + 'px',
+                fontFamily: fontFamily === '' ? undefined : fontFamily,
+                transform: 'translateX(' + -(page - 1) * (colW + TX_GAP) + 'px)',
+                ['--tx-colh' as string]: colH + 'px'
+              } as CSSProperties
+            }
+          >
+            {body}
+          </div>
         </div>
       </div>
     </LazyMount>

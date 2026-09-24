@@ -1,6 +1,15 @@
 # 阅读 · 书页/文字阅读方式与字体字号
 
-> 功能线速查：ReaderPage.tsx（mode/canTextView/textView/textBody/pagedText/hasPages/READER_FONTS/ReaderBody/textLooksPlain/TextStage/TextBook/txLimit·autoWidth/txSheet/txPage/TX_*(含 TX_MAX_W 2600·TX_ROOM_Y 68)/usedColumnCount/onLayout→txGeom/TextPageThumb/LazyMount/shortcutHighlight + footer reader-foot）+ index.css（.reader-text / pre.reader-plain / .tx-sheet .tx-zoom .tx-flow .tx-col .tx-grip / .txp-zoom）
+> 功能线速查：ReaderPage.tsx（mode/canTextView/textView/textBody/pagedText/hasPages/READER_FONTS/ReaderBody/textLooksPlain/TextStage/TextBook/txLimit·autoWidth/txSheet/txPage/TX_*(含 TX_MAX_W 2600·TX_ROOM_Y 68)/usedColumnCount/onLayout→txGeom/TextPageThumb(整张纸等比小版)/LazyMount/shortcutHighlight + footer reader-foot）+ index.css（`.reader-text` / `pre.reader-plain` / `.tx-sheet .tx-zoom .tx-flow .tx-col .tx-grip` / `.txp-sheet`）
+
+## 2026-09-24 · v1.2.5 第 10 轮（文字页预览 = 整张纸的缩小版 · 状态条只留一行）
+- 需求：① 侧栏「文字页」的预览和真正的本页还是有区别，要几乎等于本页的缩小版；② 底部提示（尤其快捷键）字太多太杂。
+- 根因：① 上一轮虽然把裁切口径统一了，但缩略图画到的仍然只有「正文那一块」（colW × colH），纸的四边留白（TX_PAD_X/Y）、裁切窗口的起点与宽高（从 TX_PAD_X-TX_BLEED 起、宽 colW+2×TX_BLEED、高到栏底再往下 TX_BLEED）一概没照抄，于是预览是「贴边的一栏字」，本页却是「一张有白边的纸」，看着就不是一回事。② footer 把每一条解释都摊在明面上（10 多条 span），开侧栏时挤成两行还读不完。
+- 改法：① 缩略图改成整张纸：外层 `.tx-sheet.txp-sheet`（宽 = colW+2TX_PAD_X、高 = colH+2TX_PAD_Y，`transform: scale(ratio)` + `transform-origin: top left`，ratio 按整张纸宽算），里面 `.tx-zoom` / `.tx-flow` 的 left/top/width/height 全部照抄 TextBook 的 buildSheet 同一套数值；`LazyMount` 的占位高跟着换成 paperH×ratio。② footer 只留「第 N / M 页 + 一行短按键」：翻页 / 下页 / 缩放 / B·S·E / 1 2 3 布局 /（书页 R 旋转、文字 Ctrl+Shift+H）/ 全屏，每条的详细解释（Shift+空格、Home/End、0 复位、放大后拖动、Esc 先收浮层…）挪进 `title` 悬浮提示；「连续阅读 · 点上方…」缩成「连续阅读」，「本篇已读」→「已读」。
+- 位置：`ReaderPage.tsx`（TextPageThumb / footer）、`index.css`（`.txp-zoom` → `.txp-sheet`）。
+- 参考：CSS Transforms（transform 不参与排版 ⇒ 等比缩放不会改分页，预览与纸上逐字一致）；继续复用纸上的 `.tx-zoom`/`.tx-flow`，不再另抄一套裁切规则。
+- 验证：L0 tsc（noUnused*）+ build；L0+ 取证 `work/patch/r10.html` / `r10.mjs` —— 同一份正文两种排法，第 1/3/9 页中心 `elementFromPoint` 命中的段落与纸上完全一致（第 7 段 / 第 35 段 / 第 0 段），缩略图角上命中的是 `.tx-sheet txp-sheet`（说明纸边在），`scrollWidth` 两边相等。
+- 遗留：预览按「单栏那一页」画；双页时本页是一张纸两栏，预览仍是其中一栏（页码单位本来就是栏）。
 
 ## 2026-09-24 · v1.2.5 第 9 轮（缩略图每页都有预览 · 横向拖得开 · 状态条不漏 · 高亮有快捷键）
 - 需求：① 侧栏「文字页」除了第一页其余都没有预览；② 页面边界的横向改变范围要放大；③ 底部「第 N / M 页 + 快捷键提示」还是显示不全，且只在开着侧栏时；④ 选中正文要能用快捷键打上 / 删掉高亮。
