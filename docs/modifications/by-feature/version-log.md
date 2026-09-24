@@ -3,6 +3,12 @@
 > 功能线速查：CHANGELOG.md + SettingsPage.tsx 的 CHANGELOG 常量 + package.json version
 > 记录格式见 `docs/modifications/README.md`；新改动**追加在本行下方的最前面**。
 
+## 2026-09-24 · v1.2.5 发布（更新扼要精简）
+- 需求：发版前把 v1.2.5 的更新扼要压缩，更简洁鲜明。
+- 改法：CHANGELOG.md 的 v1.2.5 段 122 行 → 30 行，按「阅读模式 / 批注 / 笔记与界面」三组一条一行；SettingsPage.tsx 的 items 65 条 → 17 条并加组前缀，date 统一 2026-09-24；细节改指向 docs/modifications/by-version/。历史版本段不动。
+- 坑：PowerShell Set-Content 写出的 node 脚本本身是 LF，脚本里的模板字符串因此只带 LF，直接按 CRLF split/join 会把 LF 混进仓库 —— 写完必须再跑一遍行尾检查（本轮 CHANGELOG.md 一度 210 crlf / 237 lf）。
+- 验证：tsc + build + dist + asar 回读；详见 by-version/v1.2.5-release.md。
+
 ## 固定动作（AGENTS.md 第 1、3 节 + 版本发布固定流程）
 1. `package.json` version；2. `CHANGELOG.md` 顶部追加；3. `SettingsPage.tsx` 的 `CHANGELOG` 数组顶部追加同一条；4. `npm run dist`；5. commit（+ 通过后 tag/merge/release）。
 - 注意：v1.2.5 是「一个版本号内多轮提交」，每轮在 CHANGELOG 的 v1.2.5 段里追加小标题，并在 `docs/modifications/by-version/` 单独写一篇 rN。
