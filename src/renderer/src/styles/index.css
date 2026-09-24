@@ -1665,13 +1665,12 @@
     overflow-wrap: anywhere;
   }
 
-  /* 页面上方的快捷按键：这一页的注释都在纸顶上排一排，点一下就地展开 */
+  /* 注释编号按键：排在「纸的外面」正上方，不再压在正文上（bottom 由组件按纸的上边距算） */
   .mw-note-quick {
     position: absolute;
     z-index: 7;
-    top: 6px;
-    left: 6px;
-    right: 34px;
+    left: 0;
+    right: 0;
     display: flex;
     flex-wrap: wrap;
     gap: 4px;
@@ -1725,6 +1724,9 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    /* 纸外的按键要一眼读得出内容：加粗并继承正文色，不吃皮肤对比度 */
+    color: inherit;
+    font-weight: 500;
   }
 
   /* 就地气泡：贴着圈住的那块显示，带一条指向圈画的小引线 */
@@ -1952,7 +1954,6 @@
   }
   .tx-col .mw-ink path,
   .tx-col .mw-ink-dot,
-  .tx-col .mw-note-quick,
   .tx-col .mw-note-rail,
   .tx-col .mw-note-pop,
   .tx-col .mw-ink-catch {
@@ -1993,20 +1994,10 @@
     border-radius: 2px;
     background: hsl(var(--card));
   }
+  /* 缩略图完全复用纸上的 .tx-zoom / .tx-flow，只补一个缩放原点：
+     再抄一份规则就会连裁切口径都对不上（第二页起没预览就是这么来的） */
   .txp-zoom {
-    position: absolute;
-    left: 0;
-    top: 0;
-    overflow: hidden;
     transform-origin: top left;
-  }
-  .txp-flow {
-    position: absolute;
-    left: 0;
-    top: 0;
-    column-fill: auto;
-    overflow: hidden;
-    color: hsl(var(--foreground));
   }
   .txp-lazy {
     display: grid;

@@ -1,7 +1,15 @@
 # 阅读 · 批注（圈注 / 旁注）
 
-> 功能线速查：ReaderPage.tsx（sheetNotes/PageInkLayer/InkStrokes/InkDots/NoteQuickBar/NoteRail/NotePopover/MarkComposer/handleInk/inkMode/showInk/showNotes/noteSide/noteKindLabel + 行内标记 parseRange/applyTextRanges/wrapRange/rangeOffsets/addHighlight/annotateRange）+ index.css（.mw-ink* / .mw-note-* / mark.tx-hl / .tx-selbar）+ note_marks.region（DB v8，圈画 {kind,points} 与文字页 {kind:range,start,end} 两种存法）
-> 功能线速查：ReaderPage.tsx（sheetNotes/PageInkLayer/InkStrokes(variant=find)/InkDots/NoteQuickBar/NoteRail/NotePopover/MarkComposer/handleInk/inkMode/showInk/showNotes/noteSide/noteKindLabel + 行内标记 parseRange/applyTextRanges/unwrapMarks/wrapRange/addHighlight/annotateRange/rangeMarks/HL_COLORS/ToolButton + useTextSelection/SelectionBar）+ index.css（.mw-ink* / .mw-note-* / mark.tx-hl[data-hl] / .tx-selbar* / .mw-toolgroup）
+> 功能线速查：ReaderPage.tsx（sheetNotes/PageInkLayer(quickLift)/InkStrokes(variant=find)/InkDots/NoteQuickBar(lift)/NoteRail/NotePopover/MarkComposer/handleInk/inkMode/showInk/showNotes/noteSide/noteKindLabel + 行内标记 parseRange/applyTextRanges/unwrapMarks/wrapRange/rangeOffsets/addHighlight/shortcutHighlight/annotateRange/rangeMarks/HL_COLORS/ToolButton + useTextSelection/SelectionBar）+ index.css（.mw-ink* / .mw-note-*（编号按键排在纸外） / mark.tx-hl[data-hl] / .tx-selbar* / .mw-toolgroup）+ note_marks.region（DB v8：圈画 {kind,points} 与文字页 {kind:range,start,end}）
+
+## 2026-09-24 · v1.2.5 第 9 轮（编号按键搬到纸外面 + 高亮快捷键）
+- 需求：① 加过注释后挂在页面左上角的那排小圆框（编号按键）要放到本页面之外，不要压在正文上；② 选中文字后按快捷键就能打上 / 删掉高亮。
+- 根因：`.mw-note-quick` 写死 `top:6px; left:6px; right:34px`，永远落在纸内左上角，第一条批注一多就盖住正文第一行。
+- 改法：容器改由组件写 `bottom: calc(100% + Npx)`（`NoteQuickBar` 收 `lift`，`PageInkLayer` 收 `quickLift`）—— 书页 `lift=0` 就是纸上方 6px；文字页的批注层从纸的上边距里开始，要再抬 `TX_PAD_Y * scale` 才真到纸外。**纸上方得留地方**：`fitScale` 纵向留白 44 → `TX_ROOM_Y = 68`、`txLimit.height` 同口径、连续滚动 `gap-4 → gap-8` + `pt-10`，适页时纸上方稳定有 ~34px，按键（6 + 21px）不会被舞台裁掉。同时把 `.tx-col .mw-note-quick` 从「放开命中」名单里摘掉（容器 `pointer-events:none`、按键自己 `auto`），别让那条横跨纸宽的空容器去抢上一张纸的批注列；`.mw-note-chip-text` 加 `color: inherit; font-weight: 500`，浅色皮肤下不再淡到读不出。
+- 快捷键 `Ctrl+Shift+H`：`shortcutHighlight()` 现场读选区 → `closest('.reader-text')` → `rangeOffsets()`（与浮条、纸上画色同一套偏移量口径）；命中「整条落在选区内」或「整个盖住选区」的高亮一律删掉（可一次删多条），没有命中就 `addHighlight(span, quote)` 涂当前笔色；接线在 `onKey` 的 Ctrl 分支，输入框内仍走 typing 早退。浮条色板的 title 与底部状态条都写了这个键。
+- 位置：`ReaderPage.tsx`（`NoteQuickBar`/`PageInkLayer`/`TextBook` 的 `quickLift`/`ContinuousPages` 容器/`fitScale`/`shortcutHighlight`）、`index.css`（`.mw-note-quick`/`.tx-col .mw-note-quick`/`.mw-note-chip-text`）。
+- 验证：L0（tsc 严格 + build）。
+- 遗留：`Ctrl+Shift+H` 只在文字模式有效（书页是画布选不出字）；只压到一半的高亮不会被误删、但也删不掉，精确删除仍用浮条点同色。放大或「适宽」下纸顶贴到舞台边缘时，纸外的按键要往上滚一点才看得见。
 
 ## 2026-09-24 · v1.2.5 第 8 轮（浮条定位准 + 高亮能挑色）
 - 需求：滚动模式里能选中字，但「注释 / 高亮」那条浮框经常离选区一大截；要更准、更显眼，高亮还要能挑颜色。

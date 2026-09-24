@@ -1,7 +1,15 @@
 # 阅读 · 书页/文字阅读方式与字体字号
 
-> 功能线速查：ReaderPage.tsx（mode/canTextView/textView/textBody/pagedText/hasPages/READER_FONTS/TextStage/TextBook/txSheet/TX_*/usedColumnCount）+ index.css（.reader-text / pre.reader-plain / .tx-sheet .tx-zoom .tx-flow .tx-grip）
-> 功能线速查：ReaderPage.tsx（mode/canTextView/textView/textBody/pagedText/hasPages/READER_FONTS/ReaderBody/textLooksPlain/TextStage/TextBook/txSheet/TX_*/usedColumnCount/onLayout→txGeom/TextPageThumb/LazyMount）+ index.css（.reader-text / pre.reader-plain / .tx-sheet .tx-zoom .tx-flow .tx-col .tx-grip / .txp-*）
+> 功能线速查：ReaderPage.tsx（mode/canTextView/textView/textBody/pagedText/hasPages/READER_FONTS/ReaderBody/textLooksPlain/TextStage/TextBook/txLimit·autoWidth/txSheet/txPage/TX_*(含 TX_MAX_W 2600·TX_ROOM_Y 68)/usedColumnCount/onLayout→txGeom/TextPageThumb/LazyMount/shortcutHighlight + footer reader-foot）+ index.css（.reader-text / pre.reader-plain / .tx-sheet .tx-zoom .tx-flow .tx-col .tx-grip / .txp-zoom）
+
+## 2026-09-24 · v1.2.5 第 9 轮（缩略图每页都有预览 · 横向拖得开 · 状态条不漏 · 高亮有快捷键）
+- 需求：① 侧栏「文字页」除了第一页其余都没有预览；② 页面边界的横向改变范围要放大；③ 底部「第 N / M 页 + 快捷键提示」还是显示不全，且只在开着侧栏时；④ 选中正文要能用快捷键打上 / 删掉高亮。
+- 根因：① `TextPageThumb` 给缩略图正文另抄一套 CSS，`.txp-flow{overflow:hidden}` 把第二栏起（本来就画在栏框外的分片）整条裁掉，再 `translateX` 平移出可视区 → 第 2 页往后全空白，第 1 页两种设置都一样。② 宽度被三道夹子重复卡：`txLimit.width` 按舞台宽、`txSheet` 的 `capW`（980/1500）又去夹「用户拖出来的尺寸」、`resizeTxSheet` 再夹一次，`TX_MAX_W` 形同虚设。③ footer 在 `<main>` 里、侧栏是它的兄弟节点，开侧栏 `main` 变窄，而 footer 是 `h-7` 单行 flex 且 `<span>` 的 `min-width:auto` 压不下去 → 溢出的提示被裁（顶栏在侧栏之外，宽度不变，所以「关掉侧栏就好了」）。
+- 改法：① 缩略图复用纸上的 `.tx-zoom` + `.tx-flow`（裁切只在外层那一步），`.txp-flow` 规则整条删除、`.txp-zoom` 只留 `transform-origin`，并把 `--tx-colh` 一起传进去（图片与纸上同样限到一栏高）。② `txLimit` 拆 `autoWidth`（只服务「没拖过边界时的自适应」）与 `height`，用户拖出来的宽度只受 `TX_MAX_W` 限制并提到 2600；纵向仍一屏封顶（一张纸装下整篇就没有翻页可言），超出舞台的部分由 `.reader-page-area` 的 `overflow:auto` 兜住，右边缘手柄滚过去照样拖得着。③ footer 改 `min-h-[1.75rem] + flex-wrap + whitespace-nowrap`，精简掉重复提示，文字模式那条补上快捷键。④ 新增 `shortcutHighlight()`：现场读 `window.getSelection()`，`closest('.reader-text')` 找正文根，用与浮条同一个 `rangeOffsets()` 量偏移；某条高亮整条落在选区内或整个盖住选区就算按到，删（可多条），否则 `addHighlight` 涂当前笔色；接线在 `onKey` 的 Ctrl 分支 `case 'H'`。
+- 位置：`ReaderPage.tsx`（`TX_MAX_W`/`TX_ROOM_Y`/`txLimit`/`txSheet`/`resizeTxSheet`/`fitScale`/`TextPageThumb`/`shortcutHighlight`/`onKey`/`footer`/两个 `.tx-grip` 提示）、`index.css`（`.txp-flow` 删除、`.txp-zoom` 精简）。
+- 参考：CSS Overflow（多栏分片属于视觉溢出，要靠外层裁切框裁，自己再 hidden 就把后面的栏整条吃掉）；React 的 `useEffect(fn, deps)` 依赖数组在渲染期求值 ⇒ `addHighlight`/`shortcutHighlight` 必须声明在快捷键 effect 之前，否则撞 TDZ（本轮就是这么翻过一次车）。
+- 验证：L0 tsc（noUnused*）0 错 + build；L0+ 取证 `work/patch/txp.html`/`txp.mjs` —— 同一份 DOM 两种 overflow，第 1/2/3/7 页中心 `elementFromPoint`：hidden 时全落在 `DIV.zoom`（没画出来），visible 时落在 `P`（有字）。GUI 手测留给用户。
+- 遗留：纸横向放到 2600 时缩略图会缩成一条窄带（`ratio = 116/colW`），仍是等比预览；状态条窄窗口下占两行，舞台纵向少约 14px。
 
 ## 2026-09-24 · v1.2.5 第 8 轮（选得中字 · 纸底不再漏 · 侧栏有「文字页」）
 - 需求：① 单页 / 双页下还是选不中正文；② 侧栏缩回再拉出竟然显示书页的「页面」，要求文字模式保留自己的页面栏（含书签），改字体改纸边要跟着变，又不能和书页页码混；③ 页面下方那截字符排版出错。

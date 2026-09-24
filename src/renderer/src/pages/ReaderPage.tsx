@@ -288,26 +288,27 @@ export function ReaderPage(): JSX.Element {
   const layoutRef = useRef<StageLayout>('single')
   const stepRef = useRef<(delta: number) => void>(() => undefined)
 
-  /** 一张纸最多就是一屏：再大既看不到整页，也会把整篇正文挤成「一页」，翻页按键形同虚设 */
+  /** 纵向一屏封顶（一张纸装下整篇就没有翻页可言），横向只受 TX_MAX_W 限制：
+      拖得比窗口宽也看得到，左右超出部分靠舞台滚动条 / 按住拖动 */
   const txLimit = useMemo(
     () => ({
-      width: Math.max(TX_MIN_W, Math.min(TX_MAX_W, stageSize.width - 24)),
-      height: Math.max(TX_MIN_H, Math.min(TX_MAX_H, stageSize.height - 24))
+      autoWidth: Math.max(TX_MIN_W, Math.min(TX_MAX_W, stageSize.width - 24)),
+      height: Math.max(TX_MIN_H, Math.min(TX_MAX_H, stageSize.height - TX_ROOM_Y))
     }),
     [stageSize]
   )
   /** 文字页的纸张尺寸（未缩放）：双页时这是一张纸的宽，里面排两栏 */
   const txSheet = useMemo(() => {
-    const capW = Math.min(layout === 'double' ? 1500 : 980, txLimit.width)
+    const capW = Math.min(layout === 'double' ? 1500 : 980, txLimit.autoWidth)
     if (txPage !== null)
-      return { width: Math.min(txPage.width, capW), height: Math.min(txPage.height, txLimit.height) }
+      return { width: Math.min(txPage.width, TX_MAX_W), height: Math.min(txPage.height, txLimit.height) }
     return { width: capW, height: Math.max(TX_MIN_H, txLimit.height - 16) }
   }, [txPage, layout, txLimit])
-  /** 拖过纸边就固定下来（一屏封顶），Ctrl+0 复位时再交回给舞台 */
+  /** 拖过纸边就固定下来：横向一路可以拖到 TX_MAX_W（比窗口还宽），纵向仍一屏封顶；Ctrl+0 复位时交还给舞台 */
   const resizeTxSheet = useCallback(
     (width: number, height: number) => {
       setTxPage({
-        width: Math.round(Math.min(width, txLimit.width)),
+        width: Math.round(Math.min(width, TX_MAX_W)),
         height: Math.round(Math.min(height, txLimit.height))
       })
     },
@@ -665,6 +666,83 @@ export function ReaderPage(): JSX.Element {
     }
   }, [id, page, pageCount, info, hasPages])
 
+  /** 涂荧光笔：同一段换个颜色就改色，同色再点一下才取消（按区间起止认人，重排也不会认错） */
+  const addHighlight = useCallback(
+    async (range: TextRange, quote: string, color = hlColor) => {
+      setHlColor(color)
+      const region = JSON.stringify({ kind: 'range', start: range.start, end: range.end })
+      const dup = marks.find((mark) => {
+        if (mark.kind !== 'highlight') return false
+        const span = parseRange(mark.region)
+        return span !== null && span.start === range.start && span.end === range.end
+      })
+      if (dup) {
+        if (dup.color === color || (dup.color === '' && color === 'yellow')) {
+          await api.note.removeMark(dup.id)
+          setMarks((list) => list.filter((mark) => mark.id !== dup.id))
+          showHint('已取消这段高亮')
+          return
+        }
+        const recolored = await api.note.saveMark({ id: dup.id, noteId: id, kind: 'highlight', color })
+        setMarks((list) => list.map((mark) => (mark.id === dup.id ? recolored : mark)))
+        showHint('这段高亮换色了')
+        return
+      }
+      const target = hasPages ? pageRef.current : 0
+      const created = await api.note.saveMark({
+        noteId: id,
+        kind: 'highlight',
+        page: target,
+        label: target > 0 ? '高亮：第 ' + target + ' 页' : '高亮：正文',
+        quote: quote.slice(0, 600),
+        region,
+        color
+      })
+      setMarks((list) => [...list, created])
+      showHint('已涂亮这一段：点一下标记可以看它的原文，再点一次取消')
+    },
+    [id, marks, showHint, hasPages, hlColor]
+  )
+
+  /**
+   * 快捷键涂高亮：选中一段正文按 Ctrl+Shift+H。
+   * 这段已经被某条高亮整个盖住（或整条落在选区里）就把它去掉，否则用当前笔色涂上。
+   * 认「渲染后正文的第几个字」，与浮条、纸上画的是同一套偏移量。
+   */
+  const shortcutHighlight = useCallback((): void => {
+    const selection = window.getSelection()
+    const range =
+      selection !== null && !selection.isCollapsed && selection.rangeCount > 0 ? selection.getRangeAt(0) : null
+    const owner = range === null ? null : range.commonAncestorContainer
+    const holder =
+      owner === null
+        ? null
+        : owner.nodeType === Node.ELEMENT_NODE ? (owner as Element) : owner.parentElement
+    const root = holder === null ? null : holder.closest<HTMLElement>('.reader-text')
+    const span = root === null || range === null ? null : rangeOffsets(root, range)
+    if (root === null || span === null) {
+      showHint('先用鼠标选中一段正文，再按 Ctrl+Shift+H 涂亮 / 取消高亮')
+      return
+    }
+    const hit = marks.filter((mark) => {
+      if (mark.kind !== 'highlight') return false
+      const span2 = parseRange(mark.region)
+      return (
+        span2 !== null &&
+        ((span2.start >= span.start && span2.end <= span.end) ||
+          (span2.start <= span.start && span2.end >= span.end))
+      )
+    })
+    if (hit.length > 0) {
+      const ids = hit.map((mark) => mark.id)
+      ids.forEach((markId) => void api.note.removeMark(markId))
+      setMarks((list) => list.filter((mark) => !ids.includes(mark.id)))
+      showHint(ids.length > 1 ? '已去掉这 ' + ids.length + ' 段高亮' : '已去掉这段高亮')
+      return
+    }
+    void addHighlight(span, (root.textContent ?? '').slice(span.start, span.end))
+  }, [marks, showHint, addHighlight])
+
   // ---------- 快捷键：与主流阅读器对齐（Ctrl+滚轮 / Ctrl+- 缩放，方向键与空格翻页，F 全屏） ----------
   useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
@@ -704,6 +782,11 @@ export function ReaderPage(): JSX.Element {
           case 'F':
             event.preventDefault()
             setPanel('find')
+            return
+          case 'H':
+            /* 选中正文按 Ctrl+Shift+H：涂亮，再按一次去掉（Shift 按出来的就是大写 H） */
+            event.preventDefault()
+            shortcutHighlight()
             return
           default:
             return
@@ -841,7 +924,7 @@ export function ReaderPage(): JSX.Element {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step, goPage, pageCount, panel, composer, info, mode, pagedText, flip, navigate, page, marks, layout, fullscreen, compareOpen, extractOpen, inkMode, openNote])
+  }, [step, goPage, pageCount, panel, composer, info, mode, pagedText, flip, navigate, page, marks, layout, fullscreen, compareOpen, extractOpen, inkMode, openNote, shortcutHighlight])
 
   // ---------- 标记 ----------
   const toggleMark = async (kind: NoteMarkKind, atPage?: number): Promise<void> => {
@@ -937,44 +1020,6 @@ export function ReaderPage(): JSX.Element {
     return list
   }, [marks])
 
-  /** 涂荧光笔：同一段换个颜色就改色，同色再点一下才取消（按区间起止认人，重排也不会认错） */
-  const addHighlight = useCallback(
-    async (range: TextRange, quote: string, color = hlColor) => {
-      setHlColor(color)
-      const region = JSON.stringify({ kind: 'range', start: range.start, end: range.end })
-      const dup = marks.find((mark) => {
-        if (mark.kind !== 'highlight') return false
-        const span = parseRange(mark.region)
-        return span !== null && span.start === range.start && span.end === range.end
-      })
-      if (dup) {
-        if (dup.color === color || (dup.color === '' && color === 'yellow')) {
-          await api.note.removeMark(dup.id)
-          setMarks((list) => list.filter((mark) => mark.id !== dup.id))
-          showHint('已取消这段高亮')
-          return
-        }
-        const recolored = await api.note.saveMark({ id: dup.id, noteId: id, kind: 'highlight', color })
-        setMarks((list) => list.map((mark) => (mark.id === dup.id ? recolored : mark)))
-        showHint('这段高亮换色了')
-        return
-      }
-      const target = hasPages ? pageRef.current : 0
-      const created = await api.note.saveMark({
-        noteId: id,
-        kind: 'highlight',
-        page: target,
-        label: target > 0 ? '高亮：第 ' + target + ' 页' : '高亮：正文',
-        quote: quote.slice(0, 600),
-        region,
-        color
-      })
-      setMarks((list) => [...list, created])
-      showHint('已涂亮这一段：点一下标记可以看它的原文，再点一次取消')
-    },
-    [id, marks, showHint, hasPages, hlColor]
-  )
-
   /** 选中一段正文 → 在旁边写条注释：区间和引文一起带进注释框 */
   const annotateRange = useCallback((range: TextRange, quote: string) => {
     setOpenNote(null)
@@ -1008,9 +1053,9 @@ export function ReaderPage(): JSX.Element {
   const fitScale = useMemo(() => {
     /* 文字页的纸本来就是照着舞台尺寸定的，再套一层 PDF 适页倍率会让「拖边界」和看到的大小对不上 */
     if (!pdf || mode === 'text') return 1
-    const pad = 44
-    const w = Math.max(120, stageSize.width - pad)
-    const h = Math.max(120, stageSize.height - pad)
+    /* 上方多留一条空带：注释编号按键排在纸外面，被舞台裁掉就看不见了 */
+    const w = Math.max(120, stageSize.width - 44)
+    const h = Math.max(120, stageSize.height - TX_ROOM_Y)
     const box = pageSize(pdf.baseWidth, pdf.baseHeight, 1, rotation)
     const base = layout === 'double' ? box.width * 2 + 16 : box.width
     // 连续滚动时按宽度铺满，整页适配没有意义
@@ -1668,15 +1713,13 @@ export function ReaderPage(): JSX.Element {
           </div>
 
           {/* 底部状态条：页码进度与快捷键提示 */}
-          <footer className="reader-foot flex h-7 shrink-0 items-center gap-3 border-t border-border bg-surface px-3 text-[11px] text-muted-foreground">
+          <footer className="reader-foot flex min-h-[1.75rem] shrink-0 flex-wrap items-center whitespace-nowrap gap-x-3 gap-y-0.5 border-t border-border bg-surface px-3 py-0.5 text-[11px] leading-tight text-muted-foreground">
             <span className="tabular-nums">
               {hasPages ? `第 ${page} / ${pageCount} 页` : '连续阅读 · 点上方「单页」即可分页'}
             </span>
             <span className="h-3 w-px bg-border" />
-            <span>← → 翻页</span>
+            <span>← → 翻页（点两侧小按键也行）</span>
             <span>空格 下一页</span>
-            <span>点两侧小按键翻页</span>
-            <span>到头会提示</span>
             <span>Ctrl+滚轮 缩放</span>
             <span>放大后按住左键拖动</span>
             <span>B 书签</span>
@@ -1684,7 +1727,7 @@ export function ReaderPage(): JSX.Element {
             <span>E 注释</span>
             <span>圈注可选形状</span>
             <span>点圈看在旁边</span>
-            {mode === 'text' ? <span>选中正文可涂亮或写旁注</span> : null}
+            {mode === 'text' ? <span>选中正文可涂亮或写旁注 · Ctrl+Shift+H 涂亮 / 取消</span> : null}
             {pagedText ? <span>拖纸边改页面边界，文字量跟着变</span> : null}
             <span>R 旋转</span>
             <span>F / F11 全屏 · Esc 退出</span>
@@ -1859,9 +1902,12 @@ const TX_PAD_Y = 46
 /** 双页时两栏之间的书脊间距 */
 const TX_GAP = 26
 const TX_MIN_W = 320
-const TX_MAX_W = 1900
+/** 横向最多拖到这么宽：比窗口还宽也拖得动，超出部分交给舞台自己的滚动条 */
+const TX_MAX_W = 2600
 const TX_MIN_H = 280
 const TX_MAX_H = 2600
+/** 纸上方留出的空带：注释编号按键排在纸外面，不能被舞台裁掉 */
+const TX_ROOM_Y = 68
 /** 一栏最多排到多少页，防止极端内容把 DOM 撑爆 */
 const TX_MAX_COLS = 4000
 /** 文字页可见窗口在正文区两侧各多留的一点余量：必须小于栏间距，否则邻栏会漏一条字出来 */
@@ -2217,7 +2263,7 @@ function SelectionBar(props: {
             className="tx-selbar-dot"
             data-on={item.key === color ? '1' : '0'}
             style={{ background: item.css }}
-            title={'用' + item.label + '色荧光笔涂亮这一段（再点一次同色可取消）'}
+            title={'用' + item.label + '色荧光笔涂亮这一段（选中后按 Ctrl+Shift+H 也能涂亮 / 取消）'}
             onClick={() => {
               onHighlight(sel.range, sel.quote, item.key)
               onClose()
@@ -2376,11 +2422,17 @@ function NoteQuickBar(props: {
   items: { mark: NoteMark; index: number }[]
   activeId: number | null
   onOpen: (id: number) => void
+  /** 还要再往上抬多少：文字页的批注层是从纸的上边距里开始的，抬到纸外面才不压正文 */
+  lift?: number
 }): JSX.Element | null {
-  const { items, activeId, onOpen } = props
+  const { items, activeId, onOpen, lift = 0 } = props
   if (items.length === 0) return null
   return (
-    <div className="mw-note-quick" title="这一页的注释：点一下就在旁边展开">
+    <div
+      className="mw-note-quick"
+      title="这一页的注释：点一下就在旁边展开"
+      style={{ bottom: 'calc(100% + ' + (6 + lift) + 'px)' }}
+    >
       {items.map(({ mark, index }) => (
         <button
           key={mark.id}
@@ -2567,6 +2619,8 @@ function PageInkLayer(props: {
   showInk: boolean
   showNotes: boolean
   noteSide: boolean
+  /** 注释编号按键再往上抬多少（文字页要把它们放到纸外面） */
+  quickLift?: number
   onInk?: (kind: InkShape, points: InkPoint[], page: number) => void
   inkShape?: InkShape
   openNoteId?: number | null
@@ -2574,7 +2628,7 @@ function PageInkLayer(props: {
   onRemoveNote?: (id: number) => void
 }): JSX.Element {
   const {
-    pageNumber, box, rotation, items, ranges = [], inkMode, showInk, noteSide,
+    pageNumber, box, rotation, items, ranges = [], inkMode, showInk, noteSide, quickLift = 0,
     onInk, inkShape, openNoteId = null, onOpenNote, onRemoveNote
   } = props
   const { inkAll, railItems, chips, dots } = items
@@ -2723,7 +2777,7 @@ function PageInkLayer(props: {
         <InkStrokes strokes={[{ id: -1, region: sketch, active: false }]} box={box} rotation={rotation} />
       ) : null}
       <InkDots items={dots} rotation={rotation} activeId={openNoteId} onOpen={toggleNote} />
-      <NoteQuickBar items={chips} activeId={openNoteId} onOpen={toggleNote} />
+      <NoteQuickBar items={chips} activeId={openNoteId} onOpen={toggleNote} lift={quickLift} />
       <NoteRail
         items={railItems}
         side={noteSide}
@@ -2959,8 +3013,8 @@ function ContinuousPages(props: Omit<StageProps, 'turning' | 'layout'>): JSX.Ele
   )
 
   return (
-    <div ref={setNode} className="reader-scroll h-full overflow-auto px-6 py-5" onScroll={handleScroll}>
-      <div ref={listRef} className="mx-auto flex w-fit flex-col gap-4">
+    <div ref={setNode} className="reader-scroll h-full overflow-auto px-6 pb-5 pt-10" onScroll={handleScroll}>
+      <div ref={listRef} className="mx-auto flex w-fit flex-col gap-8">
         {Array.from({ length: pageCount }, (_, index) => index + 1).map((number) => (
           <PdfPageView
             key={number}
@@ -3652,6 +3706,8 @@ function TextBook(props: TextBookProps): JSX.Element {
                   pageNumber={pageNumber}
                   box={{ width: colW * scale, height: colH * scale }}
                   rotation={0}
+                  /* 这一层是从纸的上边距里开始的：按键抬到纸外面，别压在正文上 */
+                  quickLift={TX_PAD_Y * scale}
                   items={items[index]}
                   ranges={rangesOf(pageNumber)}
                   inkMode={inkMode}
@@ -3670,7 +3726,7 @@ function TextBook(props: TextBookProps): JSX.Element {
           <>
             <span
               className="tx-grip tx-grip-w"
-              title="按住拖动改页面宽度：正文跟着重排，装不下的推到下一页（一张纸最多一屏）"
+              title="按住拖动改页面宽度：正文跟着重排，装不下的推到下一页（可以拖得比窗口还宽，超出部分用滚动条看）"
               onPointerDown={startResize('w')}
               onPointerMove={moveResize}
               onPointerUp={endResize}
@@ -3678,7 +3734,7 @@ function TextBook(props: TextBookProps): JSX.Element {
             />
             <span
               className="tx-grip tx-grip-h"
-              title="按住拖动改页面高度：正文跟着重排，装不下的推到下一页（一张纸最多一屏）"
+              title="按住拖动改页面高度：正文跟着重排，装不下的推到下一页（一屏封顶，免得整篇挤进一页）"
               onPointerDown={startResize('h')}
               onPointerMove={moveResize}
               onPointerUp={endResize}
@@ -4262,19 +4318,27 @@ function TextPageThumb(props: {
   const body = useMemo(() => <ReaderBody text={text} />, [text])
   return (
     <LazyMount width={width} height={colH * ratio} label={page}>
-      <div className="txp-zoom" style={{ width: colW, height: colH, transform: 'scale(' + ratio + ')' }}>
+      {/* 和纸上同一套结构：裁切只在 .tx-zoom 那一层，正文自己 overflow:visible。
+          原来缩略图给正文也加了 overflow:hidden，第二页起的栏被自己那圈框裁掉，
+          再往左平移就什么都不剩 —— 这就是「除了第一页都没有预览」（Playwright 命中测过） */}
+      <div className="tx-zoom txp-zoom" style={{ width: colW, height: colH, transform: 'scale(' + ratio + ')' }}>
         <div
-          className="reader-text txp-flow"
-          style={{
-            width: colW,
-            height: colH,
-            columnCount: 'auto',
-            columnWidth: colW,
-            columnGap: TX_GAP,
-            fontSize: fontSize + 'px',
-            fontFamily: fontFamily === '' ? undefined : fontFamily,
-            transform: 'translateX(' + -(page - 1) * (colW + TX_GAP) + 'px)'
-          }}
+          className="reader-text tx-flow"
+          style={
+            {
+              left: 0,
+              top: 0,
+              width: colW,
+              height: colH,
+              columnCount: 'auto',
+              columnWidth: colW,
+              columnGap: TX_GAP,
+              fontSize: fontSize + 'px',
+              fontFamily: fontFamily === '' ? undefined : fontFamily,
+              transform: 'translateX(' + -(page - 1) * (colW + TX_GAP) + 'px)',
+              ['--tx-colh' as string]: colH + 'px'
+            } as CSSProperties
+          }
         >
           {body}
         </div>
