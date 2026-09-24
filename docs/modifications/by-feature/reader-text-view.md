@@ -1,7 +1,16 @@
 # 阅读 · 书页/文字阅读方式与字体字号
 
 > 功能线速查：ReaderPage.tsx（mode/canTextView/textView/textBody/pagedText/hasPages/READER_FONTS/TextStage/TextBook/txSheet/TX_*/usedColumnCount）+ index.css（.reader-text / pre.reader-plain / .tx-sheet .tx-zoom .tx-flow .tx-grip）
-> 记录格式见 `docs/modifications/README.md`；新改动**追加在本行下方的最前面**。
+> 功能线速查：ReaderPage.tsx（mode/canTextView/textView/textBody/pagedText/hasPages/READER_FONTS/ReaderBody/textLooksPlain/TextStage/TextBook/txSheet/TX_*/usedColumnCount/onLayout→txGeom/TextPageThumb/LazyMount）+ index.css（.reader-text / pre.reader-plain / .tx-sheet .tx-zoom .tx-flow .tx-col .tx-grip / .txp-*）
+
+## 2026-09-24 · v1.2.5 第 8 轮（选得中字 · 纸底不再漏 · 侧栏有「文字页」）
+- 需求：① 单页 / 双页下还是选不中正文；② 侧栏缩回再拉出竟然显示书页的「页面」，要求文字模式保留自己的页面栏（含书签），改字体改纸边要跟着变，又不能和书页页码混；③ 页面下方那截字符排版出错。
+- 根因：① `.tx-col`（每一栏上的批注覆盖层）在 CSS 里没有任何规则，默认吃命中事件，整栏被它盖住，鼠标按下根本落不到正文上 —— Playwright `work/patch/txsel.html` 量过：有它时 `elementFromPoint` 返回 `DIV.txcol`、拖选 0 字符；`pointer-events:none` 后同一次拖选 123 字符。② 侧栏标签在文字模式下把「页面」过滤掉了，可顶栏展开按键写死 `setPanel('thumbs')`，收起再展开就停在无效 tab 上，而 `tab === 'thumbs' && pdf` 仍成立（Word 类也有 PDF 渲染件）→ 画出书页页码。③ 栏底在 `TX_PAD_Y + colH`，`.tx-zoom` 却裁到整张纸高（含 46px 下边距），于是「放不下又不许断栏」的整块（`.reader-text pre { overflow-x:auto }` 让代码块不可跨栏断、比一页还高的 `<img>`）一路画进下边距。取证：1200px 的图塞进 632px 的栏 → `flow.scrollHeight` 1209。
+- 改法：`.tx-col{pointer-events:none}` + 各交互子元素单独 `auto`；`.tx-zoom` 底边收到 `TX_PAD_Y + colH + TX_BLEED`（与左右同样的出血），img/svg/video/canvas 限到一栏高（`--tx-colh` 由 TextBook 写进来，`object-fit: contain` 等比缩不裁内容），`.tx-flow .md-body pre` 改软换行 `pre-wrap + overflow-wrap: anywhere`。**这条限高别套到 `.reader-plain`**：纯文本整篇就是那一个 `<pre>`。侧栏新增 `TextPageThumb` + `LazyMount`：用与纸上完全相同的 colW/colH/字号/栏距再排一棵正文，外面 `transform: scale()` 等比缩（transform 不改排版 → 分页逐字一致），IntersectionObserver 只在滚到附近时真排；几何由 `TextBook#onLayout` 报回 `txGeom`；文字模式这一栏标签改叫「文字页」并加一行解释，「全部页面 / 仅书签」与书签角标跟书页共用；顶栏展开按键落在当前阅读方式真正存在的那一栏；连续文字模式仍收起这一栏。`goPage` 双页下把偶数页对齐回左页。
+- 位置：`ReaderPage.tsx`（`TextPageThumb` / `LazyMount` / `ReaderBody` / `textLooksPlain` / `TextBook` 的 `onLayout`·`--tx-colh`·`.tx-zoom` 高 / `goPage` / 顶栏工具组条件 / 侧栏 `tx` 与 tabs 过滤）、`index.css`（`.tx-col` / `.tx-flow img…` / `.tx-flow .md-body pre` / `.txp-thumb .txp-zoom .txp-flow .txp-lazy`）。
+- 参考：Readium / epub.js 的 CSS 多栏分页；MDN「Handling overflow in multi-column layout」（不可断行的块会独占一个 column 并溢出 fragmentainer）；CSS transform 不触发重排（缩略图与纸上分页一致的前提）。
+- 验证：tsc（含 `--noUnusedLocals --noUnusedParameters`）0 错 + build；`work/patch/txsel.mjs`、`txsel2.mjs` 取证。GUI 手测留给用户。
+- 遗留：缩略图是排版预览、不是画布快照，「本页」仍书页专属；超长文档一屏十几份整篇正文仍有可察觉的重排耗时；连续文字模式仍不给「文字页」这一栏。
 
 ## 2026-09-23 · v1.2.5 第 7 轮（分页机制重做）
 - 需求：单页 / 双页显示不全、上一页会露出下一页的一条字、拖过页面边界后翻不动（全挤在一页）、切回书页也翻不动、分页下改不了字号也选不中文字、点「连续」顶栏丢掉一大半、深色模式白纸刺眼。

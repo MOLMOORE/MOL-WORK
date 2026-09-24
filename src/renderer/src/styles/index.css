@@ -1561,6 +1561,19 @@
     box-shadow: 0 0 0 3px hsl(var(--primary) / 0.28), 0 2px 8px -2px rgba(0, 0, 0, 0.5);
   }
 
+  /* 查找命中的圈：和批注共用一条 path，只是虚线 + 提醒色，并且不吃鼠标事件 */
+  .mw-ink.is-find path {
+    fill: hsl(var(--warning) / 0.14);
+    stroke: hsl(var(--warning));
+    stroke-width: 2.5;
+    stroke-dasharray: 7 5;
+    pointer-events: none;
+  }
+  .mw-ink.is-find path.is-active {
+    fill: hsl(var(--warning) / 0.26);
+    stroke-dasharray: none;
+  }
+
   /* 圈注模式的采集层：铺满整页，按住就能画 */
   .mw-ink-catch {
     position: absolute;
@@ -1932,6 +1945,19 @@
     top: 0;
     overflow: hidden;
   }
+  /* 栏上的批注覆盖层：只画圈、只留按键，绝不能挡住正文的鼠标选中。
+     之前这一层是默认的命中区，整页按下去都落在它身上，一页里根本框不出选区。 */
+  .tx-col {
+    pointer-events: none;
+  }
+  .tx-col .mw-ink path,
+  .tx-col .mw-ink-dot,
+  .tx-col .mw-note-quick,
+  .tx-col .mw-note-rail,
+  .tx-col .mw-note-pop,
+  .tx-col .mw-ink-catch {
+    pointer-events: auto;
+  }
   .tx-flow {
     position: absolute;
     column-fill: auto;
@@ -1939,6 +1965,55 @@
        裁切归 .tx-zoom（它的宽度只比正文区多一点，多出来的栏不会从纸边漏出来） */
     overflow: visible;
     color: hsl(var(--foreground));
+  }
+  /* 比一页还高的整块（图片）会顶穿栏底、落进纸的下边距 —— 就是「页面下方那截字符排版出错」。
+     --tx-colh 由 TextBook 按当前页高写进来：图片限到一栏高，等比缩，不裁内容。 */
+  .tx-flow img,
+  .tx-flow svg,
+  .tx-flow video,
+  .tx-flow canvas {
+    max-width: 100%;
+    max-height: calc(var(--tx-colh, 100vh) - 8px);
+    object-fit: contain;
+  }
+  /* 代码块带 overflow-x:auto 就变成一个「不许跨栏断」的整块，同样会顶穿栏底。
+     文字页里换成软换行：能一行一行往下一栏排，就不需要横向滚动条了。
+     （别把这个规则套到 .reader-plain 上：整篇正文就是那一个 <pre>，限高等于把全书塞进一栏。） */
+  .tx-flow .md-body pre {
+    overflow-x: visible;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  /* 侧栏「文字页」缩略图：整页等比缩小（transform 不改排版，栏数与纸上完全一致）；
+     没滚到眼前的先用占位框，别一开侧栏就把整篇正文重排几十遍 */
+  .txp-thumb {
+    position: relative;
+    overflow: hidden;
+    border-radius: 2px;
+    background: hsl(var(--card));
+  }
+  .txp-zoom {
+    position: absolute;
+    left: 0;
+    top: 0;
+    overflow: hidden;
+    transform-origin: top left;
+  }
+  .txp-flow {
+    position: absolute;
+    left: 0;
+    top: 0;
+    column-fill: auto;
+    overflow: hidden;
+    color: hsl(var(--foreground));
+  }
+  .txp-lazy {
+    display: grid;
+    place-items: center;
+    background: hsl(var(--muted));
+    color: hsl(var(--muted-foreground));
+    font-size: 11px;
   }
 
   /* 拖边界的手柄：右、下、右下角，鼠标在纸上时才出现，不抢正文选中 */
@@ -1993,40 +2068,134 @@
     box-shadow: inset 0 -0.13em 0 hsl(var(--primary) / 0.5);
   }
   mark.tx-hl.is-active {
-    background: hsl(var(--warning) / 0.68);
-    box-shadow: inset 0 -0.13em 0 hsl(var(--primary));
+    /* 点亮自己那格：加描边而不是换底色，换了色板就把用户挑的颜色盖掉了 */
+    outline: 2px solid hsl(var(--primary));
+    outline-offset: 1px;
+    border-radius: 3px;
+  }
+  /* 高亮色板：颜色存在 note_marks.color，画在 data-hl 上。
+     用固定 rgba 不用主题令牌 —— 荧光笔本来就该和纸面底色拉开距离，深浅两套都压得住。 */
+  mark.tx-hl[data-hl='yellow'] {
+    background: rgba(250, 204, 21, 0.45);
+  }
+  mark.tx-hl[data-hl='green'] {
+    background: rgba(74, 222, 128, 0.42);
+  }
+  mark.tx-hl[data-hl='cyan'] {
+    background: rgba(34, 211, 238, 0.4);
+  }
+  mark.tx-hl[data-hl='pink'] {
+    background: rgba(249, 168, 212, 0.45);
+  }
+  mark.tx-hl[data-hl='violet'] {
+    background: rgba(167, 139, 250, 0.45);
   }
 
-  /* 选中正文后浮出来的小条：涂荧光笔 / 在旁边写注释 */
+  /* 查找命中：正文里每一处都涂出来，当前这一处再加一圈描边 */
+  mark.tx-find {
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
+    padding: 0.05em 0;
+    border-radius: 2px;
+    background: hsl(var(--primary) / 0.2);
+    outline: 1px solid hsl(var(--primary) / 0.45);
+    color: inherit;
+  }
+  mark.tx-find.is-active {
+    background: hsl(var(--primary) / 0.46);
+    outline: 2px solid hsl(var(--primary));
+  }
+
+  /* 选中正文后浮出来的小条：挑高亮色 / 写注释。
+     带一个指向选区的小三角，位置贴着选区第一行，比原来那坨半透明灰条显眼得多。 */
   .tx-selbar {
     position: absolute;
-    z-index: 6;
+    z-index: 9;
     display: flex;
     align-items: center;
-    gap: 2px;
-    padding: 3px;
-    border: 1px solid hsl(var(--border));
+    gap: 3px;
+    padding: 4px 6px;
+    border: 1px solid hsl(var(--primary) / 0.5);
     border-radius: var(--r-lg);
-    background: hsl(var(--surface) / 0.98);
+    background: hsl(var(--card));
     color: hsl(var(--foreground));
-    box-shadow: 0 12px 26px -16px rgba(0, 0, 0, 0.8);
+    box-shadow: 0 14px 30px -12px rgba(0, 0, 0, 0.6), 0 0 0 3px hsl(var(--primary) / 0.14);
+  }
+  .tx-selbar::after {
+    content: '';
+    position: absolute;
+    left: 16px;
+    width: 9px;
+    height: 9px;
+    transform: rotate(45deg);
+    background: hsl(var(--card));
+  }
+  .tx-selbar[data-place='top']::after {
+    bottom: -5px;
+    border-right: 1px solid hsl(var(--primary) / 0.5);
+    border-bottom: 1px solid hsl(var(--primary) / 0.5);
+  }
+  .tx-selbar[data-place='bottom']::after {
+    top: -5px;
+    border-top: 1px solid hsl(var(--primary) / 0.5);
+    border-left: 1px solid hsl(var(--primary) / 0.5);
+  }
+  .tx-selbar-quote {
+    max-width: 8rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 11px;
+    color: hsl(var(--muted-foreground));
+  }
+  .tx-selbar-sep {
+    width: 1px;
+    align-self: stretch;
+    background: hsl(var(--border));
   }
 
-  /* 浮条里的两个按键：与顶栏工具组同一套「点亮走主色」的手感 */
+  /* 浮条里的按键：图标 + 文字，与顶栏工具组同一套手感 */
   .tx-selbar-btn {
-    display: grid;
-    place-items: center;
-    padding: 4px 6px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 7px;
     border: none;
     border-radius: var(--r-md);
     background: transparent;
     color: hsl(var(--muted-foreground));
+    font-size: 11px;
     cursor: pointer;
     transition: background-color 140ms ease, color 140ms ease;
   }
   .tx-selbar-btn:hover {
     background: hsl(var(--muted));
     color: hsl(var(--foreground));
+  }
+  .tx-selbar-btn.is-primary {
+    background: hsl(var(--primary));
+    color: hsl(var(--primary-foreground));
+  }
+  /* 高亮色板：点哪个色就涂哪个色 */
+  .tx-selbar-hl {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+  }
+  .tx-selbar-dot {
+    width: 15px;
+    height: 15px;
+    padding: 0;
+    border: 1px solid hsl(var(--border));
+    border-radius: 9999px;
+    cursor: pointer;
+    transition: transform 120ms ease, box-shadow 120ms ease;
+  }
+  .tx-selbar-dot:hover {
+    transform: scale(1.12);
+  }
+  .tx-selbar-dot[data-on='1'] {
+    box-shadow: 0 0 0 2px hsl(var(--card)), 0 0 0 3px hsl(var(--primary));
   }
 
   /* 顶栏注释工具组：注释 / 圈注 / 圈画 / 旁注 共用一个边框，按键一律「图标 + 文字」，

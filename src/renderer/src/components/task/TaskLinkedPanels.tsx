@@ -8,7 +8,6 @@ import { Field, Input, Textarea } from '../ui/Field'
 import { ReviewQueue } from '../review/ReviewQueue'
 import { api } from '../../lib/ipc'
 import { useAppStore } from '../../stores/appStore'
-import { useTaskStore } from '../../stores/taskStore'
 import { useNoteStore } from '../../stores/noteStore'
 import { formatDateTime, formatMinutes, addDays, formatDay, fromDatetimeLocal, todayKey } from '../../lib/utils'
 

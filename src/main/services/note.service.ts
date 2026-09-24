@@ -10,7 +10,7 @@ import type { Note as NoteEntity } from '@shared/types/domain'
 import { getReviewByNote } from '../db/repositories/review.repo'
 import { dropReviewForNote, ensureReviewForNote } from './review.service'
 import { readNoteDocument, removeNoteLibrary } from './library.service'
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync } from 'node:fs'
 import type { NoteDocInfo, NoteMark, NoteMarkInput } from '@shared/types/domain'
 import { createMark, deleteMark, listMarks, setNoteProgress, updateMark } from '../db/repositories/note.repo'
 

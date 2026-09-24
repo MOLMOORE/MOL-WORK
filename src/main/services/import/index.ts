@@ -57,10 +57,6 @@ const MAX_TEXT_PAGES = 160
 export type ImportStage = 'parse' | 'render' | 'store'
 export type ImportStageSink = (stage: ImportStage) => void
 
-const PLAIN_EXTS = ['.md', '.markdown', '.txt', '.text', '.log', '.mdown', '.mkd']
-const CODE_EXTS = ['.json', '.xml', '.yml', '.yaml', '.toml', '.ini', '.csv', '.tsv', '.sql', '.py', '.js', '.ts', '.java', '.c', '.cpp', '.h', '.go', '.rs', '.sh', '.bat', '.ps1']
-const HTML_EXTS = ['.html', '.htm', '.xhtml', '.shtml']
-const LEGACY_EXTS = ['.doc', '.ppt', '.xls', '.pps', '.pot', '.wps', '.rtf']
 const PANDOC_EXTS = ['.rst', '.org', '.tex', '.latex', '.opml', '.dbk', '.docbook', '.mediawiki', '.twiki', '.dokuwiki', '.creole', '.txt2tags', '.bib', '.ipynb']
 
 export function isImportable(filePath: string): boolean {

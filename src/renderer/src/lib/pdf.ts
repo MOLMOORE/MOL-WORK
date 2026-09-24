@@ -142,24 +142,103 @@ export async function renderPage(
   return { canvas, width: viewport.width, height: viewport.height, page }
 }
 
-/** 取某一页的文字：用于查找、目录兜底与注释摘录 */
-export async function pageText(page: PDFPageProxy): Promise<string> {
+/** 一行文字里的一个片段：文字 + 它在页面上的位置（0..1 归一化，左上角原点，不含旋转） */
+export interface PdfTextSeg {
+  text: string
+  x0: number
+  y0: number
+  x1: number
+  y1: number
+}
+
+/** 逐行取出这一页的文字，并带上每个片段的矩形：查找与「圈出命中处」都靠它 */
+export async function pageTextLines(page: PDFPageProxy): Promise<PdfTextSeg[][]> {
   const content = await page.getTextContent()
-  const lines: string[] = []
-  let current = ''
+  /* page.view 是这一页的可视框（用户坐标，左下原点）：文字条目的坐标都在这个框里，
+     归一化后就是「相对页面自身」的位置，旋转交给显示层，与批注同一套口径 */
+  const box = Array.isArray(page.view) && page.view.length === 4 ? page.view : [0, 0, 595, 842]
+  const originX = box[0]
+  const originY = box[1]
+  const width = box[2] - box[0] > 0 ? box[2] - box[0] : 1
+  const height = box[3] - box[1] > 0 ? box[3] - box[1] : 1
+  const lines: PdfTextSeg[][] = []
+  let row: PdfTextSeg[] = []
   let lastY: number | null = null
-  for (const item of content.items as { str?: string; transform?: number[] }[]) {
+  for (const item of content.items as { str?: string; transform?: number[]; width?: number; height?: number }[]) {
     if (typeof item.str !== 'string') continue
-    const y: number | null = item.transform ? item.transform[5] : lastY
-    if (lastY !== null && y !== null && Math.abs(y - lastY) > 3) {
-      if (current.trim() !== '') lines.push(current.trim())
-      current = ''
+    const t = item.transform
+    if (!Array.isArray(t) || t.length < 6) continue
+    const x = t[4]
+    const baseline = t[5]
+    const glyph = Math.abs(item.height ?? 0) > 0 ? Math.abs(item.height as number) : Math.hypot(t[2], t[3])
+    const wide = Math.abs(item.width ?? 0)
+    if (lastY !== null && Math.abs(baseline - lastY) > 3) {
+      if (row.length > 0) lines.push(row)
+      row = []
     }
-    current += item.str
-    if (y !== undefined) lastY = y
+    row.push({
+      text: item.str,
+      // PDF 用户坐标是左下原点，归一化到「页面自身、左上原点」；旋转交给显示层换算
+      x0: (x - originX) / width,
+      y0: 1 - (baseline + glyph - originY) / height,
+      x1: (x + wide - originX) / width,
+      y1: 1 - (baseline - glyph * 0.26 - originY) / height
+    })
+    lastY = baseline
   }
-  if (current.trim() !== '') lines.push(current.trim())
-  return lines.join('\n')
+  if (row.length > 0) lines.push(row)
+  return lines
+}
+
+/** 取某一页的文字：用于目录兜底与注释摘录 */
+export async function pageText(page: PDFPageProxy): Promise<string> {
+  const lines = await pageTextLines(page)
+  return lines.map((row) => row.map((seg) => seg.text).join('').trim()).filter((line) => line !== '').join('\n')
+}
+
+/** 命中处：一行里的匹配可能被 pdf.js 切成几段，合并成一个矩形框就够了（画圈用不着逐字精确） */
+export interface PdfFindHit {
+  /** 命中的那一行原文（去掉行首尾空白） */
+  snippet: string
+  boxes: { x0: number; y0: number; x1: number; y1: number }[]
+}
+
+/** 在这一页里找词：返回命中行与它在页面上的位置；扫描版没有文字层就一条也没有 */
+export async function pageFindHits(page: PDFPageProxy, needle: string, limit = 6): Promise<PdfFindHit[]> {
+  if (needle === '') return []
+  const want = needle.toLowerCase()
+  const lines = await pageTextLines(page)
+  const hits: PdfFindHit[] = []
+  for (const row of lines) {
+    const text = row.map((seg) => seg.text).join('')
+    const lower = text.toLowerCase()
+    let at = lower.indexOf(want)
+    while (at >= 0) {
+      const end = at + want.length
+      let touched = false
+      const boxes: { x0: number; y0: number; x1: number; y1: number }[] = []
+      let cursor = 0
+      let run: { x0: number; y0: number; x1: number; y1: number } | null = null
+      for (const seg of row) {
+        const from = cursor
+        const to = cursor + seg.text.length
+        cursor = to
+        if (to <= at || from >= end || seg.text.trim() === '') {
+          if (run) { boxes.push(run); run = null }
+          continue
+        }
+        touched = true
+        run = run
+          ? { x0: Math.min(run.x0, seg.x0), y0: Math.min(run.y0, seg.y0), x1: Math.max(run.x1, seg.x1), y1: Math.max(run.y1, seg.y1) }
+          : { x0: seg.x0, y0: seg.y0, x1: seg.x1, y1: seg.y1 }
+      }
+      if (run) boxes.push(run)
+      if (touched) hits.push({ snippet: text.trim(), boxes })
+      if (hits.length >= limit) return hits
+      at = lower.indexOf(want, end)
+    }
+  }
+  return hits
 }
 /* ==========================================================================
  * 渲染队列 + 画布缓存

@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import type { MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent, ReactNode, RefObject } from 'react'
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import type { CSSProperties, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent, ReactNode, RefObject } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { createPortal } from 'react-dom'
 import ReactMarkdown from 'react-markdown'
@@ -51,6 +51,7 @@ import {
   mountCanvas,
   openPdf,
   pageCanvas,
+  pageFindHits,
   pageSize,
   pageText,
   peekCanvas,
@@ -101,6 +102,19 @@ function prefersTextView(doc: NoteDocInfo): boolean {
   return doc.viewMode === 'pages' && TEXTUAL_DOC_FORMATS.includes((doc.sourceFormat ?? '').toUpperCase()) && doc.text.trim() !== ''
 }
 
+/** 荧光笔的几支笔：key 存进 note_marks.color，底色写在 index.css 的 mark.tx-hl[data-hl] */
+const HL_COLORS: { key: string; label: string; css: string }[] = [
+  { key: 'yellow', label: '黄', css: 'rgba(250, 204, 21, 0.75)' },
+  { key: 'green', label: '绿', css: 'rgba(74, 222, 128, 0.72)' },
+  { key: 'cyan', label: '青', css: 'rgba(34, 211, 238, 0.7)' },
+  { key: 'pink', label: '粉', css: 'rgba(249, 168, 212, 0.75)' },
+  { key: 'violet', label: '紫', css: 'rgba(167, 139, 250, 0.75)' }
+]
+const HLCOLOR_KEY = 'workstation.reader.hlcolor.v1'
+/** 选中浮条的估算尺寸：贴着选区第一行摆它，放不下就翻到下面 */
+const SELBAR_W = 258
+const SELBAR_H = 36
+
 const FONT_KEY = 'workstation.reader.font.v1'
 const FONTSIZE_KEY = 'workstation.reader.fontsize.v1'
 
@@ -146,11 +160,20 @@ export function ReaderPage(): JSX.Element {
   const pagedText = mode === 'text' && layout !== 'continuous'
   /** 到底有没有「页」这个概念：书页与分页后的文字页都算，只有排版之外的连续滚动不算 */
   const hasPages = mode !== 'text' || pagedText
-  /** 切到文字视图后「页面 / 本页」这两个书页专属标签就没内容了，顺手挪到注释 */
+  /** 换阅读方式 = 换一套页：上一套页码上的查找命中全部作废 */
   useEffect(() => {
-    if (mode !== 'text') return
-    setPanel((current) => (current === 'thumbs' || current === 'page-text' ? 'notes' : current))
+    setFindHits([])
+    setFindIndex(0)
+  }, [mode, layout])
+  /** 「本页文字」只有书页有内容：文字模式收起它，侧栏「文字页」缩略图自己就是内容 */
+  useEffect(() => {
+    if (mode === 'text') setPanel((current) => (current === 'page-text' ? 'thumbs' : current))
   }, [mode])
+  /** 连续滚动的文字没有「页」，「文字页」缩略图这一栏也就没内容了，挪去注释 */
+  useEffect(() => {
+    if (mode !== 'text' || pagedText) return
+    setPanel((current) => (current === 'thumbs' ? 'notes' : current))
+  }, [mode, pagedText])
   /** 从「文字」切回「书页」：页数要交还给 PDF，否则文字页量出来的页数会把书页卡在 1 页翻不动 */
   useEffect(() => {
     if (mode === 'pages' && pdf) setPageCount(pdf.pageCount)
@@ -226,6 +249,20 @@ export function ReaderPage(): JSX.Element {
   const [compareOpen, setCompareOpen] = useState(false)
   /** 页面提取：勾出来拼成新文档的页码 */
   const [extractOpen, setExtractOpen] = useState(false)
+  /** 荧光笔当前用哪支笔（记住用户上次挑的颜色） */
+  const [hlColor, setHlColor] = useState(() => localStorage.getItem(HLCOLOR_KEY) || 'yellow')
+  /** 查找：关键词、命中清单、看到第几处；文字页的命中由舞台量回来 */
+  const [findQuery, setFindQuery] = useState('')
+  /** 真正交给舞台涂色的词：点「查找」或回车才更新 */
+  const [findTerm, setFindTerm] = useState('')
+  const [findHits, setFindHits] = useState<FindHit[]>([])
+  const [findIndex, setFindIndex] = useState(0)
+  const [finding, setFinding] = useState(false)
+  /** 文字页的排版边界（未缩放）：侧栏「文字页」缩略图照着它排版，改字号 / 拖纸边都跟着重画 */
+  const [txGeom, setTxGeom] = useState<{ colW: number; colH: number } | null>(null)
+  useEffect(() => {
+    localStorage.setItem(HLCOLOR_KEY, hlColor)
+  }, [hlColor])
   /** 舞台就地提示：翻到头了、提取好了（阅读界面不套应用外壳，没有全局 Toaster） */
   const [hint, setHint] = useState('')
   const hintTimer = useRef<number | null>(null)
@@ -421,7 +458,10 @@ export function ReaderPage(): JSX.Element {
   const goPage = useCallback(
     (next: number, dir?: 1 | -1) => {
       const total = Math.max(1, pageCountRef.current)
-      const target = Math.min(Math.max(1, Math.round(next)), total)
+      let target = Math.min(Math.max(1, Math.round(next)), total)
+      /* 双页是一张纸两页（左奇右偶）：从侧栏 / 查找列表跳到一个偶数页时，
+         自动对齐到它左边那一页，否则这张纸会把「第二页」当左页排，看着就少一页 */
+      if (layoutRef.current === 'double' && target % 2 === 0) target -= 1
       const current = pageRef.current
       if (target === current) return
       const direction = dir ?? (target > current ? 1 : -1)
@@ -468,6 +508,115 @@ export function ReaderPage(): JSX.Element {
   useEffect(() => {
     stepRef.current = step
   }, [step])
+
+  /* ---------- 查找 ---------- */
+  /** 看到第几处：命中列表一变就夹回去，别停在空气上 */
+  const activeIndex = findHits.length === 0 ? -1 : Math.min(Math.max(0, findIndex), findHits.length - 1)
+  const activeHit = activeIndex < 0 ? null : findHits[activeIndex]
+
+  /** 文字舞台量回来的命中：偏移与页码没变就不回写，免得舞台与列表互相触发重排 */
+  const handleFindSpots = useCallback((spots: FindSpot[]) => {
+    setFindHits((current) => {
+      const same =
+        current.length === spots.length &&
+        current.every((hit, index) => hit.start === spots[index].start && hit.page === spots[index].page)
+      if (same) return current
+      return spots.map((spot) => ({ page: spot.page, snippet: spot.snippet, start: spot.start }))
+    })
+  }, [])
+
+  /**
+   * 查找：书页逐页扫文字层，把每一处命中的位置圈在页面上（涂不了色就圈出来）；
+   * 文字 / 连续模式交给舞台在正文里涂色，量好第几页再报回来。
+   */
+  const runFind = useCallback(
+    async (raw: string) => {
+      const needle = raw.trim()
+      setFindQuery(raw)
+      setFindTerm(needle)
+      setFindIndex(0)
+      if (needle === '') {
+        setFindHits([])
+        return
+      }
+      if (mode === 'rich') {
+        const frame = document.querySelector<HTMLIFrameElement>('iframe[title="rich-view"]')
+        frame?.contentWindow?.focus()
+        ;(frame?.contentWindow as unknown as { find?: (term: string) => boolean } | undefined)?.find?.(needle)
+        showHint('排版模式沿用页面自带的页内查找')
+        return
+      }
+      if (mode === 'pages' && pdf) {
+        setFinding(true)
+        setFindHits([])
+        const lower = needle.toLowerCase()
+        const list: FindHit[] = []
+        /* 上限：逐页取文字在无 worker 的 pdf.js 里很贵，最多扫 400 页 / 攒够 120 处 */
+        for (let number = 1; number <= pdf.pageCount && number <= 400 && list.length < 120; number += 1) {
+          try {
+            const target = await pdf.doc.getPage(number)
+            const hits = await pageFindHits(target, lower, 3)
+            hits.forEach((hit) => {
+              hit.boxes.forEach((box) => {
+                if (list.length >= 120) return
+                list.push({
+                  page: number,
+                  snippet: hit.snippet,
+                  start: -1,
+                  ring: { kind: 'ellipse', points: [[box.x0, box.y0], [box.x1, box.y1]] }
+                })
+              })
+            })
+          } catch {
+            /* 这一页读不出文字就跳过，不影响整体 */
+          }
+          /* pdf.js 在这里没有 worker，逐页取文字会钉住主线程：每六页让一次 */
+          if (number % 6 === 0) await new Promise((resolve) => window.setTimeout(resolve, 0))
+        }
+        setFinding(false)
+        setFindHits(list)
+        if (list.length === 0) {
+          showHint('没找到「' + needle + '」' + (pdf.pageCount > 60 ? '（这份资料可能没有文字层）' : ''))
+        } else {
+          showHint('找到 ' + list.length + ' 处 · 已圈在第 ' + list[0].page + ' 页')
+          goPage(list[0].page)
+        }
+        return
+      }
+      setFindHits([])
+    },
+    [mode, pdf, showHint, goPage]
+  )
+
+  /** 上一处 / 下一处：绕着圈走，跳页顺手把那一带滚进视野 */
+  const gotoHit = useCallback(
+    (delta: number) => {
+      if (findHits.length === 0) return
+      const next = (activeIndex + delta + findHits.length) % findHits.length
+      setFindIndex(next)
+      const target = findHits[next].page
+      if (target >= 1) goPage(target)
+    },
+    [activeIndex, findHits, goPage]
+  )
+
+  const jumpToHit = useCallback(
+    (index: number) => {
+      setFindIndex(index)
+      const target = findHits[index]?.page ?? 0
+      if (target >= 1) goPage(target)
+    },
+    [findHits, goPage]
+  )
+
+  /** 书页上的查找圈：只把有位置的几处交给舞台画 */
+  const findRings = useMemo<FindRing[]>(
+    () =>
+      findHits.flatMap((hit, index) =>
+        hit.ring ? [{ page: hit.page, region: hit.ring, active: index === activeIndex }] : []
+      ),
+    [findHits, activeIndex]
+  )
 
   // ---------- 阅读计时：读了多久就记到关联的任务 / 项目（课程）的专注时间里 ----------
   const readTarget = useMemo(() => {
@@ -776,20 +925,38 @@ export function ReaderPage(): JSX.Element {
       if (mark.kind !== 'highlight' && mark.kind !== 'note') return
       const range = parseRange(mark.region)
       if (!range) return
-      list.push({ mark, start: range.start, end: range.end, quote: mark.quote, tone: mark.kind === 'highlight' ? 'hl' : 'note' })
+      list.push({
+        mark,
+        start: range.start,
+        end: range.end,
+        quote: mark.quote,
+        tone: mark.kind === 'highlight' ? 'hl' : 'note',
+        color: mark.color ?? ''
+      })
     })
     return list
   }, [marks])
 
-  /** 涂荧光笔：同一段再点一下就取消（按区间起止认人，重排也不会认错） */
+  /** 涂荧光笔：同一段换个颜色就改色，同色再点一下才取消（按区间起止认人，重排也不会认错） */
   const addHighlight = useCallback(
-    async (range: TextRange, quote: string) => {
+    async (range: TextRange, quote: string, color = hlColor) => {
+      setHlColor(color)
       const region = JSON.stringify({ kind: 'range', start: range.start, end: range.end })
-      const dup = marks.find((mark) => mark.kind === 'highlight' && mark.region === region)
+      const dup = marks.find((mark) => {
+        if (mark.kind !== 'highlight') return false
+        const span = parseRange(mark.region)
+        return span !== null && span.start === range.start && span.end === range.end
+      })
       if (dup) {
-        await api.note.removeMark(dup.id)
-        setMarks((list) => list.filter((mark) => mark.id !== dup.id))
-        showHint('已取消这段高亮')
+        if (dup.color === color || (dup.color === '' && color === 'yellow')) {
+          await api.note.removeMark(dup.id)
+          setMarks((list) => list.filter((mark) => mark.id !== dup.id))
+          showHint('已取消这段高亮')
+          return
+        }
+        const recolored = await api.note.saveMark({ id: dup.id, noteId: id, kind: 'highlight', color })
+        setMarks((list) => list.map((mark) => (mark.id === dup.id ? recolored : mark)))
+        showHint('这段高亮换色了')
         return
       }
       const target = hasPages ? pageRef.current : 0
@@ -799,12 +966,13 @@ export function ReaderPage(): JSX.Element {
         page: target,
         label: target > 0 ? '高亮：第 ' + target + ' 页' : '高亮：正文',
         quote: quote.slice(0, 600),
-        region
+        region,
+        color
       })
       setMarks((list) => [...list, created])
       showHint('已涂亮这一段：点一下标记可以看它的原文，再点一次取消')
     },
-    [id, marks, showHint, hasPages]
+    [id, marks, showHint, hasPages, hlColor]
   )
 
   /** 选中一段正文 → 在旁边写条注释：区间和引文一起带进注释框 */
@@ -1265,21 +1433,24 @@ export function ReaderPage(): JSX.Element {
                     })}
                 />
                 <span className="mw-tool-sep" />
-                <ToolButton
-                  on={showInk}
-                  label="圈画"
-                  hint="显示 / 隐藏画在纸上的圈画与涂亮的正文"
-                  icon={<CircleDashed className="h-3.5 w-3.5" />}
-                  onClick={() => setShowInk((value) => !value)}
-                />
-                <ToolButton
-                  on={showNotes}
-                  label="旁注"
-                  hint="显示 / 隐藏贴在页面边上（或上下空白）的整页注释"
-                  icon={<StickyNote className="h-3.5 w-3.5" />}
-                  onClick={() => setShowNotes((value) => !value)}
-                />
               </>
+            ) : null}
+            {/* 圈画 = 纸上的圈 + 正文里涂亮的字：连续滚动的文字也涂得了字，所以这一项不分页都给 */}
+            <ToolButton
+              on={showInk}
+              label="圈画"
+              hint="显示 / 隐藏画在纸上的圈画与涂亮的正文"
+              icon={<CircleDashed className="h-3.5 w-3.5" />}
+              onClick={() => setShowInk((value) => !value)}
+            />
+            {(mode === 'pages' && pdf !== null) || pagedText ? (
+              <ToolButton
+                on={showNotes}
+                label="旁注"
+                hint="显示 / 隐藏贴在页面边上（或上下空白）的整页注释"
+                icon={<StickyNote className="h-3.5 w-3.5" />}
+                onClick={() => setShowNotes((value) => !value)}
+              />
             ) : null}
           </div>
           {inkMode ? (
@@ -1311,7 +1482,8 @@ export function ReaderPage(): JSX.Element {
           ) : null}
           <IconButton
             label={panel ? '收起侧栏' : '展开页面 / 目录 / 注释'}
-            onClick={() => setPanel(panel ? null : 'thumbs')}
+            /* 重新展开时落在这一种阅读方式真正有的那一栏：排版模式没有页，就直接开目录 */
+            onClick={() => setPanel(panel ? null : mode === 'rich' ? 'outline' : hasPages ? 'thumbs' : 'notes')}
           >
             <List className="h-4 w-4" />
           </IconButton>
@@ -1387,9 +1559,10 @@ export function ReaderPage(): JSX.Element {
                 openNoteId={openNote}
                 onOpenNote={setOpenNote}
                 onRemoveNote={(markId) => void removeMark(markId)}
-                  onScrollNode={attachScrollNode}
-                  onJump={goPage}
+                onScrollNode={attachScrollNode}
+                onJump={goPage}
                 onActivePage={handleActivePage}
+                find={findRings}
               />
             ) : mode === 'rich' ? (
               <RichStage
@@ -1417,8 +1590,13 @@ export function ReaderPage(): JSX.Element {
                 onScrollNode={attachScrollNode}
                 notes={noteMarks}
                 ranges={rangeMarks}
-                onHighlight={(range, quote) => void addHighlight(range, quote)}
+                hlColor={hlColor}
+                onHighlight={(range, quote, color) => void addHighlight(range, quote, color)}
                 onAnnotate={annotateRange}
+                findQuery={findTerm}
+                findActive={mode === 'text' && activeHit ? activeHit.start : -1}
+                onFindSpots={handleFindSpots}
+                onLayout={setTxGeom}
                 inkMode={inkMode}
                 showInk={showInk}
                 showNotes={showNotes}
@@ -1441,9 +1619,13 @@ export function ReaderPage(): JSX.Element {
                 onWheelZoom={handleWheelZoomRich}
                 ranges={rangeMarks}
                 showInk={showInk}
-                onHighlight={(range, quote) => void addHighlight(range, quote)}
+                hlColor={hlColor}
+                onHighlight={(range, quote, color) => void addHighlight(range, quote, color)}
                 onAnnotate={annotateRange}
                 onRemoveNote={(markId) => void removeMark(markId)}
+                findQuery={findTerm}
+                findActive={mode === 'text' && activeHit ? activeHit.start : -1}
+                onFindSpots={handleFindSpots}
               />
             )}
 
@@ -1531,6 +1713,20 @@ export function ReaderPage(): JSX.Element {
             onRemoveMark={(markId) => void removeMark(markId)}
             onToggleMark={(kind, target) => void toggleMark(kind, target)}
             onCompose={(quote) => setComposer({ kind: 'note', quote })}
+            tx={
+              pagedText && txGeom
+                ? { text: textBody, fontSize, fontFamily: fontStack, colW: txGeom.colW, colH: txGeom.colH }
+                : null
+            }
+            findQuery={findQuery}
+            findDirty={findTerm !== findQuery.trim()}
+            findFinding={finding}
+            findHits={findHits}
+            findIndex={activeIndex}
+            onFindQuery={setFindQuery}
+            onRunFind={(term) => void runFind(term)}
+            onStepHit={gotoHit}
+            onJumpHit={jumpToHit}
           />
         ) : null}
       </div>
@@ -1721,10 +1917,21 @@ interface RangeItem extends TextRange {
   quote: string
   /** hl = 纯荧光笔；note = 带着一条旁注 */
   tone: 'hl' | 'note'
+  /** 荧光笔颜色（note_marks.color，空串 = 走默认那支黄笔） */
+  color?: string
 }
 
 /** 把 [start,end) 这段正文套上 <mark>：区间里的每个文字节点各套一层，跨元素也不会漏 */
-function wrapRange(root: HTMLElement, start: number, end: number, id: number, tone: 'hl' | 'note'): void {
+function unwrapMarks(root: HTMLElement, selector: string): void {
+  root.querySelectorAll(selector).forEach((node) => {
+    const parent = node.parentNode
+    if (!parent) return
+    while (node.firstChild) parent.insertBefore(node.firstChild, node)
+    parent.removeChild(node)
+  })
+}
+
+function wrapRange(root: HTMLElement, start: number, end: number, id: number, tone: 'hl' | 'note', color = ''): void {
   const hits: { node: Text; from: number }[] = []
   let pos = 0
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
@@ -1742,6 +1949,7 @@ function wrapRange(root: HTMLElement, start: number, end: number, id: number, to
     const mark = document.createElement('mark')
     mark.className = 'tx-hl' + (tone === 'note' ? ' is-annotated' : '')
     mark.dataset.txId = String(id)
+    if (color !== '') mark.dataset.hl = color
     mid.parentNode?.insertBefore(mark, after)
     mark.appendChild(mid)
   })
@@ -1757,12 +1965,7 @@ function applyTextRanges(
   items: RangeItem[],
   geom: { colW: number; gap: number; scale: number }
 ): RangeSpot[] {
-  root.querySelectorAll('mark[data-tx-id]').forEach((node) => {
-    const parent = node.parentNode
-    if (!parent) return
-    while (node.firstChild) parent.insertBefore(node.firstChild, node)
-    parent.removeChild(node)
-  })
+  unwrapMarks(root, 'mark[data-tx-id]')
   root.normalize()
   const full = root.textContent ?? ''
   const placed: { id: number; tone: 'hl' | 'note' }[] = []
@@ -1776,7 +1979,7 @@ function applyTextRanges(
       end = at + item.quote.length
     }
     if (end <= start) return
-    wrapRange(root, start, end, item.id, item.tone)
+    wrapRange(root, start, end, item.id, item.tone, item.color ?? '')
     placed.push({ id: item.id, tone: item.tone })
   })
   if (geom.colW < 8) return []
@@ -1796,6 +1999,80 @@ function applyTextRanges(
       y: (first.top - fr.top) / geom.scale
     } satisfies RangeSpot
   }).filter((spot): spot is RangeSpot => spot !== null)
+}
+
+/** 正文里的一处查找命中：起始偏移 + 落在第几页（连续模式没有页，为 0） + 上下文 */
+interface FindSpot {
+  start: number
+  page: number
+  snippet: string
+}
+
+/** 把 [start,end) 涂成「查找命中」色：与荧光标记各用一套属性，互不覆盖 */
+function wrapFindRange(root: HTMLElement, start: number, end: number, active: number): void {
+  const hits: { node: Text; from: number }[] = []
+  let pos = 0
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
+  for (let node = walker.nextNode() as Text | null; node; node = walker.nextNode() as Text | null) {
+    const len = node.data.length
+    if (pos + len > start && pos < end) hits.push({ node, from: pos })
+    pos += len
+  }
+  hits.forEach(({ node, from }) => {
+    const a = Math.max(0, start - from)
+    const b = Math.min(node.data.length, end - from)
+    if (b <= a) return
+    const mid = node.splitText(a)
+    const after = mid.splitText(b - a)
+    const mark = document.createElement('mark')
+    mark.className = 'tx-find' + (start === active ? ' is-active' : '')
+    mark.dataset.find = String(start)
+    mid.parentNode?.insertBefore(mark, after)
+    mark.appendChild(mid)
+  })
+}
+
+/**
+ * 查找：正文能涂色的地方就全部涂出来（一页一次），并量出每处落在第几页交给侧栏列表。
+ * 先算出所有偏移再从后往前套 <mark>：从前往后改文字节点会把后面的偏移全弄错。
+ */
+function applyTextFind(
+  root: HTMLElement,
+  needle: string,
+  active: number,
+  geom: { colW: number; gap: number; scale: number }
+): FindSpot[] {
+  unwrapMarks(root, 'mark[data-find]')
+  root.normalize()
+  const want = needle.trim().toLowerCase()
+  if (want === '') return []
+  const full = root.textContent ?? ''
+  const lower = full.toLowerCase()
+  const starts: number[] = []
+  let at = lower.indexOf(want)
+  while (at >= 0 && starts.length < 600) {
+    starts.push(at)
+    at = lower.indexOf(want, at + want.length)
+  }
+  for (let i = starts.length - 1; i >= 0; i -= 1) wrapFindRange(root, starts[i], starts[i] + want.length, active)
+  const step = geom.colW + geom.gap
+  const fr = root.getBoundingClientRect()
+  const seen = new Set<number>()
+  const spots: FindSpot[] = []
+  root.querySelectorAll<HTMLElement>('mark[data-find]').forEach((node) => {
+    const start = Number(node.dataset.find)
+    if (!Number.isFinite(start) || seen.has(start)) return
+    const rects = node.getClientRects()
+    if (rects.length === 0) return
+    seen.add(start)
+    let page = 0
+    if (geom.colW >= 8) {
+      const raw = (rects[0].left - fr.left) / geom.scale
+      page = Math.min(TX_MAX_COLS, Math.max(1, Math.floor(raw / step) + 1))
+    }
+    spots.push({ start, page, snippet: full.slice(Math.max(0, start - 10), start + want.length + 26) })
+  })
+  return spots.sort((a, b) => a.start - b.start)
 }
 
 /** 选区 → 正文里的字符区间：用 Range.toString() 量到起终点，元素级容器也能算准 */
@@ -1820,7 +2097,28 @@ interface SelectionSpot {
   quote: string
   left: number
   top: number
+  /** 选区第一行的宽度与上下沿：浮条要贴着它摆 */
+  width: number
+  /** 摆在选区上面还是下面（顶部放不下就翻到下面，别钉在看不见的地方） */
+  place: 'top' | 'bottom'
 }
+
+/** 整篇没有 Markdown 痕迹就当纯文本排：三处（纸、连续滚动、侧栏缩略图）共用同一判定 */
+function textLooksPlain(text: string): boolean {
+  return !/[#*`>|-]{1}/.test(text.slice(0, 200)) && !/^#{1,6}\s/m.test(text)
+}
+
+/** 正文那一棵树：纯文本就一个 <pre>，Markdown 走 react-markdown。排版与分栏都靠它，别再抄第二份 */
+const ReaderBody = memo(function ReaderBody(props: { text: string }): JSX.Element {
+  const { text } = props
+  return textLooksPlain(text) ? (
+    <pre className="reader-plain whitespace-pre-wrap break-words leading-[1.85]">{text}</pre>
+  ) : (
+    <div className="md-body leading-[1.85]">
+      <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
+    </div>
+  )
+})
 
 /**
  * 「选中正文 → 涂荧光 / 在旁边写注释」：分页的文字纸和连续滚动共用同一套。
@@ -1829,8 +2127,6 @@ interface SelectionSpot {
 function useTextSelection(opts: {
   rootRef: RefObject<HTMLElement | null>
   hostRef: RefObject<HTMLElement | null>
-  onHighlight: (range: TextRange, quote: string) => void
-  onAnnotate: (range: TextRange, quote: string) => void
 }): { sel: SelectionSpot | null; pick: () => void; clear: () => void } {
   const { rootRef, hostRef } = opts
   const [sel, setSel] = useState<SelectionSpot | null>(null)
@@ -1856,48 +2152,83 @@ function useTextSelection(opts: {
       return
     }
     const quote = (root.textContent ?? '').slice(span.start, span.end)
-    const rects = range.getClientRects()
-    const rect = rects.length > 0 ? rects[0] : range.getBoundingClientRect()
+    /* 量「选区第一行」：rects[0] 常常是个零宽的空片段（跨元素选中的开头），
+       拿它当锚点浮条就会偏出去老远。丢掉空片段，再取最上面那一行的左右沿。 */
+    const rects = Array.from(range.getClientRects()).filter((r) => r.width > 0.5 && r.height > 0.5)
+    const first = rects.length > 0 ? rects[0] : range.getBoundingClientRect()
+    let top = first.top
+    let bottom = first.bottom
+    let left = first.left
+    let right = first.right
+    rects.forEach((r) => {
+      if (r.top < top) top = r.top
+    })
+    rects.forEach((r) => {
+      if (r.top - top > 4) return
+      left = Math.min(left, r.left)
+      right = Math.max(right, r.right)
+      bottom = Math.max(bottom, r.bottom)
+    })
     const hostRect = host.getBoundingClientRect()
+    /* 宿主是自己滚动的（连续模式）：客户端矩形是「相对视口」的，
+       不加回 scrollTop / scrollLeft，滚多远浮条就飘多远 —— 上一版就是这么偏的。 */
+    const sr = host.scrollLeft || 0
+    const st = host.scrollTop || 0
+    const x = left - hostRect.left + sr
+    const y = top - hostRect.top + st
+    const maxLeft = Math.max(4, (host.clientWidth || hostRect.width) - SELBAR_W)
+    const below = y < SELBAR_H + 12
     setSel({
       range: span,
       quote,
-      left: Math.min(Math.max(4, rect.left - hostRect.left), Math.max(4, hostRect.width - 186)),
-      top: Math.max(4, rect.top - hostRect.top - 40)
+      left: Math.max(4, Math.min(x, maxLeft)),
+      top: below ? bottom - hostRect.top + st + 8 : y - SELBAR_H - 10,
+      width: right - left,
+      place: below ? 'bottom' : 'top'
     })
   }
   return { sel, pick, clear }
 }
 
-/** 选中后浮出来的小条：涂荧光笔 / 给这段写注释 */
+/** 选中后浮出来的小条：挑一支荧光笔涂亮 / 给这段在旁边写注释 */
 function SelectionBar(props: {
   sel: SelectionSpot
-  onHighlight: (range: TextRange, quote: string) => void
+  color: string
+  onHighlight: (range: TextRange, quote: string, color: string) => void
   onAnnotate: (range: TextRange, quote: string) => void
   onClose: () => void
 }): JSX.Element {
-  const { sel, onHighlight, onAnnotate, onClose } = props
+  const { sel, color, onHighlight, onAnnotate, onClose } = props
   return (
     <div
       className="tx-selbar"
+      data-place={sel.place}
       style={{ left: sel.left, top: sel.top }}
       onPointerDown={(event) => event.stopPropagation()}
       onClick={(event) => event.stopPropagation()}
     >
+      <span className="tx-selbar-quote">「{sel.quote.slice(0, 12)}」</span>
+      <span className="tx-selbar-sep" />
+      <span className="tx-selbar-hl">
+        {HL_COLORS.map((item) => (
+          <button
+            key={item.key}
+            type="button"
+            className="tx-selbar-dot"
+            data-on={item.key === color ? '1' : '0'}
+            style={{ background: item.css }}
+            title={'用' + item.label + '色荧光笔涂亮这一段（再点一次同色可取消）'}
+            onClick={() => {
+              onHighlight(sel.range, sel.quote, item.key)
+              onClose()
+            }}
+          />
+        ))}
+      </span>
+      <span className="tx-selbar-sep" />
       <button
         type="button"
-        className="tx-selbar-btn"
-        title="把选中的这段涂成荧光笔（再点一下标记可取消）"
-        onClick={() => {
-          onHighlight(sel.range, sel.quote)
-          onClose()
-        }}
-      >
-        <Highlighter className="h-3.5 w-3.5" />
-      </button>
-      <button
-        type="button"
-        className="tx-selbar-btn"
+        className="tx-selbar-btn is-primary"
         title="给选中的这段在旁边写条注释"
         onClick={() => {
           onAnnotate(sel.range, sel.quote)
@@ -1905,8 +2236,11 @@ function SelectionBar(props: {
         }}
       >
         <NotebookPen className="h-3.5 w-3.5" />
+        注释
       </button>
-      <span className="max-w-[9rem] truncate text-[11px] text-muted-foreground">「{sel.quote.slice(0, 16)}」</span>
+      <button type="button" className="tx-selbar-btn" title="收起" onClick={onClose}>
+        <X className="h-3 w-3" />
+      </button>
     </div>
   )
 }
@@ -1960,12 +2294,14 @@ function InkStrokes(props: {
   box: { width: number; height: number }
   rotation: number
   onOpen?: (id: number) => void
+  /** find = 查找命中的那一圈：虚线提醒色，且不吃鼠标事件 */
+  variant?: 'ink' | 'find'
 }): JSX.Element | null {
-  const { strokes, box, rotation, onOpen } = props
+  const { strokes, box, rotation, onOpen, variant = 'ink' } = props
   if (strokes.length === 0) return null
   return (
     <svg
-      className="mw-ink"
+      className={variant === 'find' ? 'mw-ink is-find' : 'mw-ink'}
       width={box.width}
       height={box.height}
       viewBox={'0 0 ' + box.width + ' ' + box.height}
@@ -2238,7 +2574,7 @@ function PageInkLayer(props: {
   onRemoveNote?: (id: number) => void
 }): JSX.Element {
   const {
-    pageNumber, box, rotation, items, ranges = [], inkMode, showInk, showNotes, noteSide,
+    pageNumber, box, rotation, items, ranges = [], inkMode, showInk, noteSide,
     onInk, inkShape, openNoteId = null, onOpenNote, onRemoveNote
   } = props
   const { inkAll, railItems, chips, dots } = items
@@ -2421,6 +2757,23 @@ function PageInkLayer(props: {
   )
 }
 
+/** 一条查找命中：在第几页、那一行的原文、正文偏移（文字模式）与页面上的圈（书页模式） */
+interface FindHit {
+  page: number
+  snippet: string
+  /** 文字模式：命中在正文里的起始偏移；书页模式为 -1 */
+  start: number
+  /** 书页模式：这一处该圈在页面的哪里（页面没有文字层时就没有圈） */
+  ring?: InkRegion
+}
+
+/** 查找命中画在某一页上的圈：region 归一化到页面自身坐标，与批注同一套 */
+interface FindRing {
+  page: number
+  region: InkRegion
+  active: boolean
+}
+
 interface StageProps {
   pdf: PdfDocInfo
   page: number
@@ -2449,13 +2802,15 @@ interface StageProps {
   openNoteId?: number | null
   onOpenNote?: (id: number | null) => void
   onRemoveNote?: (id: number) => void
+  /** 查找命中：这一页有几处就圈几处 */
+  find?: FindRing[]
 }
 
 function PdfStage(props: StageProps): JSX.Element {
   const {
     pdf, page, pageCount, scale, rotation, layout, turning,
     onScrollNode, onJump, onActivePage, notes, inkMode, showInk, showNotes, noteSide, onInk, onRemoveNote,
-    inkShape, openNoteId, onOpenNote
+    inkShape, openNoteId, onOpenNote, find
   } = props
 
   /* 预取相邻页：真正翻页时那一页已经在缓存里，动效第一帧就是成品画面，
@@ -2492,6 +2847,7 @@ function PdfStage(props: StageProps): JSX.Element {
         inkShape={inkShape}
         openNoteId={openNoteId}
         onOpenNote={onOpenNote}
+        find={find}
       />
     )
   }
@@ -2528,6 +2884,7 @@ function PdfStage(props: StageProps): JSX.Element {
                   inkShape={inkShape}
                   openNoteId={openNoteId}
                   onOpenNote={onOpenNote}
+                  find={find}
                 />
               ) : (
                 <div key={`blank${number}`} className="mw-page mw-page-blank" style={{ width: box.width, height: box.height }} />
@@ -2561,7 +2918,7 @@ function ContinuousPages(props: Omit<StageProps, 'turning' | 'layout'>): JSX.Ele
   const {
     pdf, page, pageCount, scale, rotation, onScrollNode, onJump, onActivePage,
     notes, inkMode, showInk, showNotes, noteSide, onInk, onRemoveNote,
-    inkShape, openNoteId, onOpenNote
+    inkShape, openNoteId, onOpenNote, find
   } = props
   const listRef = useRef<HTMLDivElement>(null)
   const nodeRef = useRef<HTMLDivElement | null>(null)
@@ -2625,6 +2982,7 @@ function ContinuousPages(props: Omit<StageProps, 'turning' | 'layout'>): JSX.Ele
             inkShape={inkShape}
             openNoteId={openNoteId}
             onOpenNote={onOpenNote}
+            find={find}
           />
         ))}
       </div>
@@ -2657,12 +3015,17 @@ function PdfPageView(props: {
   openNoteId?: number | null
   onOpenNote?: (id: number | null) => void
   onRemoveNote?: (id: number) => void
+  /** 查找命中：扫描版以外的大多数 PDF 都能定位到字，圈出来比涂色更像「在这一页里」 */
+  find?: FindRing[]
 }): JSX.Element {
   const {
     pdf, pageNumber, scale, rotation, active, ghost, lazy, priority = 0, onJump,
     notes, inkMode, showInk = true, showNotes = true, noteSide = false, onInk, onRemoveNote,
-    inkShape, openNoteId = null, onOpenNote
+    inkShape, openNoteId = null, onOpenNote, find
   } = props
+  const rings = (find ?? []).map((ring, index) =>
+    ring.page === pageNumber ? { id: index, region: ring.region, active: ring.active } : null
+  ).filter((ring): ring is { id: number; region: InkRegion; active: boolean } => ring !== null)
   const holder = useRef<HTMLDivElement>(null)
   const boxRef = useRef<HTMLDivElement>(null)
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading')
@@ -2769,7 +3132,9 @@ function PdfPageView(props: {
         openNoteId={openNoteId}
         onOpenNote={onOpenNote}
         onRemoveNote={onRemoveNote}
-      />      {state === 'loading' ? (
+      />
+      <InkStrokes strokes={rings} box={box} rotation={rotation} variant="find" />
+      {state === 'loading' ? (
         <span className="mw-page-spin">
           <Loader2 className="h-4 w-4 animate-spin" />
         </span>
@@ -2900,18 +3265,23 @@ function TextStage(props: {
   /** 「连续」也要能涂荧光与选中注释：与分页文字纸同一套存法、同一套浮条 */
   ranges: RangeMark[]
   showInk: boolean
-  onHighlight: (range: TextRange, quote: string) => void
+  hlColor: string
+  onHighlight: (range: TextRange, quote: string, color: string) => void
   onAnnotate: (range: TextRange, quote: string) => void
   onRemoveNote: (id: number) => void
+  /** 查找：正文里能涂色的地方就全涂出来 */
+  findQuery: string
+  findActive: number
+  onFindSpots: (spots: FindSpot[]) => void
 }): JSX.Element {
   const {
     text, editing, onEdit, fontSize, fontFamily, zoom, readonly, onWheelZoom,
-    ranges, showInk, onHighlight, onAnnotate, onRemoveNote
+    ranges, showInk, hlColor, onHighlight, onAnnotate, onRemoveNote,
+    findQuery, findActive, onFindSpots
   } = props
-  const isPlain = !/[#*`>|-]{1}/.test(text.slice(0, 200)) && !/^#{1,6}\s/m.test(text)
   const hostRef = useRef<HTMLDivElement | null>(null)
   const bodyRef = useRef<HTMLElement | null>(null)
-  const { sel, pick, clear } = useTextSelection({ rootRef: bodyRef, hostRef, onHighlight, onAnnotate })
+  const { sel, pick, clear } = useTextSelection({ rootRef: bodyRef, hostRef })
   /** 点开的那条行内注释：连续滚动没有「页」，气泡就贴在点到的那段下面 */
   const [pop, setPop] = useState<{ mark: NoteMark; index: number; left: number; top: number } | null>(null)
 
@@ -2939,10 +3309,20 @@ function TextStage(props: {
       start: item.start,
       end: item.end,
       quote: item.quote,
-      tone: item.tone
+      tone: item.tone,
+      color: item.color
     }))
     applyTextRanges(root, items, { colW: 0, gap: 0, scale: 1 })
-  }, [ranges, showInk, text, isPlain, editing, zoom])
+    /* 连续滚动没有栏可归页：colW 给 0，命中的 page 一律是 0（侧栏按第几处跳） */
+    onFindSpots(applyTextFind(root, editing ? '' : findQuery, findActive, { colW: 0, gap: 0, scale: 1 }))
+  }, [ranges, showInk, text, editing, zoom, findQuery, findActive, onFindSpots])
+
+  /** 跳下一处：当前命中滚到中间，长文里才不会「点了没反应」 */
+  useEffect(() => {
+    if (findActive < 0 || editing) return
+    const node = hostRef.current?.querySelector<HTMLElement>('mark.tx-find.is-active')
+    node?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+  }, [findActive, findQuery, editing, text])
 
   /** 点荧光标记：就地展开它那条注释；点别处收起 */
   const onBodyClick = (event: ReactMouseEvent<HTMLElement>): void => {
@@ -2988,12 +3368,8 @@ function TextStage(props: {
             className="field-base min-h-[70vh] w-full resize-y font-mono text-sm leading-relaxed"
             spellCheck={false}
           />
-        ) : isPlain ? (
-          <pre className="reader-plain whitespace-pre-wrap break-words leading-[1.85]">{text}</pre>
         ) : (
-          <div className="md-body leading-[1.85]">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
-          </div>
+          <ReaderBody text={text} />
         )}
         {readonly && !editing ? (
           <p className="mt-8 border-t border-border pt-3 text-xs text-muted-foreground">
@@ -3004,7 +3380,8 @@ function TextStage(props: {
       {sel && !editing ? (
         <SelectionBar
           sel={sel}
-          onHighlight={(range, quote) => void onHighlight(range, quote)}
+          color={hlColor}
+          onHighlight={(range, quote, color) => void onHighlight(range, quote, color)}
           onAnnotate={onAnnotate}
           onClose={clear}
         />
@@ -3035,6 +3412,8 @@ interface RangeMark {
   quote: string
   /** hl = 只涂荧光笔；note = 带着一条旁注 */
   tone: 'hl' | 'note'
+  /** 荧光笔颜色（note_marks.color，空串 = 默认那支黄笔） */
+  color: string
 }
 
 interface TextBookProps {
@@ -3055,8 +3434,15 @@ interface TextBookProps {
   notes: NoteMark[]
   /** 正文里的行内标记（高亮与选中旁注） */
   ranges: RangeMark[]
-  onHighlight: (range: TextRange, quote: string) => void
+  hlColor: string
+  onHighlight: (range: TextRange, quote: string, color: string) => void
   onAnnotate: (range: TextRange, quote: string) => void
+  /** 查找：正文里涂色，并把每处命中在第几页报回上层 */
+  findQuery: string
+  findActive: number
+  onFindSpots: (spots: FindSpot[]) => void
+  /** 把这一版的排版边界（未缩放）报回去：侧栏「文字页」缩略图照着它排 */
+  onLayout: (geom: { colW: number; colH: number }) => void
   inkMode: boolean
   showInk: boolean
   showNotes: boolean
@@ -3077,7 +3463,8 @@ interface TextBookProps {
 function TextBook(props: TextBookProps): JSX.Element {
   const {
     text, fontSize, fontFamily, sheet, scale, layout, page, turning,
-    onPageCount, onResize, onScrollNode, notes, ranges, onHighlight, onAnnotate,
+    onPageCount, onResize, onScrollNode, notes, ranges, hlColor, onHighlight, onAnnotate,
+    findQuery, findActive, onFindSpots, onLayout,
     inkMode, showInk, showNotes, noteSide, onInk, inkShape, openNoteId, onOpenNote, onRemoveNote
   } = props
   const stageRef = useRef<HTMLDivElement | null>(null)
@@ -3088,9 +3475,7 @@ function TextBook(props: TextBookProps): JSX.Element {
   /* 选中一段正文 → 浮出「涂荧光 / 写旁注」：与连续滚动共用同一套 */
   const { sel, pick: pickSelection, clear: clearSel } = useTextSelection({
     rootRef: flowRef,
-    hostRef: sheetRef,
-    onHighlight,
-    onAnnotate
+    hostRef: sheetRef
   })
 
   const perSheet = layout === 'double' ? 2 : 1
@@ -3102,19 +3487,8 @@ function TextBook(props: TextBookProps): JSX.Element {
      这就是「上一页会露出下一页的片段」；窗口收紧到栏距以内就不漏了。 */
   const contentW = perSheet * colW + (perSheet - 1) * TX_GAP
   const clipW = contentW + TX_BLEED * 2
-  const isPlain = !/[#*`>|-]{1}/.test(text.slice(0, 200)) && !/^#{1,6}\s/m.test(text)
   /** 正文只认 text：翻页、缩放都复用同一棵 DOM，不会每翻一页重解析一遍 Markdown */
-  const body = useMemo(
-    () =>
-      isPlain ? (
-        <pre className="reader-plain whitespace-pre-wrap break-words leading-[1.85]">{text}</pre>
-      ) : (
-        <div className="md-body leading-[1.85]">
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
-        </div>
-      ),
-    [text, isPlain]
-  )
+  const body = useMemo(() => <ReaderBody text={text} />, [text])
 
   const attachStage = useCallback(
     (node: HTMLDivElement | null) => {
@@ -3131,7 +3505,8 @@ function TextBook(props: TextBookProps): JSX.Element {
     const root = flowRef.current
     if (!root || colW < 60 || colH < 60) return
     onPageCount(usedColumnCount(root, colW, TX_GAP, scale))
-  }, [text, fontSize, fontFamily, colW, colH, scale, onPageCount])
+    onLayout({ colW, colH })
+  }, [text, fontSize, fontFamily, colW, colH, scale, onPageCount, onLayout])
 
   /* ---------- 把行内标记画进正文：翻页残影那份是另一张纸，也要画 ---------- */
   useLayoutEffect(() => {
@@ -3143,14 +3518,21 @@ function TextBook(props: TextBookProps): JSX.Element {
       start: item.start,
       end: item.end,
       quote: item.quote,
-      tone: item.tone
+      tone: item.tone,
+      color: item.color
     }))
     const flows = Array.from(stage.querySelectorAll<HTMLElement>('.tx-flow'))
     const next: Record<number, RangeSpot> = {}
+    const spots: FindSpot[] = []
     flows.forEach((flow, index) => {
       const found = applyTextRanges(flow, items, { colW, gap: TX_GAP, scale })
-      if (index === 0) found.forEach((spot) => { next[spot.id] = spot })
+      const hits = applyTextFind(flow, findQuery, findActive, { colW, gap: TX_GAP, scale })
+      if (index === 0) {
+        found.forEach((spot) => { next[spot.id] = spot })
+        spots.push(...hits)
+      }
     })
+    onFindSpots(spots)
     setSpots((prev) => {
       const keys = Object.keys(next)
       if (keys.length !== Object.keys(prev).length) return next
@@ -3161,7 +3543,7 @@ function TextBook(props: TextBookProps): JSX.Element {
       })
       return same ? prev : next
     })
-  }, [ranges, showInk, text, isPlain, colW, colH, scale, turning])
+  }, [ranges, showInk, text, colW, colH, scale, turning, findQuery, findActive, onFindSpots])
 
   /* 翻页 / 换书就把浮条收掉，别让它钉在旧位置 */
   useEffect(() => {
@@ -3225,7 +3607,9 @@ function TextBook(props: TextBookProps): JSX.Element {
       >
         <div
           className="tx-zoom"
-          style={{ zoom: scale, left: TX_PAD_X - TX_BLEED, width: clipW, height: sheet.height }}
+          /* 底边也留出与左右同样的出血：整块排不进一栏时（超长代码块、比一页还高的图）
+             它会顶穿栏底，原来一路画到纸的下边距外，看着就是「页面下方字符排版出错」 */
+          style={{ zoom: scale, left: TX_PAD_X - TX_BLEED, width: clipW, height: TX_PAD_Y + colH + TX_BLEED }}
         >
           <div
             ref={ghost ? null : flowRef}
@@ -3240,8 +3624,9 @@ function TextBook(props: TextBookProps): JSX.Element {
               columnGap: TX_GAP,
               fontSize: fontSize + 'px',
               fontFamily: fontFamily === '' ? undefined : fontFamily,
-              transform: 'translateX(' + -off + 'px)'
-            }}
+              transform: 'translateX(' + -off + 'px)',
+              ['--tx-colh' as string]: colH + 'px'
+            } as CSSProperties}
             onPointerUp={ghost ? undefined : pickSelection}
             onClick={ghost ? undefined : onFlowClick}
           >
@@ -3310,7 +3695,8 @@ function TextBook(props: TextBookProps): JSX.Element {
             {sel ? (
               <SelectionBar
                 sel={sel}
-                onHighlight={(range, quote) => void onHighlight(range, quote)}
+                color={hlColor}
+                onHighlight={(range, quote, color) => void onHighlight(range, quote, color)}
                 onAnnotate={onAnnotate}
                 onClose={clearSel}
               />
@@ -3359,20 +3745,39 @@ function ReaderPanel(props: {
   /** 给指定页加/去书签（缩略图角上直接点） */
   onToggleMark: (kind: NoteMarkKind, page: number) => void
   onCompose: (quote: string) => void
+  /** 文字页的排版边界：有它这一栏就是「文字页」缩略图，跟书页的「页面」不是一套页码 */
+  tx: { text: string; fontSize: number; fontFamily: string; colW: number; colH: number } | null
+  /** 查找的状态与回调都在 ReaderPage：舞台涂的色与这里列的命中是同一份 */
+  findQuery: string
+  /** 输入框里的词和已查过的词不一致：列表还是上一次的结果，提示要先说清楚 */
+  findDirty: boolean
+  findFinding: boolean
+  findHits: FindHit[]
+  findIndex: number
+  onFindQuery: (value: string) => void
+  onRunFind: (term: string) => void
+  onStepHit: (delta: number) => void
+  onJumpHit: (index: number) => void
 }): JSX.Element {
-  const { tab, onTab, info, view, pdf, page, pageCount, marks, onClose, onJump, onRemoveMark, onToggleMark, onCompose } = props
-  const [query, setQuery] = useState('')
-  const [hits, setHits] = useState<{ page: number; snippet: string }[]>([])
-  const [finding, setFinding] = useState(false)
+  const {
+    tab, onTab, info, view, pdf, page, pageCount, marks, onClose, onJump, onRemoveMark,
+    onToggleMark, onCompose, tx, findQuery, findDirty, findFinding, findHits, findIndex,
+    onFindQuery, onRunFind, onStepHit, onJumpHit
+  } = props
   const [found, setFound] = useState('')
   const [thumbLimit, setThumbLimit] = useState(60)
   /** 「页面」侧栏：全部页面 / 只看加过书签与重点的页面 */
   const [thumbOnly, setThumbOnly] = useState<'all' | 'marked'>('all')
   const [headings, setHeadings] = useState<{ title: string; page: number }[]>([])
-
-  // 目录：PDF 用书签；HTML 解析标题；文本用 Markdown 标题
+  /** 顶栏点「页内查找」（或 Ctrl+F）打开这一栏时，光标直接进输入框 */
+  const queryRef = useRef<HTMLInputElement | null>(null)
   useEffect(() => {
-    if (pdf) {
+    if (tab === 'find') queryRef.current?.focus()
+  }, [tab])
+
+  // 目录：PDF 用书签；HTML 解析标题；文本用 Markdown 标题（文字模式下 PDF 书签的页码对不上文字页，一律不用）
+  useEffect(() => {
+    if (pdf && view !== 'text') {
       if (pdf.outline.length > 0) setHeadings(pdf.outline.filter((item) => item.title).map((item) => ({ title: item.title, page: item.page })))
       else setHeadings([])
       return
@@ -3420,37 +3825,6 @@ function ReaderPanel(props: {
     }
   }, [pdf, page])
 
-  const runFind = async (): Promise<void> => {
-    const needle = query.trim().toLowerCase()
-    if (needle === '') return
-    if (pdf) {
-      setFinding(true)
-      const results: { page: number; snippet: string }[] = []
-      for (let number = 1; number <= pdf.pageCount && results.length < 200; number += 1) {
-        try {
-          const target = await pdf.doc.getPage(number)
-          const text = await pageText(target)
-          const index = text.toLowerCase().indexOf(needle)
-          if (index >= 0) {
-            results.push({ page: number, snippet: text.slice(Math.max(0, index - 26), index + needle.length + 46) })
-          }
-        } catch {
-          /* 单页失败不影响整体 */
-        }
-      }
-      setHits(results)
-      setFinding(false)
-      return
-    }
-    if (view === 'rich') {
-      const frame = document.querySelector<HTMLIFrameElement>('iframe[title="rich-view"]')
-      frame?.contentWindow?.focus()
-      ;(frame?.contentWindow as unknown as { find?: (term: string) => boolean } | undefined)?.find?.(query)
-      return
-    }
-    ;(window as unknown as { find?: (term: string) => boolean }).find?.(query)
-  }
-
   const jumpToHeading = (title: string, target: number): void => {
     if (view === 'text') {
       const node = [...document.querySelectorAll('.reader-text h1, .reader-text h2, .reader-text h3, .reader-text h4')].find(
@@ -3467,13 +3841,18 @@ function ReaderPanel(props: {
   const markedPages = [...new Set(marks.filter((mark) => mark.kind === 'bookmark' || mark.kind === 'star').map((mark) => mark.page))]
     .filter((number) => number >= 1)
     .sort((a, b) => a - b)
+  /** 这一栏现在有几页：文字模式 = 当前排版量出来的文字页，书页 = PDF 页数 */
+  const thumbTotal = tx ? pageCount : pdf?.pageCount ?? 0
   const thumbPages =
     thumbOnly === 'marked'
       ? markedPages
-      : Array.from({ length: Math.min(thumbLimit, pdf?.pageCount ?? 0) }, (_, index) => index + 1)
-  const tabs = PANEL_TABS.filter((item) => item.key !== 'thumbs' || (!!pdf && view === 'pages')).filter(
-    (item) => item.key !== 'page-text' || (!!pdf && view === 'pages')
-  )
+      : Array.from({ length: Math.min(thumbLimit, thumbTotal) }, (_, index) => index + 1)
+  /** 「页面」这一栏两种内容共用：文字模式下它叫「文字页」，免得和原版式页码混起来 */
+  const tabs = PANEL_TABS.filter((item) => {
+    if (item.key === 'thumbs') return (!!pdf && view !== 'text') || tx !== null
+    if (item.key === 'page-text') return !!pdf && view === 'pages'
+    return true
+  }).map((item) => (item.key === 'thumbs' && tx ? { ...item, label: '文字页' } : item))
 
   return (
     <aside className="reader-panel flex h-full w-[300px] shrink-0 flex-col border-l border-border bg-surface">
@@ -3499,7 +3878,9 @@ function ReaderPanel(props: {
       <div className="flex-1 overflow-y-auto p-2">
         {tab === 'outline' ? (
           headings.length === 0 ? (
-            <p className="p-3 text-xs text-muted-foreground">这份资料没有目录，用「页面」缩略图跳转更快。</p>
+            <p className="p-3 text-xs text-muted-foreground">
+              这份资料没有目录，用「{tx ? '文字页' : '页面'}」缩略图跳转更快。
+            </p>
           ) : (
             <ul className="space-y-0.5">
               {headings.map((item, index) => (
@@ -3521,11 +3902,11 @@ function ReaderPanel(props: {
           )
         ) : null}
 
-        {tab === 'thumbs' && pdf ? (
+        {tab === 'thumbs' && (tx !== null || !!pdf) ? (
           <div className="space-y-2">
             <div className="seg-base flex">
               {([
-                { key: 'all', label: '全部页面', count: pdf.pageCount },
+                { key: 'all', label: '全部页面', count: thumbTotal },
                 { key: 'marked', label: '仅书签', count: markedPages.length }
               ] as const).map((item) => (
                 <button
@@ -3558,12 +3939,24 @@ function ReaderPanel(props: {
                       number === page ? 'border-primary' : 'border-border hover:border-muted-foreground/60'
                     )}
                   >
-                    <span
-                      className="block overflow-hidden rounded bg-white"
-                      style={{ height: Math.round((116 * pdf.baseHeight) / pdf.baseWidth) }}
-                    >
-                      <PdfPageView pdf={pdf} pageNumber={number} scale={116 / pdf.baseWidth} rotation={0} lazy priority={2} />
-                    </span>
+                    {tx ? (
+                      <TextPageThumb
+                        text={tx.text}
+                        fontSize={tx.fontSize}
+                        fontFamily={tx.fontFamily}
+                        colW={tx.colW}
+                        colH={tx.colH}
+                        page={number}
+                        width={116}
+                      />
+                    ) : pdf ? (
+                      <span
+                        className="block overflow-hidden rounded bg-white"
+                        style={{ height: Math.round((116 * pdf.baseHeight) / pdf.baseWidth) }}
+                      >
+                        <PdfPageView pdf={pdf} pageNumber={number} scale={116 / pdf.baseWidth} rotation={0} lazy priority={2} />
+                      </span>
+                    ) : null}
                     <span className="mt-1 block text-center text-[10px] tabular-nums text-muted-foreground">{number}</span>
                     {markedPages.includes(number) ? (
                       <span
@@ -3584,14 +3977,20 @@ function ReaderPanel(props: {
                 ))}
               </div>
             )}
-            {thumbOnly === 'all' && thumbLimit < pdf.pageCount ? (
+            {thumbOnly === 'all' && thumbLimit < thumbTotal ? (
               <button
                 type="button"
                 onClick={() => setThumbLimit((value) => value + 120)}
                 className="w-full rounded-lg border border-dashed border-border px-2 py-3 text-[11px] text-muted-foreground hover:text-foreground"
               >
-                还有 {pdf.pageCount - thumbLimit} 页，点击继续加载缩略图
+                还有 {thumbTotal - thumbLimit} 页，点击继续加载缩略图
               </button>
+            ) : null}
+            {tx ? (
+              <p className="text-[11px] leading-relaxed text-muted-foreground">
+                这些是「文字页」：按现在的字体、字号与页面边界排出来的一栏一张，改了排版就跟着重排；
+                原版式的页码在「书页」阅读方式下看，两套页码不是一回事。
+              </p>
             ) : null}
           </div>
         ) : null}
@@ -3618,36 +4017,62 @@ function ReaderPanel(props: {
           <div className="space-y-2">
             <div className="flex items-center gap-1">
               <input
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
+                value={findQuery}
+                onChange={(event) => onFindQuery(event.target.value)}
                 onKeyDown={(event) => {
-                  if (event.key === 'Enter') void runFind()
+                  if (event.key === 'Enter') onRunFind(findQuery)
                 }}
+                ref={queryRef}
                 placeholder="查找文中的一个词"
                 className="field-base h-8 flex-1 text-xs"
               />
-              <Button size="sm" loading={finding} onClick={() => void runFind()}>
+              <Button size="sm" loading={findFinding} onClick={() => onRunFind(findQuery)}>
                 查找
               </Button>
             </div>
-            {pdf ? (
-              <p className="text-[11px] text-muted-foreground">
-                {finding ? '正在逐页检索…' : hits.length > 0 ? `找到 ${hits.length} 页有这个词` : '回车或点「查找」，会逐页检索全文'}
-              </p>
-            ) : (
-              <p className="text-[11px] text-muted-foreground">文本与排版模式用浏览器自带的页内查找，命中处会直接高亮。</p>
-            )}
-            {hits.map((hit) => (
-              <button
-                key={hit.page}
-                type="button"
-                onClick={() => onJump(hit.page)}
-                className="block w-full rounded-lg border border-border px-2 py-1.5 text-left text-[11px] hover:border-primary/50"
-              >
-                <span className="font-medium text-foreground">第 {hit.page} 页</span>
-                <span className="mt-0.5 block truncate text-muted-foreground">{hit.snippet}</span>
-              </button>
-            ))}
+            <div className="flex items-center gap-1">
+              <Button size="sm" variant="secondary" icon={<ChevronLeft className="h-3.5 w-3.5" />} onClick={() => onStepHit(-1)}>
+                上一处
+              </Button>
+              <Button size="sm" variant="secondary" onClick={() => onStepHit(1)}>
+                下一处
+              </Button>
+              {findHits.length > 0 ? (
+                <span className="ml-auto tabular-nums text-[11px] text-muted-foreground">
+                  {findIndex + 1} / {findHits.length}
+                </span>
+              ) : null}
+            </div>
+            <p className="text-[11px] leading-relaxed text-muted-foreground">
+              {view === 'rich'
+                ? '排版模式沿用页面自带的页内查找，命中处由浏览器高亮。'
+                : findFinding
+                  ? '正在逐页检索…'
+                  : findHits.length > 0
+                    ? tx
+                      ? '命中已在正文里涂出来，点下面任一条跳到那一页。'
+                      : '命中已用虚线圈在这一页上，点下面任一条跳过去。'
+                    : findQuery.trim() === '' || findDirty
+                      ? '回车或点「查找」：正文能涂色的就涂色，页面涂不了的就把命中那一行圈出来。'
+                      : '没找到这个词' + (pdf && view === 'pages' ? '（扫描版没有文字层时也搜不到）' : '')}
+            </p>
+            <ul className="space-y-1">
+              {findHits.slice(0, 120).map((hit, index) => (
+                <li key={'hit' + index}>
+                  <button
+                    type="button"
+                    onClick={() => onJumpHit(index)}
+                    className={cn(
+                      'block w-full rounded-lg border border-border px-2 py-1.5 text-left text-[11px] hover:border-primary/50',
+                      index === findIndex && 'border-primary bg-muted/50'
+                    )}
+                  >
+                    <span className="font-medium text-foreground">{hit.page > 0 ? '第 ' + hit.page + ' 页' : '正文'}</span>
+                    <span className="mt-0.5 block truncate text-muted-foreground">{hit.snippet}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
           </div>
         ) : null}
 
@@ -3780,6 +4205,84 @@ function MarkComposer(props: {
 }
 
 /* ==================== 选页用的缩略图按钮（对比与提取共用） ==================== */
+/**
+ * 侧栏里「滚到眼前才排版」的一块：一屏文字页缩略图就是十几份整篇正文，
+ * 全部立刻排完会直接卡死，所以离得远的只留一个同样大小的占位框。
+ */
+function LazyMount(props: {
+  width: number
+  height: number
+  label: number
+  children: ReactNode
+}): JSX.Element {
+  const { width, height, label, children } = props
+  const boxRef = useRef<HTMLDivElement | null>(null)
+  const [near, setNear] = useState(false)
+  useEffect(() => {
+    const node = boxRef.current
+    if (!node || typeof IntersectionObserver === 'undefined') {
+      setNear(true)
+      return undefined
+    }
+    const io = new IntersectionObserver(
+      (entries) => {
+        setNear(entries.some((entry) => entry.isIntersecting))
+      },
+      { rootMargin: '360px 0px' }
+    )
+    io.observe(node)
+    return () => io.disconnect()
+  }, [])
+  return (
+    <div
+      ref={boxRef}
+      className={cn('txp-thumb', !near && 'txp-lazy')}
+      style={{ width, height: Math.max(44, height) }}
+    >
+      {near ? children : label}
+    </div>
+  )
+}
+
+/**
+ * 文字页缩略图：拿和纸上完全一样的栏宽 / 栏高 / 字号排一份正文，再用 transform 等比缩小。
+ * transform 不参与排版计算，所以缩略图的分页与纸上逐字一致；改字体、改字号、拖纸边都会立刻重排。
+ */
+function TextPageThumb(props: {
+  text: string
+  fontSize: number
+  fontFamily: string
+  colW: number
+  colH: number
+  page: number
+  width: number
+}): JSX.Element {
+  const { text, fontSize, fontFamily, colW, colH, page, width } = props
+  const ratio = Math.min(1, width / Math.max(1, colW))
+  const body = useMemo(() => <ReaderBody text={text} />, [text])
+  return (
+    <LazyMount width={width} height={colH * ratio} label={page}>
+      <div className="txp-zoom" style={{ width: colW, height: colH, transform: 'scale(' + ratio + ')' }}>
+        <div
+          className="reader-text txp-flow"
+          style={{
+            width: colW,
+            height: colH,
+            columnCount: 'auto',
+            columnWidth: colW,
+            columnGap: TX_GAP,
+            fontSize: fontSize + 'px',
+            fontFamily: fontFamily === '' ? undefined : fontFamily,
+            transform: 'translateX(' + -(page - 1) * (colW + TX_GAP) + 'px)'
+          }}
+        >
+          {body}
+        </div>
+      </div>
+    </LazyMount>
+  )
+}
+
 function PageThumbPicker(props: {
   pdf: PdfDocInfo
   number: number

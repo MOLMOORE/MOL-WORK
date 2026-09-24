@@ -6,7 +6,6 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { basename, dirname, extname, join, resolve } from 'node:path'
 import JSZip from 'jszip'
-import { logger } from '../../utils/logger'
 import { decodeText } from './text.util'
 
 const MIME: Record<string, string> = {
@@ -70,7 +69,7 @@ function inlineLocalAssets(html: string, baseDir: string, reader: (abs: string) 
   })
   out = out.replace(
     /(<link[^>]*?rel=["']stylesheet["'][^>]*?href=["'])([^"']+)(["'])[^>]*>/gi,
-    (match, head: string, href: string) => {
+    (match: string, _head: string, href: string) => {
       if (/^(data:|https?:)/i.test(href)) return match
       const abs = resolve(baseDir, decodeURIComponent(href))
       const buffer = reader(abs)

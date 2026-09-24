@@ -103,33 +103,6 @@ function overlaps(a: Cell, b: Cell): boolean {
 }
 
 /**
- * 垂直压缩重排：先把「正在被拖动/缩放的卡片」锁在目标位置，
- * 其余卡片按 y 排序依次向上吸附、再向下推挤，因此拖动一个方块时其他方块会自动补齐缺口。
- */
-function resolveLayout(cells: Cell[], lockedId: string): Cell[] {
-  const locked = lockedId ? cells.find((cell) => cell.id === lockedId) : undefined
-  const source = locked ? cells.filter((cell) => cell.id !== lockedId) : [...cells]
-  const ordered = source.sort((a, b) => a.y - b.y || a.x - b.x)
-  const placed: Cell[] = locked ? [locked] : []
-
-  for (const cell of ordered) {
-    let y = cell.y
-    let guard = 0
-    while (y > 0 && !placed.some((item) => overlaps(item, { ...cell, y: y - 1 })) && guard < 400) {
-      y -= 1
-      guard += 1
-    }
-    guard = 0
-    while (placed.some((item) => overlaps(item, { ...cell, y })) && guard < 400) {
-      y += 1
-      guard += 1
-    }
-    placed.push({ ...cell, y })
-  }
-  return cells.map((cell) => placed.find((item) => item.id === cell.id) ?? cell)
-}
-
-/**
  * 从期望落点开始向外螺旋搜索最近的「不与其他卡片重叠」的合法落点。
  * 找不到时回退到 fallback（通常是被拖卡片原位），确保任何情况下都不会产生边界侵入。
  */
@@ -687,7 +660,7 @@ export function GridBoard({
         if (key) els.set(key, node)
       })
 
-      const { stepX: sx, stepY: sy } = metricsRef.current
+        const { stepX: sx } = metricsRef.current
       element.style.transition = 'none'
       element.style.willChange = 'transform, width, height'
       element.style.zIndex = '40'

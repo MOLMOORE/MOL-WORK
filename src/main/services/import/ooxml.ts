@@ -23,8 +23,6 @@ function arr<T>(value: T | T[] | undefined): T[] {
   return Array.isArray(value) ? (value as T[]) : [value as T]
 }
 
-type Node = Record<string, unknown> | string | number | boolean
-
 function asObject(value: unknown): Record<string, unknown> | null {
   if (value && typeof value === 'object' && !Array.isArray(value)) return value as Record<string, unknown>
   if (Array.isArray(value) && value.length > 0) return asObject(value[0])

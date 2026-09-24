@@ -29,7 +29,7 @@ import { PageGrid } from '../components/layout/PageGrid'
 import type { GridEntry } from '../components/layout/GridBoard'
 import { TaskForm } from '../components/task/TaskForm'
 import { TaskDetailDrawer } from '../components/task/TaskDetailDrawer'
-import { ScheduleBoard, type BoardView, type DueChangeRequest } from '../components/task/ScheduleBoard'
+import { ScheduleBoard, type BoardView } from '../components/task/ScheduleBoard'
 import { RecycleBinModal } from '../components/task/RecycleBinModal'
 import { ReviewQueue } from '../components/review/ReviewQueue'
 import { useTaskStore } from '../stores/taskStore'
@@ -112,13 +112,6 @@ export function TasksPage(): JSX.Element {
       navigate(location.pathname, { replace: true, state: null })
     }
   }, [location.state, location.pathname, openDetail, navigate])
-
-  const grouped = useMemo(() => {
-    const map = new Map<TaskStatus, Task[]>()
-    for (const status of ['todo', 'doing', 'blocked', 'done'] as TaskStatus[]) map.set(status, [])
-    for (const task of tasks) map.get(task.status)?.push(task)
-    return map
-  }, [tasks])
 
   /** 拖拽过程中的本地顺序覆盖，提交成功后交还给 store 排序 */
   const visibleTasks = useMemo(() => {

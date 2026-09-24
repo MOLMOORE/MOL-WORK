@@ -1,7 +1,16 @@
 # 阅读 · 批注（圈注 / 旁注）
 
 > 功能线速查：ReaderPage.tsx（sheetNotes/PageInkLayer/InkStrokes/InkDots/NoteQuickBar/NoteRail/NotePopover/MarkComposer/handleInk/inkMode/showInk/showNotes/noteSide/noteKindLabel + 行内标记 parseRange/applyTextRanges/wrapRange/rangeOffsets/addHighlight/annotateRange）+ index.css（.mw-ink* / .mw-note-* / mark.tx-hl / .tx-selbar）+ note_marks.region（DB v8，圈画 {kind,points} 与文字页 {kind:range,start,end} 两种存法）
-> 记录格式见 `docs/modifications/README.md`；新改动**追加在本行下方的最前面**。
+> 功能线速查：ReaderPage.tsx（sheetNotes/PageInkLayer/InkStrokes(variant=find)/InkDots/NoteQuickBar/NoteRail/NotePopover/MarkComposer/handleInk/inkMode/showInk/showNotes/noteSide/noteKindLabel + 行内标记 parseRange/applyTextRanges/unwrapMarks/wrapRange/addHighlight/annotateRange/rangeMarks/HL_COLORS/ToolButton + useTextSelection/SelectionBar）+ index.css（.mw-ink* / .mw-note-* / mark.tx-hl[data-hl] / .tx-selbar* / .mw-toolgroup）
+
+## 2026-09-24 · v1.2.5 第 8 轮（浮条定位准 + 高亮能挑色）
+- 需求：滚动模式里能选中字，但「注释 / 高亮」那条浮框经常离选区一大截；要更准、更显眼，高亮还要能挑颜色。
+- 根因：`useTextSelection.pick` 拿两个客户端矩形相减（= 相对视口）当浮条坐标，而连续模式的宿主本身就是滚动容器，没补 `scrollLeft / scrollTop` → 内容滚多远浮条飘多远（同一文件里 `NotePopover` 早就补了，只有浮条漏）；锚点还取 `range.getClientRects()[0]`，跨元素选区的第一个片段经常是零宽空盒子，本身不可信。
+- 改法：① 锚点改成「丢掉零宽片段后、最上面那一行的左右沿」，坐标一律补 `host.scrollLeft/scrollTop`（宿主不是滚动容器时这俩为 0，书页与分页文字行为不变），上面放不下就自动翻到选区下面（`SelectionSpot.place` + `data-place` + CSS 小三角）；② 浮条换成实底卡片 + 主色描边 + 外发光，按键从光图标变成「图标 + 文字」，中间夹一排荧光色板；③ 颜色不加迁移，直接写进建表就空着的 `note_marks.color`，画在 `mark.tx-hl[data-hl]`（固定 rgba，深浅两套都压得住），当前用哪支记 `workstation.reader.hlcolor.v1`；同一段再点同色 = 取消、点别色 = 改色（`api.note.saveMark({ id, color })` 走 updateMark）；④ `.is-active` 从「换底色」改成「描主色外圈」，否则会把用户挑的颜色盖掉；⑤ `showInk` 继续同时管纸上的圈与正文的荧光，所以顶栏把它从「有页才给」里拆出来单独显示（圈注 / 旁注仍要有页）。
+- 位置：`ReaderPage.tsx`（`HL_COLORS` / `SELBAR_W` / `SELBAR_H` / `useTextSelection` / `SelectionSpot` / `SelectionBar` / `addHighlight(range,quote,color)` / `rangeMarks` / `RangeItem.color` / `wrapRange(...,color)` / `unwrapMarks`）、`index.css`（`.tx-selbar*`、`mark.tx-hl[data-hl]`、`.mw-toolgroup` 一族）。
+- 参考：主流阅读器（Zotero / Hypothesis）都是「选区第一行 + 色板直接点即涂」的交互；未采用弹出色盘控件，避免盖住正文。
+- 验证：L0（tsc 严格 + build）。
+- 遗留：正文被编辑过之后偏移靠引文兜底；色板固定 5 支，暂不开放自定义色；浮条宽度按 `SELBAR_W` 估算夹边，极窄纸面上会靠左贴。
 
 ## 2026-09-23 · v1.2.5 第 7 轮（图标统一 + 连续模式也能选中注释）
 - 需求：顶栏注释一族图标统一风格；「连续」滚动里选中正文既不能高亮也不能写注释。

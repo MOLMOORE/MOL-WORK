@@ -19,7 +19,6 @@ import { formatMinutes, todayKey } from '../lib/utils'
 
 const STORAGE_LAST_DEGREE = 'workstation.procrastination-last-degree'
 const STORAGE_REMIND_DAY = 'workstation.procrastination-remind-day'
-const STATS_LAYOUT_KEY = 'workstation.grid.stats.v2'
 
 function readStorage(key: string): string | null {
   try {

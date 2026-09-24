@@ -1,4 +1,3 @@
-import type { DatabaseSync } from 'node:sqlite'
 import { getDb, toNumber } from './connection'
 
 export type SqlParam = string | number | null | bigint | Uint8Array
@@ -31,8 +30,4 @@ export function exec(sql: string): void {
 export function count(sql: string, ...params: SqlParam[]): number {
   const row = get<{ c: number | bigint }>(sql, ...params)
   return toNumber(row?.c ?? 0)
-}
-
-export function dbHandle(): DatabaseSync {
-  return getDb()
 }

@@ -63,10 +63,6 @@ export function applyTheme(
 }
 
 /** 当前生效的深浅色（供图表取色等场景使用） */
-export function activeMode(): 'dark' | 'light' {
-  return document.documentElement.dataset.theme === 'light' ? 'light' : 'dark'
-}
-
 export function applyFontSize(size: FontSize): void {
   document.documentElement.style.fontSize = FONT_SIZE_META[size]?.root ?? '16px'
 }

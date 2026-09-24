@@ -9,7 +9,6 @@ import {
   Eye,
   FileText,
   GripVertical,
-  Layers,
   Paperclip,
   Pencil,
   Plus,
