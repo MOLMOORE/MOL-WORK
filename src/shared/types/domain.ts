@@ -199,6 +199,8 @@ export interface Note {
   readonly: boolean
   /** 手动排序序号：列表里拖拽排序后落库，越小越靠前（0 表示未参与过手动排序） */
   sortOrder: number
+  /** 回收站：软删除时间，空表示正常存在（v1.2.6 快速删除模式） */
+  deletedAt?: string | null
   createdAt: string
   updatedAt: string
   taskTitle?: string | null

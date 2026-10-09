@@ -5,6 +5,7 @@ import { closeDatabase, initDatabase } from './db/connection'
 import { registerIpcHandlers } from './ipc'
 import { bootstrap } from './services/bootstrap.service'
 import { purgeExpiredService } from './services/task.service'
+import { purgeExpiredNotes } from './services/note.service'
 import { readSettings } from './services/settings.service'
 import { catchUpOnStartup, startScheduler, stopScheduler } from './services/scheduler.service'
 import { emitToRenderer } from './services/bus'
@@ -324,8 +325,12 @@ if (!gotLock) {
 function startRecycleBinCleaner(): void {
   const clean = (): void => {
     try {
-      const purged = purgeExpiredService(readSettings().recycleBinDays)
-      if (purged > 0) logger.info(`回收站清理：彻底删除 ${purged} 个过期任务`)
+      const days = readSettings().recycleBinDays
+      const purgedTasks = purgeExpiredService(days)
+      const purgedNotes = purgeExpiredNotes(days)
+      if (purgedTasks + purgedNotes > 0) {
+        logger.info(`回收站清理：彻底删除 ${purgedTasks} 个过期任务、${purgedNotes} 条过期资料`)
+      }
     } catch (error) {
       logger.error('回收站清理失败', error)
     }

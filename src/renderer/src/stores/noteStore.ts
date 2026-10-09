@@ -9,13 +9,25 @@ interface NoteState {
   taskFilter: number | null
   loading: boolean
   saving: boolean
+  /** 回收站：软删除的资料 / 笔记 / 卡片，保留期内可恢复（v1.2.6） */
+  deleted: Note[]
+  deletedLoading: boolean
   load: () => Promise<void>
   setKeyword: (keyword: string) => Promise<void>
   setTaskFilter: (taskId: number | null) => Promise<void>
   select: (id: number) => Promise<void>
   createNote: (input: NoteInput) => Promise<Note>
   saveNote: (input: NoteInput) => Promise<void>
+  /** 单条移入回收站 */
   removeNote: (id: number) => Promise<void>
+  /** 快速删除模式：批量移入回收站，返回真正删掉的条数 */
+  removeNotes: (ids: number[]) => Promise<number>
+  /** 拉取回收站列表 */
+  loadDeleted: () => Promise<void>
+  /** 从回收站恢复（同时刷新列表） */
+  restoreNote: (id: number) => Promise<void>
+  /** 彻底删除，不可恢复 */
+  purgeNote: (id: number) => Promise<void>
   /** 列表拖拽排序：按给定 id 顺序落库，并就地更新本地顺序 */
   reorderNotes: (ids: number[]) => Promise<void>
   gradeReview: (reviewId: number, rating: ReviewRating) => Promise<ReviewItem>
@@ -28,6 +40,8 @@ export const useNoteStore = create<NoteState>((set, get) => ({
   taskFilter: null,
   loading: false,
   saving: false,
+  deleted: [],
+  deletedLoading: false,
 
   load: async () => {
     const { keyword, taskFilter } = get()
@@ -86,7 +100,32 @@ export const useNoteStore = create<NoteState>((set, get) => ({
   removeNote: async (id) => {
     await api.note.remove(id)
     if (get().current?.id === id) set({ current: null })
-    await get().load()
+    await Promise.all([get().load(), get().loadDeleted()])
+  },
+
+  removeNotes: async (ids) => {
+    if (ids.length === 0) return 0
+    const removed = await api.note.removeMany(ids)
+    if (ids.includes(get().current?.id ?? -1)) set({ current: null })
+    await Promise.all([get().load(), get().loadDeleted()])
+    return removed
+  },
+
+  loadDeleted: async () => {
+    set({ deletedLoading: true })
+    const deleted = await api.note.listDeleted()
+    set({ deleted, deletedLoading: false })
+  },
+
+  restoreNote: async (id) => {
+    await api.note.restore(id)
+    await Promise.all([get().load(), get().loadDeleted()])
+  },
+
+  purgeNote: async (id) => {
+    await api.note.purge(id)
+    if (get().current?.id === id) set({ current: null })
+    await get().loadDeleted()
   },
 
   gradeReview: async (reviewId, rating) => {

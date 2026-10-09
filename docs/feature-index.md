@@ -36,10 +36,13 @@
 - 排序：`NOTE_SORTS`、`DEFAULT_DIRS`、`loadSortDirs()`、`sortNotes()`、`chooseSort()`、`toggleSortDir()`、`applyReorder()`（拖拽落库）
 - 导入：`stageImport()`、`confirmImport()`、`handleDropFiles()`（拖拽遮罩文案）、`importOptions()`
 - 详情弹窗：`openDetail()` 与详情 JSX（「资料简介」等文案在此）
-- 存储：`KIND_TABS`、`VIEW_MODE_LABEL`；store `src/renderer/src/stores/noteStore.ts`
+- 快速删除模式（v1.2.6）：`selectMode` / `selected` / `visibleIds` / `toggleSelect` / `toggleSelectAll` / `confirmBatchDelete` / `batchAsk` / `recycleOpen`
+- 回收站弹窗：`src/renderer/src/components/note/NoteRecycleBinModal.tsx`（`remainingText` / `noteHint` / 保留时长切换）
+- 存储：`KIND_TABS`、`VIEW_MODE_LABEL`；store `src/renderer/src/stores/noteStore.ts`（`deleted` / `loadDeleted` / `removeNotes` / `restoreNote` / `purgeNote`）
 
 ## 3. 数据层（`src/main/db/`）
-- 迁移：`migrations/00N_*.ts` + 注册表 `migrations/index.ts`（当前 v8：`note-mark-region`）
+- 迁移：`migrations/00N_*.ts` + 注册表 `migrations/index.ts`（当前 v9：`note-recycle-bin`）
+- 回收站（资料 / 笔记 / 卡片，v1.2.6）：`note.repo.ts`（`trashNote` / `restoreNote` / `listDeletedNotes` / `listExpiredDeletedNoteIds`）+ `note.service.ts`（`deleteNotes` / `restoreNoteFromTrash` / `purgeNote` / `purgeExpiredNotes`）+ 复习挂起 `review.service.ts`（`suspendReviewForNote` / `resumeReviewForNote`）；过期清理由 `main/index.ts#startRecycleBinCleaner` 统一驱动
 - 行→对象：`mappers.ts`；仓储：`repositories/note.repo.ts`（含 `reorderNotes`、`noteMarks`、`saveNoteMark`）
 - 类型单一来源：`src/shared/types/domain.ts`（`Note`、`NoteDocInfo`、`NoteMark.region`）
 - 跨端共享清单：`src/shared/constants.ts`（`IMPORT_EXTENSIONS`、`TEXTUAL_DOC_FORMATS`、主题皮肤表）
@@ -64,7 +67,8 @@
 - 工具：`src/main/tools/registry.ts`（注册即生效）、`tools/runners/*.runner.ts`、`src/main/utils/{binaries,command,dependency-check}.ts`、页面 `ToolsPage.tsx` + `components/tool/*`
 - 任务：`pages/TasksPage.tsx`、`components/task/*`、`services/task.service.ts`、`repositories/task.repo.ts`
 - 统计：`pages/StatsPage.tsx`、`components/stats/*`、`services/stats.service.ts`、`overview.service.ts`
-- 番茄与专注：`pages/PomodoroPage.tsx`、`stores/pomodoroStore.ts`、`services/schedule.service.ts`、`repositories/focus.repo.ts`
+- 番茄与专注：`pages/PomodoroPage.tsx`（取数 + 栅格 + 空格 / R 快捷键）、视觉组件 `components/pomodoro/PomoStage.tsx`（`PHASE_VISUALS` / `bodyStopsFor` / `hslToHex` / 阶段条 / 进度点 / 控制键）与 `PomoPanels.tsx`（`PomoParams` 步进器 + `RhythmBand` 节奏带 / `PomoToday` 今日热力带）、CSS `.pomo-*`（`--pomo-h` 阶段色相）
+- 番茄状态机：`stores/pomodoroStore.ts`（`switchPhase` / `sync` / `skip` / `beep`）、`services/schedule.service.ts`、`repositories/focus.repo.ts`
 - 复习：`components/review/ReviewQueue.tsx`、`services/review.service.ts`
 
 ## 8. 版本信息双写点（发版必改）

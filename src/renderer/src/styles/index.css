@@ -2237,3 +2237,547 @@
     background: hsl(var(--border));
   }
 }
+
+/* ==========================================================================
+   番茄钟舞台（v1.2.6 二次美化）
+   --pomo-h = 当前阶段色相（专注 8 / 短休息 152 / 长休息 190），
+   光晕、分段控件、主按键、进度点全部由它派生，换阶段时整块舞台一起换色。
+   ========================================================================== */
+@layer components {
+  .pomo-stage {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    height: 100%;
+    width: 100%;
+    padding: 18px 20px 16px;
+    overflow: hidden;
+    border-radius: inherit;
+  }
+  .pomo-title {
+    font-size: 14px;
+    font-weight: 650;
+    letter-spacing: -0.01em;
+    color: hsl(var(--foreground));
+  }
+  .pomo-glow {
+    position: absolute;
+    left: -18%;
+    right: -18%;
+    top: -26%;
+    height: 82%;
+    pointer-events: none;
+    background: radial-gradient(
+      58% 58% at 50% 44%,
+      hsl(var(--pomo-h, 8) 88% 56% / 0.3),
+      hsl(var(--pomo-h, 8) 88% 56% / 0.08) 56%,
+      transparent 74%
+    );
+    transition: opacity 480ms ease;
+    opacity: 0.78;
+  }
+  .pomo-stage[data-running='true'] .pomo-glow {
+    opacity: 1;
+    animation: pomo-breathe 5.4s ease-in-out infinite;
+  }
+  .pomo-stage[data-running='false'] .pomo-glow {
+    opacity: 0.5;
+  }
+  @keyframes pomo-breathe {
+    0%,
+    100% {
+      transform: scale(1);
+      opacity: 0.82;
+    }
+    50% {
+      transform: scale(1.07);
+      opacity: 1;
+    }
+  }
+  /* 细密网点质感：给纯色舞台加一点层次，不抢主体 */
+  .pomo-grain {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.55;
+    background-image: radial-gradient(hsl(var(--foreground) / 0.09) 1px, transparent 1px);
+    background-size: 15px 15px;
+    -webkit-mask-image: radial-gradient(68% 68% at 50% 42%, #000, transparent 76%);
+    mask-image: radial-gradient(68% 68% at 50% 42%, #000, transparent 76%);
+  }
+  /* 运行时飘起的小点：让「正在专注」这件事有一层可感的动效 */
+  .pomo-motes {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
+  .pomo-motes i {
+    position: absolute;
+    bottom: 20%;
+    width: 7px;
+    height: 7px;
+    border-radius: 999px;
+    background: hsl(var(--pomo-h, 8) 92% 62% / 0.5);
+    animation: pomo-float 7.2s linear infinite;
+  }
+  .pomo-motes i:nth-child(1) {
+    left: 20%;
+  }
+  .pomo-motes i:nth-child(2) {
+    left: 56%;
+    width: 5px;
+    height: 5px;
+    animation-delay: 2.4s;
+  }
+  .pomo-motes i:nth-child(3) {
+    left: 80%;
+    width: 9px;
+    height: 9px;
+    animation-delay: 4.3s;
+  }
+  @keyframes pomo-float {
+    0% {
+      transform: translateY(0) scale(0.6);
+      opacity: 0;
+    }
+    18% {
+      opacity: 0.7;
+    }
+    100% {
+      transform: translateY(-210px) scale(1.12);
+      opacity: 0;
+    }
+  }
+  /* 今日番茄计数块 */
+  .pomo-today {
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+    padding: 6px 10px;
+    border-radius: calc(var(--r-lg));
+    border: 1px solid hsl(var(--pomo-h, 8) 62% 50% / 0.35);
+    background: hsl(var(--pomo-h, 8) 78% 50% / 0.1);
+  }
+  .pomo-today-num {
+    font-size: 20px;
+    font-weight: 700;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+    color: hsl(var(--pomo-h, 8) 70% 40%);
+  }
+  .pomo-today-unit {
+    font-size: 11px;
+    font-weight: 600;
+    color: hsl(var(--foreground));
+  }
+  .pomo-today-min {
+    font-size: 10px;
+    font-variant-numeric: tabular-nums;
+    color: hsl(var(--muted-foreground));
+  }
+  /* 阶段分段控件 */
+  .pomo-rail {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    padding: 3px;
+    border-radius: 999px;
+    border: 1px solid hsl(var(--border));
+    background: hsl(var(--muted) / 0.5);
+  }
+  .pomo-rail-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 13px;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    font-size: 12px;
+    color: hsl(var(--muted-foreground));
+    cursor: pointer;
+    transition: background-color 160ms ease, color 160ms ease, box-shadow 200ms ease;
+  }
+  .pomo-rail-item:hover {
+    color: hsl(var(--foreground));
+  }
+  .pomo-rail-item[data-active='true'] {
+    background: hsl(var(--pomo-h, 8) 74% 46%);
+    color: #ffffff;
+    font-weight: 600;
+    box-shadow: 0 8px 18px -10px hsl(var(--pomo-h, 8) 74% 38% / 0.95);
+  }
+  .pomo-rail-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 999px;
+    background: hsl(var(--pomo-h, 8) 68% 46%);
+  }
+  .pomo-rail-item[data-active='true'] .pomo-rail-dot {
+    background: #ffffff;
+  }
+  .pomo-rail-item:nth-child(1) .pomo-rail-dot {
+    background: hsl(8 70% 48%);
+  }
+  .pomo-rail-item:nth-child(2) .pomo-rail-dot {
+    background: hsl(152 58% 40%);
+  }
+  .pomo-rail-item:nth-child(3) .pomo-rail-dot {
+    background: hsl(190 62% 42%);
+  }
+  .pomo-rail-item[data-active='true'] .pomo-rail-dot {
+    background: #ffffff;
+  }
+  /* 番茄主体：随格子高度自适应放大 */
+  .pomo-figure {
+    position: relative;
+    display: grid;
+    place-items: center;
+    flex: 1 1 auto;
+    min-height: 0;
+    width: 100%;
+  }
+  .pomo-svg {
+    height: 100%;
+    max-height: 430px;
+    width: 100%;
+    max-width: 420px;
+    overflow: visible;
+  }
+  .pomo-clock {
+    font-size: 52px;
+    font-weight: 700;
+    letter-spacing: -1.6px;
+  }
+  .pomo-sub {
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+  }
+  .pomo-arc {
+    transition: stroke-dashoffset 600ms linear;
+  }
+  .pomo-knob.is-live circle:first-child {
+    animation: pomo-knob 1.9s ease-in-out infinite;
+    transform-box: fill-box;
+    transform-origin: center;
+  }
+  @keyframes pomo-knob {
+    0%,
+    100% {
+      transform: scale(0.86);
+      opacity: 0.2;
+    }
+    50% {
+      transform: scale(1.25);
+      opacity: 0.42;
+    }
+  }
+  /* 本轮进度点 */
+  .pomo-dots {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .pomo-dot {
+    display: grid;
+    place-items: center;
+    width: 17px;
+    height: 17px;
+  }
+  .pomo-dot svg {
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+  }
+  .pomo-dot circle {
+    fill: hsl(8 62% 50% / 0.16);
+    stroke: hsl(8 40% 42% / 0.32);
+    stroke-width: 1;
+    transition: fill 200ms ease;
+  }
+  .pomo-dot path {
+    fill: hsl(8 40% 40% / 0.28);
+    stroke: hsl(8 40% 40% / 0.28);
+  }
+  .pomo-dot[data-done='true'] circle {
+    fill: hsl(8 72% 46%);
+    stroke: transparent;
+  }
+  .pomo-dot[data-done='true'] path {
+    fill: #2fbf6a;
+    stroke: #2fbf6a;
+  }
+  .pomo-dot[data-current='true'] {
+    animation: pomo-pop 1.9s ease-in-out infinite;
+  }
+  @keyframes pomo-pop {
+    0%,
+    100% {
+      transform: scale(1);
+    }
+    50% {
+      transform: scale(1.2);
+    }
+  }
+  .pomo-dots-label {
+    margin-left: 6px;
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+    color: hsl(var(--muted-foreground));
+  }
+  /* 控制按键 */
+  .pomo-controls {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .pomo-main {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 26px;
+    border: 0;
+    border-radius: 999px;
+    background: linear-gradient(180deg, hsl(var(--pomo-h, 8) 84% 58%), hsl(var(--pomo-h, 8) 78% 44%));
+    color: #ffffff;
+    font-size: 14px;
+    font-weight: 650;
+    letter-spacing: -0.01em;
+    cursor: pointer;
+    box-shadow: 0 12px 26px -14px hsl(var(--pomo-h, 8) 78% 36% / 0.95), inset 0 1px 0 hsl(0 0% 100% / 0.3);
+    transition: transform 150ms ease, filter 180ms ease, box-shadow 220ms ease;
+  }
+  .pomo-main:hover {
+    filter: saturate(1.08) brightness(1.05);
+  }
+  .pomo-main:active {
+    transform: translateY(1px) scale(0.99);
+  }
+  .pomo-ghost {
+    display: grid;
+    place-items: center;
+    width: 38px;
+    height: 38px;
+    border: 1px solid hsl(var(--border));
+    border-radius: 999px;
+    background: hsl(var(--background) / 0.55);
+    color: hsl(var(--muted-foreground));
+    cursor: pointer;
+    transition: color 150ms ease, border-color 150ms ease, background-color 150ms ease;
+  }
+  .pomo-ghost:hover {
+    color: hsl(var(--foreground));
+    border-color: hsl(var(--pomo-h, 8) 62% 52% / 0.6);
+    background: hsl(var(--pomo-h, 8) 70% 50% / 0.14);
+  }
+  .pomo-hint {
+    position: relative;
+    font-size: 10px;
+    letter-spacing: 0.02em;
+    color: hsl(var(--muted-foreground) / 0.85);
+  }
+  /* 参数步进器 */
+  .pomo-param {
+    min-width: 0;
+  }
+  .pomo-param-value {
+    font-size: 15px;
+    font-weight: 650;
+    font-variant-numeric: tabular-nums;
+    color: hsl(var(--foreground));
+  }
+  .pomo-param-value em {
+    margin-left: 2px;
+    font-size: 10px;
+    font-style: normal;
+    font-weight: 500;
+    color: hsl(var(--muted-foreground));
+  }
+  .pomo-step {
+    display: flex;
+    align-items: center;
+    gap: 1px;
+    padding: 2px;
+    border: 1px solid hsl(var(--border));
+    border-radius: 999px;
+    background: hsl(var(--input) / 0.45);
+  }
+  .pomo-step button {
+    display: grid;
+    place-items: center;
+    width: 24px;
+    height: 24px;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: hsl(var(--muted-foreground));
+    cursor: pointer;
+    transition: background-color 140ms ease, color 140ms ease;
+  }
+  .pomo-step button:hover {
+    background: hsl(var(--pomo-h, 8) 70% 50% / 0.18);
+    color: hsl(var(--foreground));
+  }
+  .pomo-step output {
+    min-width: 34px;
+    text-align: center;
+    font-size: 13px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: hsl(var(--foreground));
+  }
+  .pomo-chip {
+    padding: 3px 8px;
+    border: 1px solid hsl(var(--border));
+    border-radius: 999px;
+    background: hsl(var(--muted) / 0.4);
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+    color: hsl(var(--muted-foreground));
+    cursor: pointer;
+    transition: all 140ms ease;
+  }
+  .pomo-chip:hover {
+    color: hsl(var(--foreground));
+    border-color: hsl(var(--pomo-h, 8) 60% 50% / 0.55);
+  }
+  .pomo-chip.is-on {
+    border-color: hsl(var(--pomo-h, 8) 66% 48%);
+    background: hsl(var(--pomo-h, 8) 72% 48% / 0.16);
+    color: hsl(var(--foreground));
+    font-weight: 600;
+  }
+  /* 节奏带 */
+  .pomo-rhythm {
+    display: flex;
+    gap: 2px;
+    height: 24px;
+    border-radius: calc(var(--r-md, 8px));
+    overflow: hidden;
+    background: hsl(var(--muted) / 0.4);
+  }
+  .pomo-rhythm i {
+    display: block;
+    min-width: 3px;
+    height: 100%;
+    transition: flex-grow 240ms ease;
+  }
+  /* 开关行（不用整块 Switch，省出横向空间） */
+  .pomo-switch {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 0;
+    border: 0;
+    background: transparent;
+    font-size: 12px;
+    color: hsl(var(--muted-foreground));
+    cursor: pointer;
+    transition: color 140ms ease;
+  }
+  .pomo-switch + .pomo-switch {
+    border-top: 1px dashed hsl(var(--border));
+  }
+  .pomo-switch:hover,
+  .pomo-switch[data-on='true'] {
+    color: hsl(var(--foreground));
+  }
+  .pomo-switch-icon {
+    display: grid;
+    place-items: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 7px;
+    background: hsl(var(--pomo-h, 8) 70% 50% / 0.14);
+    color: hsl(var(--pomo-h, 8) 62% 40%);
+  }
+  .pomo-switch-track {
+    position: relative;
+    width: 32px;
+    height: 18px;
+    border-radius: 999px;
+    background: hsl(var(--muted));
+    box-shadow: inset 0 0 0 1px hsl(var(--border));
+    transition: background-color 180ms ease;
+  }
+  .pomo-switch-knob {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 14px;
+    height: 14px;
+    border-radius: 999px;
+    background: hsl(var(--background));
+    box-shadow: 0 1px 2px hsl(0 0% 0% / 0.3);
+    transition: transform 180ms ease;
+  }
+  .pomo-switch-track[data-on='true'] {
+    background: hsl(var(--pomo-h, 8) 70% 44%);
+  }
+  .pomo-switch-track[data-on='true'] .pomo-switch-knob {
+    transform: translateX(14px);
+  }
+  /* 今日节奏热力带 */
+  .pomo-bars {
+    display: flex;
+    align-items: flex-end;
+    gap: 3px;
+    height: 72px;
+  }
+  .pomo-bars i {
+    flex: 1 1 0;
+    min-width: 2px;
+    border-radius: 4px 4px 2px 2px;
+    background: linear-gradient(180deg, hsl(var(--pomo-h, 8) 82% 58%), hsl(var(--pomo-h, 8) 72% 42%));
+    transition: height 320ms ease;
+  }
+  .pomo-bars i[data-empty='true'] {
+    background: hsl(var(--muted) / 0.75);
+  }
+  .pomo-bars i:hover {
+    filter: brightness(1.12);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pomo-stage .pomo-glow,
+  .pomo-motes i,
+  .pomo-dot[data-current='true'],
+  .pomo-knob.is-live circle:first-child {
+    animation: none;
+  }
+}
+
+/* 节奏建议列表（番茄钟页右侧卡） */
+@layer components {
+  .pomo-tips {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    font-size: 11px;
+    line-height: 1.6;
+    color: hsl(var(--muted-foreground));
+  }
+  .pomo-tips li {
+    position: relative;
+    padding-left: 12px;
+  }
+  .pomo-tips li::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 7px;
+    width: 5px;
+    height: 5px;
+    border-radius: 999px;
+    background: hsl(var(--pomo-h, 8) 72% 50% / 0.6);
+  }
+  .pomo-tips b {
+    color: hsl(var(--foreground));
+    font-weight: 600;
+  }
+}

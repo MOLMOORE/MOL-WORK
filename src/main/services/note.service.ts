@@ -2,13 +2,17 @@ import type { Note, NoteInput, ReviewItem } from '@shared/types/domain'
 import {
   createNote,
   getNote,
+  listDeletedNotes as repoListDeletedNotes,
   listNotes as repoListNotes,
+  listExpiredDeletedNoteIds,
   removeNote,
+  restoreNote as restoreNoteRow,
+  trashNote,
   updateNote
 } from '../db/repositories/note.repo'
 import type { Note as NoteEntity } from '@shared/types/domain'
 import { getReviewByNote } from '../db/repositories/review.repo'
-import { dropReviewForNote, ensureReviewForNote } from './review.service'
+import { dropReviewForNote, ensureReviewForNote, resumeReviewForNote, suspendReviewForNote } from './review.service'
 import { readNoteDocument, removeNoteLibrary } from './library.service'
 import { existsSync } from 'node:fs'
 import type { NoteDocInfo, NoteMark, NoteMarkInput } from '@shared/types/domain'
@@ -46,10 +50,49 @@ export function saveNote(input: NoteInput): NoteWithReview {
   return attachReview(refreshed)
 }
 
-export function deleteNote(id: number): void {
+/** 删除 = 移入回收站（软删除）：复习计划挂起，书库渲染件保留到彻底删除那天 */
+export function deleteNote(id: number): boolean {
+  const note = getNote(id)
+  if (!note || note.deletedAt) return false
+  suspendReviewForNote(id)
+  trashNote(id)
+  return true
+}
+
+/** 快速删除模式：批量移入回收站，返回真正被删掉的条数 */
+export function deleteNotes(ids: number[]): number {
+  let removed = 0
+  for (const id of ids) {
+    if (deleteNote(id)) removed += 1
+  }
+  return removed
+}
+
+/** 回收站列表 */
+export function listDeletedNotes(): NoteWithReview[] {
+  return repoListDeletedNotes().map(attachReview)
+}
+
+/** 从回收站恢复：阅读进度、批注与复习阶段都还在原处 */
+export function restoreNoteFromTrash(id: number): NoteWithReview | undefined {
+  const note = restoreNoteRow(id)
+  if (!note) return undefined
+  resumeReviewForNote(id)
+  return attachReview(note)
+}
+
+/** 彻底删除（不可恢复）：这时才移除复习计划与书库目录 */
+export function purgeNote(id: number): void {
   dropReviewForNote(id)
   removeNote(id)
   removeNoteLibrary(id)
+}
+
+/** 定时清理：超过保留期的回收站条目彻底删除（含复习计划与书库渲染件） */
+export function purgeExpiredNotes(retentionDays: number): number {
+  const ids = listExpiredDeletedNoteIds(retentionDays)
+  for (const id of ids) purgeNote(id)
+  return ids.length
 }
 
 /**

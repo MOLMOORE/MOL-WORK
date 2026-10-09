@@ -252,3 +252,17 @@ export function dropReviewForNote(noteId: number): void {
   removeEventsByReview(existing.id)
   removeReview(existing.id)
 }
+
+/** 资料进回收站：复习计划挂起，阶段与间隔都留着，恢复时原样回到队列 */
+export function suspendReviewForNote(noteId: number): void {
+  const existing = getReviewByNote(noteId)
+  if (!existing || existing.status !== 'active') return
+  updateReview(existing.id, { status: 'suspended' })
+}
+
+/** 从回收站恢复资料：复习计划解除挂起 */
+export function resumeReviewForNote(noteId: number): void {
+  const existing = getReviewByNote(noteId)
+  if (!existing || existing.status !== 'suspended') return
+  updateReview(existing.id, { status: 'active' })
+}

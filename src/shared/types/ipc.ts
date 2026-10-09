@@ -123,7 +123,18 @@ export interface WorkstationApi {
     list(taskId?: number | null): Promise<Note[]>
     get(id: number): Promise<Note>
     save(input: NoteInput): Promise<Note>
+    /** 删除 = 移入回收站（软删除），保留期内可恢复 */
     remove(id: number): Promise<void>
+    /** 快速删除模式：批量移入回收站，返回真正删掉的条数 */
+    removeMany(ids: number[]): Promise<number>
+    /** 回收站列表（按删除时间倒序） */
+    listDeleted(): Promise<Note[]>
+    /** 从回收站恢复，条目不存在时回 null */
+    restore(id: number): Promise<Note | null>
+    /** 彻底删除（不可恢复），同时清掉复习计划与书库渲染件 */
+    purge(id: number): Promise<void>
+    /** 清理超过保留期的回收站条目，返回数量 */
+    purgeExpired(retentionDays: number): Promise<number>
     /** 弹出系统文件选择框（可多选）并导入 */
     importPick(options?: NoteImportOptions): Promise<NoteImportSummary>
     /** 只弹选择框拿路径，不导入：导入前先问用户填简介与关联（v1.2.4 第五轮） */

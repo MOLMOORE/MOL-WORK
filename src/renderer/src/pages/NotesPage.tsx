@@ -6,9 +6,11 @@ import {
   ArrowDownWideNarrow,
   ArrowUpNarrowWide,
   BookOpen,
+  Check,
   Eye,
   FileText,
   GripVertical,
+  ListChecks,
   Paperclip,
   Pencil,
   Plus,
@@ -28,6 +30,7 @@ import { Tabs } from '../components/ui/Tabs'
 import { PageGrid } from '../components/layout/PageGrid'
 import type { GridEntry } from '../components/layout/GridBoard'
 import { ReviewQueue } from '../components/review/ReviewQueue'
+import { NoteRecycleBinModal } from '../components/note/NoteRecycleBinModal'
 import { useNoteStore } from '../stores/noteStore'
 import { useTaskStore } from '../stores/taskStore'
 import { useAppStore } from '../stores/appStore'
@@ -137,7 +140,10 @@ export function NotesPage(): JSX.Element {
     saveNote,
     removeNote,
     reorderNotes,
-    gradeReview
+    gradeReview,
+    removeNotes,
+    loadDeleted,
+    deleted: deletedNotes
   } = useNoteStore()
   const tasks = useTaskStore((state) => state.tasks)
   const projects = useTaskStore((state) => state.projects)
@@ -163,6 +169,11 @@ export function NotesPage(): JSX.Element {
   const [draftProjectId, setDraftProjectId] = useState<number | null>(null)
   const [enableReview, setEnableReview] = useState(true)
   const [confirmId, setConfirmId] = useState<number | null>(null)
+  // 快速删除模式（v1.2.6）：卡片变成勾选框，攒一批再一次确认送进回收站
+  const [selectMode, setSelectMode] = useState(false)
+  const [selected, setSelected] = useState<number[]>([])
+  const [batchAsk, setBatchAsk] = useState(false)
+  const [recycleOpen, setRecycleOpen] = useState(false)
   const [createOpen, setCreateOpen] = useState(false)
   const [newTaskId, setNewTaskId] = useState<number | null>(null)
   const [newProjectId, setNewProjectId] = useState<number | null>(null)
@@ -187,7 +198,8 @@ export function NotesPage(): JSX.Element {
     void load()
     void loadTasks()
     void loadProjects()
-  }, [load, loadTasks, loadProjects])
+    void loadDeleted()
+  }, [load, loadTasks, loadProjects, loadDeleted])
 
   // 订阅导入进度：进度条浮层在页面底部显示，完成后自动收起
   useEffect(() => {
@@ -238,6 +250,40 @@ export function NotesPage(): JSX.Element {
       const next = { ...prev, [sort]: prev[sort] === 'asc' ? 'desc' : 'asc' }
       localStorage.setItem(SORT_DIR_KEY, JSON.stringify(next))
       return next
+    })
+  }
+
+  // ---------- 快速删除模式（v1.2.6） ----------
+  const visibleIds = useMemo(() => filtered.map((note) => note.id), [filtered])
+  const allChecked = visibleIds.length > 0 && visibleIds.every((id) => selected.includes(id))
+
+  /** 勾选 / 取消勾选一条 */
+  const toggleSelect = (id: number): void => {
+    setSelected((prev) => (prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]))
+  }
+
+  const exitSelectMode = (): void => {
+    setSelectMode(false)
+    setSelected([])
+  }
+
+  /** 全选只作用于当前标签下看得见的条目；跨标签的累积选择保留 */
+  const toggleSelectAll = (): void => {
+    setSelected(allChecked ? selected.filter((id) => !visibleIds.includes(id)) : [...selected, ...visibleIds.filter((id) => !selected.includes(id))])
+  }
+
+  /** 确认批量删除：一次 IPC 把选中的都送进回收站 */
+  const confirmBatchDelete = async (): Promise<void> => {
+    const ids = selected
+    setBatchAsk(false)
+    if (ids.length === 0) return
+    const removed = await removeNotes(ids)
+    setSelected([])
+    await refreshOverview()
+    pushToast({
+      title: removed > 0 ? '已移入回收站' : '没有条目被删除',
+      description: removed > 0 ? removed + ' 条 · 在列表右上角「回收站」里可恢复' : undefined,
+      tone: removed > 0 ? 'success' : 'info'
     })
   }
 
@@ -548,9 +594,63 @@ export function NotesPage(): JSX.Element {
             </button>
             <span className="ml-auto hidden items-center gap-1 text-[11px] text-muted-foreground xl:flex">
               <GripVertical className="h-3 w-3" />
-              按住卡片可自由拖动排序
+              {selectMode ? '点卡片勾选要删除的条目' : '按住卡片可自由拖动排序'}
             </span>
+            <button
+              type="button"
+              title={selectMode ? '退出快速删除模式' : '勾选多条资料 / 笔记 / 卡片，一次确认批量删除'}
+              onClick={() => {
+                if (selectMode) exitSelectMode()
+                else setSelectMode(true)
+              }}
+              className={cn(
+                'flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] transition-colors',
+                selectMode
+                  ? 'border-danger/60 bg-danger/15 font-medium text-danger'
+                  : 'border-border text-muted-foreground hover:border-danger/50 hover:text-foreground'
+              )}
+            >
+              <ListChecks className="h-3 w-3" />
+              {selectMode ? '退出删除' : '快速删除'}
+            </button>
+            <button
+              type="button"
+              title="打开资料回收站：保留期内可恢复"
+              onClick={() => setRecycleOpen(true)}
+              className="flex items-center gap-1 rounded-lg border border-border px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:border-primary/60 hover:text-foreground"
+            >
+              <Trash2 className="h-3 w-3" />
+              回收站{deletedNotes.length > 0 ? ' · ' + deletedNotes.length : ''}
+            </button>
           </div>
+          {selectMode ? (
+            <div className="mb-2 flex flex-wrap items-center gap-2 rounded-xl border border-danger/40 bg-danger/10 px-3 py-2 text-[11px]">
+              <span className="font-medium text-foreground">快速删除模式</span>
+              <span className="text-muted-foreground">勾选后统一确认，删除的内容进回收站，保留期内可恢复</span>
+              <button
+                type="button"
+                onClick={toggleSelectAll}
+                className="ml-auto flex items-center gap-1 rounded-lg border border-border bg-background/60 px-2 py-1 text-muted-foreground transition-colors hover:text-foreground"
+              >
+                <Check className="h-3 w-3" />
+                {allChecked ? '取消本页全选' : '全选 ' + visibleIds.length + ' 项'}
+              </button>
+              <button
+                type="button"
+                disabled={selected.length === 0}
+                onClick={() => setBatchAsk(true)}
+                className={cn(
+                  'flex items-center gap-1 rounded-lg border px-2.5 py-1 font-medium transition-colors',
+                  selected.length === 0
+                    ? 'cursor-not-allowed border-border text-muted-foreground/60'
+                    : 'border-danger bg-danger text-white hover:bg-danger/85'
+                )}
+              >
+                <Trash2 className="h-3 w-3" />
+                删除所选 {selected.length} 项
+              </button>
+            </div>
+          ) : null}
 
           <div className="mw-note-list flex-1 overflow-y-auto pr-1">
             {/* 列表占了整页宽度，宽窗口下两列排，卡片不再中间空一大段 */}
@@ -567,7 +667,7 @@ export function NotesPage(): JSX.Element {
                   key={note.id}
                   role="button"
                   tabIndex={0}
-                  draggable
+                  draggable={!selectMode}
                   onDragStart={(event) => {
                     setDragId(note.id)
                     event.dataTransfer.effectAllowed = 'move'
@@ -593,22 +693,42 @@ export function NotesPage(): JSX.Element {
                     setDragId(null)
                     setOverId(null)
                   }}
-                  onClick={() => void openDetail(note.id)}
+                  onClick={() => {
+                    if (selectMode) toggleSelect(note.id)
+                    else void openDetail(note.id)
+                  }}
                   onKeyDown={(event) => {
-                    if (event.key === 'Enter') void openDetail(note.id)
+                    if (event.key !== 'Enter') return
+                    if (selectMode) toggleSelect(note.id)
+                    else void openDetail(note.id)
                   }}
                   className={cn(
                     'mb-2 w-full cursor-pointer rounded-xl border p-3 text-left transition-all duration-150',
                     dragId === note.id && 'opacity-45',
                     dragId !== null && dragId !== note.id && overId === note.id && 'border-primary ring-2 ring-primary/45',
-                    current?.id === note.id
-                      ? 'border-primary/50 bg-primary/10'
-                      : 'border-border bg-muted/20 hover:border-primary/30 hover:bg-muted/40'
+                    selectMode && selected.includes(note.id)
+                      ? 'border-danger/70 bg-danger/10 ring-2 ring-danger/30'
+                      : current?.id === note.id
+                        ? 'border-primary/50 bg-primary/10'
+                        : 'border-border bg-muted/20 hover:border-primary/30 hover:bg-muted/40'
                   )}
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span className="flex min-w-0 items-center gap-1">
-                      <GripVertical className="h-3.5 w-3.5 shrink-0 cursor-grab text-muted-foreground/45" />
+                      {selectMode ? (
+                        <span
+                          className={cn(
+                            'grid h-4 w-4 shrink-0 place-items-center rounded-[5px] border transition-colors',
+                            selected.includes(note.id)
+                              ? 'border-danger bg-danger text-white'
+                              : 'border-muted-foreground/45 bg-background/60'
+                          )}
+                        >
+                          {selected.includes(note.id) ? <Check className="h-3 w-3" strokeWidth={3} /> : null}
+                        </span>
+                      ) : (
+                        <GripVertical className="h-3.5 w-3.5 shrink-0 cursor-grab text-muted-foreground/45" />
+                      )}
                       <Badge tone={note.kind === 'material' ? 'warning' : note.kind === 'flashcard' ? 'info' : 'primary'}>
                         {note.kind === 'material' ? '资料' : note.kind === 'flashcard' ? '卡片' : '笔记'}
                       </Badge>
@@ -653,7 +773,10 @@ export function NotesPage(): JSX.Element {
                           event.stopPropagation()
                           void openDetail(note.id)
                         }}
-                        className="rounded-md border border-transparent p-1 transition-colors hover:border-border hover:bg-muted hover:text-foreground"
+                        className={cn(
+                          'rounded-md border border-transparent p-1 transition-colors hover:border-border hover:bg-muted hover:text-foreground',
+                          selectMode && 'hidden'
+                        )}
                       >
                         <Pencil className="h-3 w-3" />
                       </button>
@@ -664,7 +787,10 @@ export function NotesPage(): JSX.Element {
                           event.stopPropagation()
                           openReader(note.id)
                         }}
-                        className="flex items-center gap-1 rounded-md border border-border bg-background/70 px-1.5 py-1 text-[10px] text-muted-foreground transition-colors hover:border-primary/60 hover:bg-primary/10 hover:text-foreground"
+                        className={cn(
+                          'flex items-center gap-1 rounded-md border border-border bg-background/70 px-1.5 py-1 text-[10px] text-muted-foreground transition-colors hover:border-primary/60 hover:bg-primary/10 hover:text-foreground',
+                          selectMode && 'hidden'
+                        )}
                       >
                         <BookOpen className="h-3 w-3" />
                         阅读
@@ -886,7 +1012,7 @@ export function NotesPage(): JSX.Element {
                 icon={<Trash2 className="h-3.5 w-3.5" />}
                 onClick={() => setConfirmId(current.id)}
               >
-                删除
+                移入回收站
               </Button>
               <div className="ml-auto flex items-center gap-2">
                 {!current.readonly ? (
@@ -1056,18 +1182,30 @@ export function NotesPage(): JSX.Element {
 
       <ConfirmDialog
         open={confirmId !== null}
-        title="删除笔记"
-        description="删除后该笔记的复习计划会一并移除，且无法恢复。"
+        title="移入回收站"
+        description="删除后可在列表右上角的「回收站」里恢复，保留期过后才会彻底清除。"
         confirmText="确认删除"
         onCancel={() => setConfirmId(null)}
         onConfirm={async () => {
           if (confirmId === null) return
           await removeNote(confirmId)
           setConfirmId(null)
+          setDetailOpen(false)
           await refreshOverview()
-          pushToast({ title: '笔记已删除', tone: 'success' })
+          pushToast({ title: '已移入回收站', description: '在「回收站」里可以恢复', tone: 'success' })
         }}
       />
+
+      <ConfirmDialog
+        open={batchAsk}
+        title={'删除所选 ' + selected.length + ' 项'}
+        description="选中的资料 / 笔记 / 卡片将一并移入回收站，复习计划暂时挂起，保留期内可随时恢复。"
+        confirmText="确认删除"
+        onCancel={() => setBatchAsk(false)}
+        onConfirm={() => void confirmBatchDelete()}
+      />
+
+      <NoteRecycleBinModal open={recycleOpen} onClose={() => setRecycleOpen(false)} />
     </div>
   )
 }

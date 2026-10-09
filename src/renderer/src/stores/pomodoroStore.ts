@@ -46,6 +46,8 @@ interface PomodoroState {
   toggle: () => void
   reset: () => void
   skip: () => void
+  /** 手动切阶段（点舞台顶部的阶段条）：换到该阶段的完整时长，运行状态保持不变 */
+  switchPhase: (phase: PomodoroPhase) => void
 }
 
 let timer: ReturnType<typeof setInterval> | null = null
@@ -190,6 +192,13 @@ export const usePomodoroStore = create<PomodoroState>((set, get) => {
       complete()
       set({ running: wasRunning })
       if (!wasRunning) stopTimer()
+    },
+
+    switchPhase: (phase) => {
+      const { config, phase: current, running } = get()
+      if (phase === current) return
+      set({ phase, secondsLeft: durationOf(phase, config) })
+      if (running) ensureTimer(() => tick())
     }
   }
 })

@@ -145,7 +145,7 @@ pip install --user yt-dlp imageio-ffmpeg pypandoc_binary
 
 ```powershell
 npm run dist
-# 产物：release\PersonalWorkstation-Setup-1.2.5.exe（约 96 MB，NSIS 可选安装目录）
+# 产物：release\PersonalWorkstation-Setup-1.2.6.exe（约 96 MB，NSIS 可选安装目录）
 ```
 
 electron-builder 需要下载 Electron 与 NSIS 二进制，网络不通时换国内镜像：

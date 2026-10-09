@@ -2,7 +2,7 @@ import type { Note, NoteInput, NoteMark, NoteMarkInput } from '@shared/types/dom
 import { all, insert, run } from '../query'
 import type { SqlParam } from '../query'
 import { joinTags, mapNote, mapNoteMark, type NoteMarkRow, type NoteRow } from '../mappers'
-import { nowIso } from '../../utils/time'
+import { addMinutes, nowIso } from '../../utils/time'
 import { indexEntity, removeEntity } from './search.repo'
 import { getTask } from './task.repo'
 
@@ -15,7 +15,8 @@ LEFT JOIN projects p ON p.id = n.project_id
 `
 
 export function listNotes(taskId?: number | null, keyword?: string): Note[] {
-  const conditions: string[] = []
+  // 回收站里的条目不出现在任何列表里
+  const conditions: string[] = ['n.deleted_at IS NULL']
   const params: SqlParam[] = []
   if (taskId !== undefined && taskId !== null) {
     conditions.push('n.task_id = ?')
@@ -145,6 +146,43 @@ export function removeNote(id: number): void {
   removeEntity('note', id)
 }
 
+/**
+ * 软删除：进回收站。正文、批注、书库渲染件都原样留着，
+ * 只有彻底删除（purge）时才走 removeNote 与 removeNoteLibrary。
+ */
+export function trashNote(id: number): Note | undefined {
+  const timestamp = nowIso()
+  run('UPDATE notes SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL', timestamp, timestamp, id)
+  removeEntity('note', id)
+  return getNote(id)
+}
+
+/** 从回收站恢复 */
+export function restoreNote(id: number): Note | undefined {
+  const row = all<NoteRow>(`${NOTE_SELECT} WHERE n.id = ? AND n.deleted_at IS NOT NULL`, id)[0]
+  if (!row) return undefined
+  run('UPDATE notes SET deleted_at = NULL, updated_at = ? WHERE id = ?', nowIso(), id)
+  syncSearch(id)
+  return getNote(id)
+}
+
+/** 回收站列表（按删除时间倒序） */
+export function listDeletedNotes(limit = 200): Note[] {
+  return all<NoteRow>(
+    `${NOTE_SELECT} WHERE n.deleted_at IS NOT NULL ORDER BY n.deleted_at DESC LIMIT ?`,
+    limit
+  ).map(mapNote)
+}
+
+/** 超过保留期的回收站条目 id：真正的清理在服务层做（还要顺带删书库与复习计划） */
+export function listExpiredDeletedNoteIds(retentionDays: number): number[] {
+  const cutoff = addMinutes(nowIso(), -Math.max(1, retentionDays) * 24 * 60)
+  return all<{ id: number | bigint }>(
+    'SELECT id FROM notes WHERE deleted_at IS NOT NULL AND deleted_at <= ?',
+    cutoff
+  ).map((row) => Number(row.id))
+}
+
 /** 记录阅读进度（页码），顺带在首次打开时回填页数 */
 export function setNoteProgress(id: number, page: number, pageCount?: number): Note | undefined {
   const fields = ['last_page = ?']
@@ -206,13 +244,21 @@ export function deleteMark(id: number): void {
 }
 
 export function noteCountForTask(taskId: number): number {
-  const row = all<{ c: number }>('SELECT COUNT(*) AS c FROM notes WHERE task_id = ?', taskId)[0]
+  const row = all<{ c: number }>(
+    'SELECT COUNT(*) AS c FROM notes WHERE task_id = ? AND deleted_at IS NULL',
+    taskId
+  )[0]
   return row ? Number(row.c) : 0
 }
 
 export function syncSearch(id: number): void {
   const note = getNote(id)
   if (!note) return
+  // 回收站里的条目不进全局搜索，恢复时再索引回来
+  if (note.deletedAt) {
+    removeEntity('note', id)
+    return
+  }
   indexEntity({
     kind: 'note',
     refId: id,

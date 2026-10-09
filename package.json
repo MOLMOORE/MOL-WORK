@@ -1,6 +1,6 @@
 {
   "name": "personal-workstation",
-  "version": "1.2.5",
+  "version": "1.2.6",
   "description": "集成化个人工作站 - 任务管理中枢 / 可插拔工具集 / 统计复盘 / 全局搜索",
   "main": "./out/main/index.js",
   "author": "Personal Workstation",

@@ -10,7 +10,7 @@ SELECT t.*,
   p.name AS project_name,
   p.color AS project_color,
   COALESCE((SELECT SUM(f.duration_minutes) FROM focus_sessions f WHERE f.task_id = t.id), 0) AS focus_minutes,
-  (SELECT COUNT(*) FROM notes n WHERE n.task_id = t.id) AS note_count,
+  (SELECT COUNT(*) FROM notes n WHERE n.task_id = t.id AND n.deleted_at IS NULL) AS note_count,
   (SELECT COUNT(*) FROM review_items r
      WHERE r.task_id = t.id AND r.status = 'active' AND r.due_at <= ?) AS pending_reviews,
   (SELECT COUNT(*) FROM schedule_events e WHERE e.task_id = t.id) AS schedule_count

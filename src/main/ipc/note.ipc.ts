@@ -16,13 +16,18 @@ import { IMPORT_EXTENSIONS } from '@shared/constants'
 import { handle } from './handle'
 import {
   deleteNote,
+  deleteNotes,
   dropNoteMark,
+  listDeletedNotes,
   listNotes,
   markNoteProgress,
   noteMarks,
   noteSourcePath,
+  purgeExpiredNotes,
+  purgeNote,
   readNote,
   readNoteDoc,
+  restoreNoteFromTrash,
   saveNote,
   saveNoteMark
 } from '../services/note.service'
@@ -60,6 +65,28 @@ export function registerNoteIpc(): void {
     deleteNote(id)
     notifyDataChanged('notes')
   })
+
+  // ---------- 回收站（v1.2.6 快速删除模式） ----------
+  handle<number>('note:remove-many', (ids: number[]) => {
+    const removed = deleteNotes(Array.isArray(ids) ? ids.map(Number) : [])
+    if (removed > 0) notifyDataChanged('notes')
+    return removed
+  })
+
+  handle<Note[]>('note:list-deleted', () => listDeletedNotes())
+
+  handle<Note | null>('note:restore', (id: number) => {
+    const note = restoreNoteFromTrash(id)
+    if (note) notifyDataChanged('notes')
+    return note ?? null
+  })
+
+  handle<void>('note:purge', (id: number) => {
+    purgeNote(id)
+    notifyDataChanged('notes')
+  })
+
+  handle<number>('note:purge-expired', (retentionDays: number) => purgeExpiredNotes(retentionDays))
 
   // ---------- 阅读器：文档、阅读进度与读书笔记 ----------
   handle<NoteDocInfo>('note:doc', (id: number) => readNoteDoc(id))
