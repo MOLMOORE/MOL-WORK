@@ -211,6 +211,16 @@ export interface Note {
   review?: ReviewItem | null
 }
 
+/**
+ * 多选模式的批量改归属（v1.2.6 第二轮）：出现哪个键就改哪个字段，
+ * 显式传 null 表示「清空归属」，所以判定用 in 而不是判空。
+ */
+export interface NoteMovePatch {
+  taskId?: number | null
+  projectId?: number | null
+  kind?: NoteKind
+}
+
 export interface NoteInput {
   id?: number
   taskId?: number | null

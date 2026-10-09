@@ -36,13 +36,13 @@
 - 排序：`NOTE_SORTS`、`DEFAULT_DIRS`、`loadSortDirs()`、`sortNotes()`、`chooseSort()`、`toggleSortDir()`、`applyReorder()`（拖拽落库）
 - 导入：`stageImport()`、`confirmImport()`、`handleDropFiles()`（拖拽遮罩文案）、`importOptions()`
 - 详情弹窗：`openDetail()` 与详情 JSX（「资料简介」等文案在此）
-- 快速删除模式（v1.2.6）：`selectMode` / `selected` / `visibleIds` / `toggleSelect` / `toggleSelectAll` / `confirmBatchDelete` / `batchAsk` / `recycleOpen`
+- 多选模式（v1.2.6）：`selectMode` / `selected` / `visibleIds` / `toggleSelect` / `toggleSelectAll` / `confirmBatchDelete` / `batchAsk` / `recycleOpen` / `applyMove`（批量改任务·项目·类型）；逐行快速删除键在卡片操作区（`setConfirmId`）
 - 回收站弹窗：`src/renderer/src/components/note/NoteRecycleBinModal.tsx`（`remainingText` / `noteHint` / 保留时长切换）
-- 存储：`KIND_TABS`、`VIEW_MODE_LABEL`；store `src/renderer/src/stores/noteStore.ts`（`deleted` / `loadDeleted` / `removeNotes` / `restoreNote` / `purgeNote`）
+- 存储：`KIND_TABS`、`VIEW_MODE_LABEL`；store `src/renderer/src/stores/noteStore.ts`（`deleted` / `loadDeleted` / `removeNotes` / `moveNotes` / `restoreNote` / `purgeNote`）
 
 ## 3. 数据层（`src/main/db/`）
 - 迁移：`migrations/00N_*.ts` + 注册表 `migrations/index.ts`（当前 v9：`note-recycle-bin`）
-- 回收站（资料 / 笔记 / 卡片，v1.2.6）：`note.repo.ts`（`trashNote` / `restoreNote` / `listDeletedNotes` / `listExpiredDeletedNoteIds`）+ `note.service.ts`（`deleteNotes` / `restoreNoteFromTrash` / `purgeNote` / `purgeExpiredNotes`）+ 复习挂起 `review.service.ts`（`suspendReviewForNote` / `resumeReviewForNote`）；过期清理由 `main/index.ts#startRecycleBinCleaner` 统一驱动
+- 回收站（资料 / 笔记 / 卡片，v1.2.6）：`note.repo.ts`（`trashNote` / `restoreNote` / `listDeletedNotes` / `listExpiredDeletedNoteIds` / `moveNotes`）+ `note.service.ts`（`deleteNotes` / `moveNotes` / `restoreNoteFromTrash` / `purgeNote` / `purgeExpiredNotes`）+ 复习挂起 `review.service.ts`（`suspendReviewForNote` / `resumeReviewForNote`）；过期清理由 `main/index.ts#startRecycleBinCleaner` 统一驱动
 - 行→对象：`mappers.ts`；仓储：`repositories/note.repo.ts`（含 `reorderNotes`、`noteMarks`、`saveNoteMark`）
 - 类型单一来源：`src/shared/types/domain.ts`（`Note`、`NoteDocInfo`、`NoteMark.region`）
 - 跨端共享清单：`src/shared/constants.ts`（`IMPORT_EXTENSIONS`、`TEXTUAL_DOC_FORMATS`、主题皮肤表）
@@ -51,7 +51,7 @@
 - 分派表：`import/index.ts`（`parseDocument` 的 switch、`prepareDocument`、`TEXT_EXTS/PAGINATED_EXTS/RICH_EXTS/EDITABLE_DOC_EXTS`）
 - 各格式解析：`import/ooxml.ts`（docx/pptx/xlsx/epub/odf）、`import/pdf.ts`、`import/text.util.ts`、`import/legacy-office.ts`、`import/to-pdf.ts`（LibreOffice/Office 转 PDF）、`import/html-bundle.ts`
 - 阅读模式判定：`note.service.ts` 的 `readNoteDoc()`（有 PDF 渲染件就回 `pages`）
-- IPC 面：`src/main/ipc/note.ipc.ts`（`note:doc` / `note:marks` / `note:mark-save` / `note:extract-pages` / `note:reorder` …）+ `src/shared/types/ipc.ts` + `src/renderer/src/lib/ipc.ts`（新增通道三处同步）
+- IPC 面：`src/main/ipc/note.ipc.ts`（`note:doc` / `note:marks` / `note:mark-save` / `note:extract-pages` / `note:reorder` / `note:move-many` …）+ `src/shared/types/ipc.ts` + `src/renderer/src/lib/ipc.ts`（新增通道三处同步）
 
 ## 5. 窗口与外壳
 - 自绘标题栏（最小化/最大化/关闭、全屏）：`src/renderer/src/components/layout/TitleBar.tsx`；主进程 `src/main/index.ts`
@@ -67,7 +67,7 @@
 - 工具：`src/main/tools/registry.ts`（注册即生效）、`tools/runners/*.runner.ts`、`src/main/utils/{binaries,command,dependency-check}.ts`、页面 `ToolsPage.tsx` + `components/tool/*`
 - 任务：`pages/TasksPage.tsx`、`components/task/*`、`services/task.service.ts`、`repositories/task.repo.ts`
 - 统计：`pages/StatsPage.tsx`、`components/stats/*`、`services/stats.service.ts`、`overview.service.ts`
-- 番茄与专注：`pages/PomodoroPage.tsx`（取数 + 栅格 + 空格 / R 快捷键）、视觉组件 `components/pomodoro/PomoStage.tsx`（`PHASE_VISUALS` / `bodyStopsFor` / `hslToHex` / 阶段条 / 进度点 / 控制键）与 `PomoPanels.tsx`（`PomoParams` 步进器 + `RhythmBand` 节奏带 / `PomoToday` 今日热力带）、CSS `.pomo-*`（`--pomo-h` 阶段色相）
+- 番茄与专注：`pages/PomodoroPage.tsx`（取数 + 栅格 storageKey v5 + 空格 / R 快捷键）、视觉组件 `components/pomodoro/PomoStage.tsx`（`PHASE_VISUALS` / `bodyColorsFor` / `TomatoDial` / 六行栅格舞台）与 `PomoPanels.tsx`（`RHYTHM_PRESETS` 整套预设 / `PomoParams` 步进器 + `RhythmBand` 节奏带 / `PomoToday` 今日热力带）、CSS `.pomo-*`（`--pomo-h` 阶段色相、`.pomo-stage` 六行 grid）
 - 番茄状态机：`stores/pomodoroStore.ts`（`switchPhase` / `sync` / `skip` / `beep`）、`services/schedule.service.ts`、`repositories/focus.repo.ts`
 - 复习：`components/review/ReviewQueue.tsx`、`services/review.service.ts`
 

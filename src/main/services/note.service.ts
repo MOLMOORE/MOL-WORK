@@ -1,10 +1,11 @@
-import type { Note, NoteInput, ReviewItem } from '@shared/types/domain'
+import type { Note, NoteInput, NoteMovePatch, ReviewItem } from '@shared/types/domain'
 import {
   createNote,
   getNote,
   listDeletedNotes as repoListDeletedNotes,
   listNotes as repoListNotes,
   listExpiredDeletedNoteIds,
+  moveNotes as repoMoveNotes,
   removeNote,
   restoreNote as restoreNoteRow,
   trashNote,
@@ -66,6 +67,12 @@ export function deleteNotes(ids: number[]): number {
     if (deleteNote(id)) removed += 1
   }
   return removed
+}
+
+/** 多选模式：批量改归属（任务 / 项目 / 类型），返回真正改动的条数 */
+export function moveNotes(ids: number[], patch: NoteMovePatch): number {
+  const cleaned = ids.map(Number).filter((id) => Number.isFinite(id))
+  return repoMoveNotes(cleaned, patch)
 }
 
 /** 回收站列表 */

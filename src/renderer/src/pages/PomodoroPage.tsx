@@ -18,7 +18,7 @@ import { Coffee, Flame, Sparkles, Timer } from 'lucide-react'
 import type { PomodoroPhase } from '@shared/types/domain'
 import { Card, SectionHeader, StatCard } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
-import { Field, Select } from '../components/ui/Field'
+import { Select } from '../components/ui/Field'
 import { PomoStage } from '../components/pomodoro/PomoStage'
 import { PomoParams, PomoToday } from '../components/pomodoro/PomoPanels'
 import { Modal } from '../components/ui/Overlay'
@@ -199,7 +199,7 @@ export function PomodoroPage(): JSX.Element {
       x: 0,
       y: 5,
       w: 7,
-      h: 11,
+      h: 8,
       minW: 5,
       minH: 7,
       node: (
@@ -220,11 +220,14 @@ export function PomodoroPage(): JSX.Element {
             onSkip={skip}
             onSwitchPhase={switchPhase}
             footer={
-              <div className="mx-auto w-full max-w-md">
-                <Field label="关联任务（完成后计入该任务专注时长）">
+              <div className="pomo-task">
+                <span className="pomo-task-label">关联任务</span>
+                <div className="w-[186px]">
                   <Select
                     value={taskId === null ? '' : String(taskId)}
                     onChange={(event) => setTask(event.target.value === '' ? null : Number(event.target.value))}
+                    title="完成后专注时长计入该任务"
+                    className="h-7 py-0 text-[11px]"
                   >
                     <option value="">不关联任务</option>
                     {activeTasks.map((task) => (
@@ -233,7 +236,7 @@ export function PomodoroPage(): JSX.Element {
                       </option>
                     ))}
                   </Select>
-                </Field>
+                </div>
               </div>
             }
           />
@@ -246,7 +249,7 @@ export function PomodoroPage(): JSX.Element {
       x: 7,
       y: 5,
       w: 5,
-      h: 7,
+      h: 8,
       minW: 4,
       minH: 5,
       node: (
@@ -276,29 +279,15 @@ export function PomodoroPage(): JSX.Element {
               onRounds={(rounds) => void updateSettings({ pomodoroRoundsPerLong: rounds })}
               onAutoStart={(value) => void updateSettings({ pomodoroAutoStartNext: value })}
               onSound={(value) => void updateSettings({ pomodoroSound: value })}
+              onPreset={(values) =>
+                void updateSettings({
+                  defaultFocusMinutes: values.focus,
+                  pomodoroShortMinutes: values.short,
+                  pomodoroLongMinutes: values.long,
+                  pomodoroRoundsPerLong: values.rounds
+                })
+              }
             />
-          </Card>
-      )
-    },
-    {
-      id: 'help',
-      title: '节奏建议',
-      x: 7,
-      y: 12,
-      w: 5,
-      h: 4,
-      minW: 4,
-      minH: 3,
-      node: (
-          <Card className="flex h-full flex-col overflow-y-auto">
-            <SectionHeader title="节奏建议" description="专注与休息都会写进统计，可随时回看" />
-            <ul className="pomo-tips">
-              <li><b>空格</b>开始 / 暂停，<b>R</b> 重置本阶段</li>
-              <li>切到别的页面计时照跑，顶栏能看到剩余时间</li>
-              <li>每 <b>{patch}</b> 个专注换一次长休息</li>
-              <li>关联任务后，专注时长自动累计到该任务</li>
-              <li>点上方统计卡片可以看对应图表</li>
-            </ul>
           </Card>
       )
     },
@@ -306,7 +295,7 @@ export function PomodoroPage(): JSX.Element {
       id: 'today',
       title: '今日节奏',
       x: 0,
-      y: 16,
+      y: 13,
       w: 12,
       h: 3,
       minW: 5,
@@ -321,7 +310,7 @@ export function PomodoroPage(): JSX.Element {
 
   return (
     <div className="grid gap-5">
-      <PageGrid pageKey="pomodoro" entries={entries} storageKey="workstation.grid.pomodoro.v4" />
+      <PageGrid pageKey="pomodoro" entries={entries} storageKey="workstation.grid.pomodoro.v5" />
       <PomodoroStatsDialog chart={chart} config={config} onClose={() => setChart(null)} />
     </div>
   )

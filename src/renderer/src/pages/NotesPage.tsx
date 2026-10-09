@@ -11,6 +11,7 @@ import {
   FileText,
   GripVertical,
   ListChecks,
+  MoveRight,
   Paperclip,
   Pencil,
   Plus,
@@ -19,7 +20,7 @@ import {
   Trash2,
   Upload
 } from 'lucide-react'
-import type { Note, NoteImportOptions, NoteImportProgress, NoteImportSummary, NoteKind, ReviewRating } from '@shared/types/domain'
+import type { Note, NoteImportOptions, NoteImportProgress, NoteImportSummary, NoteKind, NoteMovePatch, ReviewRating } from '@shared/types/domain'
 import { IMPORT_FORMAT_GROUPS, TEXTUAL_DOC_FORMATS } from '@shared/constants'
 import { Card, SectionHeader } from '../components/ui/Card'
 import { Badge, EmptyState, Spinner } from '../components/ui/Feedback'
@@ -142,6 +143,7 @@ export function NotesPage(): JSX.Element {
     reorderNotes,
     gradeReview,
     removeNotes,
+    moveNotes,
     loadDeleted,
     deleted: deletedNotes
   } = useNoteStore()
@@ -169,7 +171,7 @@ export function NotesPage(): JSX.Element {
   const [draftProjectId, setDraftProjectId] = useState<number | null>(null)
   const [enableReview, setEnableReview] = useState(true)
   const [confirmId, setConfirmId] = useState<number | null>(null)
-  // 快速删除模式（v1.2.6）：卡片变成勾选框，攒一批再一次确认送进回收站
+  // 多选模式（v1.2.6 第二轮，原「快速删除」）：卡片变成勾选框，可批量改归属或一次确认送进回收站
   const [selectMode, setSelectMode] = useState(false)
   const [selected, setSelected] = useState<number[]>([])
   const [batchAsk, setBatchAsk] = useState(false)
@@ -285,6 +287,20 @@ export function NotesPage(): JSX.Element {
       description: removed > 0 ? removed + ' 条 · 在列表右上角「回收站」里可恢复' : undefined,
       tone: removed > 0 ? 'success' : 'info'
     })
+  }
+
+  /** 下拉里的「清空归属」哨兵：原生 select 的 value 只能是字符串，用它在 null 与数字之间换算 */
+  const applyMove = (patch: NoteMovePatch, label: string): void => {
+    if (selected.length === 0) return
+    void (async () => {
+      const moved = await moveNotes(selected, patch)
+      await refreshOverview()
+      pushToast({
+        title: moved > 0 ? '已' + label : '没有条目被改动',
+        description: moved > 0 ? moved + ' 条 · 勾选保持不变，可继续换归属或直接删除' : undefined,
+        tone: moved > 0 ? 'success' : 'info'
+      })
+    })()
   }
 
   /** 把拖到的位置写回顺序：可见条目重排后整段落库，并自动切回手动排序 */
@@ -594,11 +610,11 @@ export function NotesPage(): JSX.Element {
             </button>
             <span className="ml-auto hidden items-center gap-1 text-[11px] text-muted-foreground xl:flex">
               <GripVertical className="h-3 w-3" />
-              {selectMode ? '点卡片勾选要删除的条目' : '按住卡片可自由拖动排序'}
+              {selectMode ? '点卡片勾选，可批量改归属或删除' : '按住卡片可自由拖动排序'}
             </span>
             <button
               type="button"
-              title={selectMode ? '退出快速删除模式' : '勾选多条资料 / 笔记 / 卡片，一次确认批量删除'}
+              title={selectMode ? '退出多选模式' : '勾选多条资料 / 笔记 / 卡片，批量移到任务、项目或换类型，也可一次确认删除'}
               onClick={() => {
                 if (selectMode) exitSelectMode()
                 else setSelectMode(true)
@@ -606,12 +622,12 @@ export function NotesPage(): JSX.Element {
               className={cn(
                 'flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] transition-colors',
                 selectMode
-                  ? 'border-danger/60 bg-danger/15 font-medium text-danger'
-                  : 'border-border text-muted-foreground hover:border-danger/50 hover:text-foreground'
+                  ? 'border-primary/60 bg-primary/15 font-medium text-foreground'
+                  : 'border-border text-muted-foreground hover:border-primary/50 hover:text-foreground'
               )}
             >
               <ListChecks className="h-3 w-3" />
-              {selectMode ? '退出删除' : '快速删除'}
+              {selectMode ? '退出多选' : '多选'}
             </button>
             <button
               type="button"
@@ -624,31 +640,95 @@ export function NotesPage(): JSX.Element {
             </button>
           </div>
           {selectMode ? (
-            <div className="mb-2 flex flex-wrap items-center gap-2 rounded-xl border border-danger/40 bg-danger/10 px-3 py-2 text-[11px]">
-              <span className="font-medium text-foreground">快速删除模式</span>
-              <span className="text-muted-foreground">勾选后统一确认，删除的内容进回收站，保留期内可恢复</span>
+            <div className="mb-2 flex flex-wrap items-center gap-x-2 gap-y-1.5 rounded-xl border border-primary/40 bg-primary/10 px-3 py-2 text-[11px]">
+              <span className="font-medium text-foreground">多选模式</span>
+              <span className="text-muted-foreground">已选 {selected.length} 项 · 可批量改归属，或直接移入回收站</span>
               <button
                 type="button"
                 onClick={toggleSelectAll}
-                className="ml-auto flex items-center gap-1 rounded-lg border border-border bg-background/60 px-2 py-1 text-muted-foreground transition-colors hover:text-foreground"
+                className="flex items-center gap-1 rounded-lg border border-border bg-background/60 px-2 py-1 text-muted-foreground transition-colors hover:text-foreground"
               >
                 <Check className="h-3 w-3" />
                 {allChecked ? '取消本页全选' : '全选 ' + visibleIds.length + ' 项'}
               </button>
-              <button
-                type="button"
-                disabled={selected.length === 0}
-                onClick={() => setBatchAsk(true)}
-                className={cn(
-                  'flex items-center gap-1 rounded-lg border px-2.5 py-1 font-medium transition-colors',
-                  selected.length === 0
-                    ? 'cursor-not-allowed border-border text-muted-foreground/60'
-                    : 'border-danger bg-danger text-white hover:bg-danger/85'
-                )}
-              >
-                <Trash2 className="h-3 w-3" />
-                删除所选 {selected.length} 项
-              </button>
+              <span className="ml-auto flex flex-wrap items-center gap-1.5">
+                <MoveRight className="h-3.5 w-3.5 text-muted-foreground" />
+                <div className="w-[124px]">
+                  <Select
+                    value=""
+                    disabled={selected.length === 0}
+                    title="把选中的条目移到别的任务，或取消任务归属"
+                    className="h-7 py-0 text-[11px]"
+                    onChange={(event) => {
+                      const value = event.target.value
+                      if (!value) return
+                      applyMove({ taskId: value === 'none' ? null : Number(value) }, '改任务归属')
+                    }}
+                  >
+                    <option value="">移到任务…</option>
+                    <option value="none">无所属任务</option>
+                    {tasks.map((task) => (
+                      <option key={task.id} value={String(task.id)}>
+                        {task.title}
+                      </option>
+                    ))}
+                  </Select>
+                </div>
+                <div className="w-[132px]">
+                  <Select
+                    value=""
+                    disabled={selected.length === 0}
+                    title="把选中的条目移到别的课程 / 项目，或取消归属"
+                    className="h-7 py-0 text-[11px]"
+                    onChange={(event) => {
+                      const value = event.target.value
+                      if (!value) return
+                      applyMove({ projectId: value === 'none' ? null : Number(value) }, '改课程归属')
+                    }}
+                  >
+                    <option value="">移到项目…</option>
+                    <option value="none">无所属项目</option>
+                    {projects.map((project) => (
+                      <option key={project.id} value={String(project.id)}>
+                        {project.kind === 'course' ? '课程 · ' : '项目 · '}
+                        {project.name}
+                      </option>
+                    ))}
+                  </Select>
+                </div>
+                <div className="w-[104px]">
+                  <Select
+                    value=""
+                    disabled={selected.length === 0}
+                    title="批量换类型：资料 / 笔记 / 卡片"
+                    className="h-7 py-0 text-[11px]"
+                    onChange={(event) => {
+                      const value = event.target.value as NoteKind | ''
+                      if (!value) return
+                      applyMove({ kind: value }, '换类型')
+                    }}
+                  >
+                    <option value="">换类型…</option>
+                    <option value="material">资料</option>
+                    <option value="note">笔记</option>
+                    <option value="flashcard">卡片</option>
+                  </Select>
+                </div>
+                <button
+                  type="button"
+                  disabled={selected.length === 0}
+                  onClick={() => setBatchAsk(true)}
+                  className={cn(
+                    'flex items-center gap-1 rounded-lg border px-2.5 py-1 font-medium transition-colors',
+                    selected.length === 0
+                      ? 'cursor-not-allowed border-border text-muted-foreground/60'
+                      : 'border-danger bg-danger text-white hover:bg-danger/85'
+                  )}
+                >
+                  <Trash2 className="h-3 w-3" />
+                  删除所选 {selected.length} 项
+                </button>
+              </span>
             </div>
           ) : null}
 
@@ -707,7 +787,7 @@ export function NotesPage(): JSX.Element {
                     dragId === note.id && 'opacity-45',
                     dragId !== null && dragId !== note.id && overId === note.id && 'border-primary ring-2 ring-primary/45',
                     selectMode && selected.includes(note.id)
-                      ? 'border-danger/70 bg-danger/10 ring-2 ring-danger/30'
+                      ? 'border-primary/70 bg-primary/10 ring-2 ring-primary/30'
                       : current?.id === note.id
                         ? 'border-primary/50 bg-primary/10'
                         : 'border-border bg-muted/20 hover:border-primary/30 hover:bg-muted/40'
@@ -720,7 +800,7 @@ export function NotesPage(): JSX.Element {
                           className={cn(
                             'grid h-4 w-4 shrink-0 place-items-center rounded-[5px] border transition-colors',
                             selected.includes(note.id)
-                              ? 'border-danger bg-danger text-white'
+                              ? 'border-primary bg-primary text-white'
                               : 'border-muted-foreground/45 bg-background/60'
                           )}
                         >
@@ -766,6 +846,20 @@ export function NotesPage(): JSX.Element {
                           课程：{note.projectName}
                         </span>
                       ) : null}
+                      <button
+                        type="button"
+                        title="快速删除：移入回收站，保留期内可恢复"
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          setConfirmId(note.id)
+                        }}
+                        className={cn(
+                          'rounded-md border border-transparent p-1 text-muted-foreground transition-colors hover:border-danger/50 hover:bg-danger/10 hover:text-danger',
+                          selectMode && 'hidden'
+                        )}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </button>
                       <button
                         type="button"
                         title="编辑正文与复习计划"
@@ -1199,7 +1293,7 @@ export function NotesPage(): JSX.Element {
       <ConfirmDialog
         open={batchAsk}
         title={'删除所选 ' + selected.length + ' 项'}
-        description="选中的资料 / 笔记 / 卡片将一并移入回收站，复习计划暂时挂起，保留期内可随时恢复。"
+        description="多选模式里选中的资料 / 笔记 / 卡片将一并移入回收站，复习计划暂时挂起，保留期内可随时恢复。"
         confirmText="确认删除"
         onCancel={() => setBatchAsk(false)}
         onConfirm={() => void confirmBatchDelete()}

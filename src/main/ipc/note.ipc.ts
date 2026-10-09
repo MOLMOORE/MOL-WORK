@@ -9,7 +9,8 @@ import type {
   NoteImportProgress,
   NoteImportSummary,
   NoteMark,
-  NoteMarkInput
+  NoteMarkInput,
+  NoteMovePatch
 } from '@shared/types/domain'
 import { IPC_EVENTS } from '@shared/types/ipc'
 import { IMPORT_EXTENSIONS } from '@shared/constants'
@@ -21,6 +22,7 @@ import {
   listDeletedNotes,
   listNotes,
   markNoteProgress,
+  moveNotes,
   noteMarks,
   noteSourcePath,
   purgeExpiredNotes,
@@ -71,6 +73,13 @@ export function registerNoteIpc(): void {
     const removed = deleteNotes(Array.isArray(ids) ? ids.map(Number) : [])
     if (removed > 0) notifyDataChanged('notes')
     return removed
+  })
+
+  // 多选模式：批量改归属（任务 / 项目 / 类型）
+  handle<number>('note:move-many', (ids: number[], patch: NoteMovePatch) => {
+    const moved = moveNotes(Array.isArray(ids) ? ids.map(Number) : [], patch ?? {})
+    if (moved > 0) notifyDataChanged('notes')
+    return moved
   })
 
   handle<Note[]>('note:list-deleted', () => listDeletedNotes())

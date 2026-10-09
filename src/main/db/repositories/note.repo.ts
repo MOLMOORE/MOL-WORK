@@ -1,4 +1,4 @@
-import type { Note, NoteInput, NoteMark, NoteMarkInput } from '@shared/types/domain'
+import type { Note, NoteInput, NoteMark, NoteMarkInput, NoteMovePatch } from '@shared/types/domain'
 import { all, insert, run } from '../query'
 import type { SqlParam } from '../query'
 import { joinTags, mapNote, mapNoteMark, type NoteMarkRow, type NoteRow } from '../mappers'
@@ -200,6 +200,40 @@ export function reorderNotes(ids: number[]): void {
   ids.forEach((id, index) => {
     run('UPDATE notes SET sort_order = ? WHERE id = ?', index, id)
   })
+}
+
+/**
+ * 批量改归属：多选模式里把选中的条目移到别的任务 / 项目，或换类型。
+ * 只改 patch 里出现过的键（用 in 判定，才能把「清空归属」的 null 传进来）；
+ * deleted_at IS NULL 保证回收站里的条目不会被误改。
+ */
+export function moveNotes(ids: number[], patch: NoteMovePatch): number {
+  const fields: string[] = []
+  const params: SqlParam[] = []
+  if ('taskId' in patch) {
+    fields.push('task_id = ?')
+    params.push(patch.taskId ?? null)
+  }
+  if ('projectId' in patch) {
+    fields.push('project_id = ?')
+    params.push(patch.projectId ?? null)
+  }
+  if (patch.kind) {
+    fields.push('kind = ?')
+    params.push(patch.kind)
+  }
+  if (ids.length === 0 || fields.length === 0) return 0
+  fields.push('updated_at = ?')
+  params.push(nowIso())
+  const marks = ids.map(() => '?').join(', ')
+  const result = run(
+    'UPDATE notes SET ' + fields.join(', ') + ' WHERE id IN (' + marks + ') AND deleted_at IS NULL',
+    ...params,
+    ...ids
+  )
+  // 搜索元数据里带任务 / 项目名，归属变了要重算
+  ids.forEach((id) => syncSearch(id))
+  return result.changes
 }
 
 /** 读书笔记标记：书签 / 重点页 / 注释 */

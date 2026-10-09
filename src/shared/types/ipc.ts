@@ -14,6 +14,7 @@ import type {
   NoteInput,
   NoteMark,
   NoteMarkInput,
+  NoteMovePatch,
   OverviewData,
   ProcrastinationItem,
   ProcrastinationReport,
@@ -127,6 +128,8 @@ export interface WorkstationApi {
     remove(id: number): Promise<void>
     /** 快速删除模式：批量移入回收站，返回真正删掉的条数 */
     removeMany(ids: number[]): Promise<number>
+    /** 多选模式：批量改归属（任务 / 项目 / 类型），返回改动条数 */
+    moveMany(ids: number[], patch: NoteMovePatch): Promise<number>
     /** 回收站列表（按删除时间倒序） */
     listDeleted(): Promise<Note[]>
     /** 从回收站恢复，条目不存在时回 null */

@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { Note, NoteInput, ReviewItem, ReviewRating } from '@shared/types/domain'
+import type { Note, NoteInput, NoteMovePatch, ReviewItem, ReviewRating } from '@shared/types/domain'
 import { api } from '../lib/ipc'
 
 interface NoteState {
@@ -22,6 +22,8 @@ interface NoteState {
   removeNote: (id: number) => Promise<void>
   /** 快速删除模式：批量移入回收站，返回真正删掉的条数 */
   removeNotes: (ids: number[]) => Promise<number>
+  /** 多选模式：批量改归属（任务 / 项目 / 类型），返回改动条数 */
+  moveNotes: (ids: number[], patch: NoteMovePatch) => Promise<number>
   /** 拉取回收站列表 */
   loadDeleted: () => Promise<void>
   /** 从回收站恢复（同时刷新列表） */
@@ -109,6 +111,13 @@ export const useNoteStore = create<NoteState>((set, get) => ({
     if (ids.includes(get().current?.id ?? -1)) set({ current: null })
     await Promise.all([get().load(), get().loadDeleted()])
     return removed
+  },
+
+  moveNotes: async (ids, patch) => {
+    if (ids.length === 0) return 0
+    const moved = await api.note.moveMany(ids, patch)
+    await get().load()
+    return moved
   },
 
   loadDeleted: async () => {
