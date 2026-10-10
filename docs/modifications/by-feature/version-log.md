@@ -3,6 +3,12 @@
 > 功能线速查：CHANGELOG.md + SettingsPage.tsx 的 CHANGELOG 常量 + package.json version
 > 记录格式见 `docs/modifications/README.md`；新改动**追加在本行下方的最前面**。
 
+## 2026-10-10 · v1.2.6 发布（三轮合并收尾）
+- 版本构成：v1.2.6 内三轮提交（`ffe3a95` / `3ac6da2` / `d6efc4d`），标签 `v1.2.6` 每轮移动，最终停在第三轮；一个版本号一篇 `by-version/v1.2.6-rN.md`，收尾另写 `v1.2.6-release.md`。
+- 双写点：CHANGELOG.md 的 v1.2.6 段按「笔记与资料 / 番茄钟 / 工具集 / 主题与提示 / 窗口外壳」五个小标题逐轮追加；SettingsPage.tsx 的 items 同步加组前缀条目，date 统一 2026-10-10。
+- 发版顺序照 v1.2.5 的教训执行：**dist 放在最后一次改动源码之后**，之后只 commit / tag，就不需要 `--clobber` 重传；快进合并 main → 推 main / develop / tag → `gh release create --latest` 只附 Setup.exe。
+- 核验：GitHub 资产 digest 与本地 `Get-FileHash` 逐位一致（sha256 6d5893a1…ff015e2，101,796,569 B），exe FileVersion 1.2.6，asar 内含新依赖 analog-filter-designer。
+- 详见 `by-version/v1.2.6-release.md`。
 ## 2026-09-24 · v1.2.5 发布（更新扼要精简）
 - 需求：发版前把 v1.2.5 的更新扼要压缩，更简洁鲜明。
 - 改法：CHANGELOG.md 的 v1.2.5 段 122 行 → 30 行，按「阅读模式 / 批注 / 笔记与界面」三组一条一行；SettingsPage.tsx 的 items 65 条 → 17 条并加组前缀，date 统一 2026-09-24；细节改指向 docs/modifications/by-version/。历史版本段不动。
