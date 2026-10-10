@@ -3,6 +3,9 @@
 > 功能线速查：`AGENTS.md` 第 0 / 6 节、`docs/feature-index.md`、`docs/modifications/`
 > 记录格式见 `docs/modifications/README.md`；新改动**追加在本行下方的最前面**。
 
+## 2026-10-10 · v1.2.6（发版保留规则修订）
+- 本地只留当前最新版（安装包 + win-unpacked 免安装版），新版经 GitHub 核对后删上一版；AGENTS 发版流程第 3 步与 README 同步改写（`by-version/v1.2.6-keep-latest.md`）。
+
 ## 2026-10-10 · v1.2.6（archive 迁 GitHub）
 - 旧安装包全部补传 GitHub 后删除本地 archive；AGENTS.md 发版流程第 3 步与 README 归档规则同步改写（`by-version/v1.2.6-archive-to-github.md`）。
 

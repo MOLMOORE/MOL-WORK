@@ -13,12 +13,12 @@ src/       # main / preload / renderer / shared 四层
 docs/      # feature-index.md + modifications（by-version / by-feature）
 build/     # 图标与安装脚本
 scripts/   # check-tools / selftest / make-icon
-release/   # 只保留最新版安装包；历史安装包以 GitHub Releases 为唯一权威副本
+release/   # 当前最新版安装包 + win-unpacked 解包版；新版核对后删旧版
 work/      # 一次性取证与临时脚本，不入库
 out/       # 构建产物，不入库
 ```
 
-`release/` 根目录只保留最新版安装包；GitHub Releases 是全部历史版本（v1.0.0 起）的权威副本，本地不再存放旧安装包。
+`release/` 本地只保留**当前最新版**（安装包 + `win-unpacked/` 免安装版）；新版本完成并经 GitHub 核对后删除上一版本。历史版本以 GitHub Releases（v1.0.0 起）为权威副本。
 
 ## 功能
 
