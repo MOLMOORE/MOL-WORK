@@ -180,7 +180,7 @@ export function DashboardPage(): JSX.Element {
         key="estimate"
         label="预计专注"
         value={formatMinutes(overview?.estimateMinutes ?? 0)}
-        hint="根据今日任务预估 · 点击进入番茄钟"
+        hint="按今日任务预估"
         tone="warning"
         icon={<Timer className="h-4 w-4" />}
         onClick={() => navigate('/pomodoro')}
@@ -204,7 +204,7 @@ export function DashboardPage(): JSX.Element {
         <SectionHeader
           className="mb-3"
           title="今日任务"
-          description="超时事项置顶、优先事项其次，可拖拽调整顺序、勾选完成（均有确认弹窗防误触）"
+          description="超时与优先排最前，可拖动排序、勾选完成"
           action={
             <Button variant="ghost" size="sm" icon={<ArrowRight className="h-3.5 w-3.5" />} onClick={() => navigate('/tasks')}>
               全部任务
@@ -216,7 +216,7 @@ export function DashboardPage(): JSX.Element {
             <EmptyState
               icon={<CheckCircle2 className="h-5 w-5" />}
               title="今天没有待办任务"
-              description="可以到任务页新建任务，或把未排期任务拖入日历安排时间"
+              description="去任务页新建，或把未排期任务拖进日历"
             />
           ) : (
             <div className="flex flex-col gap-2">
@@ -301,7 +301,7 @@ export function DashboardPage(): JSX.Element {
         <SectionHeader
           className="mb-3"
           title="到期复习"
-          description="按遗忘曲线评分，系统自动计算下次复习时间"
+          description="按遗忘曲线自动排期"
           action={
             <Button variant="outline" size="sm" onClick={() => void handleEnqueueAll()}>
               全部排入明日
@@ -378,7 +378,7 @@ export function DashboardPage(): JSX.Element {
         />
         <div className="min-h-0 flex-1 overflow-y-auto pr-1">
           {(overview?.recentNotes.length ?? 0) === 0 ? (
-            <EmptyState icon={<NotebookPen className="h-5 w-5" />} title="还没有笔记" description="在笔记页新建一篇笔记，系统会自动安排遗忘曲线复习" />
+            <EmptyState icon={<NotebookPen className="h-5 w-5" />} title="还没有笔记" description="去笔记页新建，复习会自动排期" />
           ) : (
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
               {(overview?.recentNotes ?? []).map((note) => (

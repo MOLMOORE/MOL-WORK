@@ -16,13 +16,13 @@ function clock(seconds: number): string {
 }
 
 const TITLES: Record<string, { title: string; subtitle: string }> = {
-  '/': { title: '仪表盘', subtitle: '今日任务、待复习内容与使用概览' },
-  '/tasks': { title: '任务日程', subtitle: '任务与日程合一，可跨日期拖拽排期与日内排序' },
+  '/': { title: '仪表盘', subtitle: '今日任务、待复习与概览' },
+  '/tasks': { title: '任务日程', subtitle: '拖动即可改期与排序' },
   '/pomodoro': { title: '番茄钟', subtitle: '专注计时、休息循环与专注记录' },
-  '/notes': { title: '笔记与资料', subtitle: '按遗忘曲线自动安排复习计划' },
-  '/tools': { title: '可插拔工具集', subtitle: '工具使用自动回流到统计层' },
+  '/notes': { title: '笔记与资料', subtitle: '按遗忘曲线安排复习' },
+  '/tools': { title: '可插拔工具集', subtitle: '格式转换、下载与电路计算' },
   '/stats': { title: '统计与复盘', subtitle: '投入时间、项目分布与拖延识别' },
-  '/settings': { title: '设置', subtitle: '主题、字号、外部依赖与数据维护' }
+  '/settings': { title: '设置', subtitle: '主题、字号、依赖与数据维护' }
 }
 
 export function TopBar(): JSX.Element {

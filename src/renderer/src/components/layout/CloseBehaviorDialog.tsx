@@ -46,7 +46,7 @@ export function CloseBehaviorDialog(): JSX.Element | null {
       open={open}
       onClose={() => setOpen(false)}
       title={`关闭 ${APP_NAME}`}
-      description="选择窗口关闭后的行为：后台运行会保留在系统托盘，提醒依然有效"
+      description="后台运行会留在系统托盘，提醒照常"
       width="max-w-lg"
       footer={
         <>
@@ -88,7 +88,7 @@ export function CloseBehaviorDialog(): JSX.Element | null {
         </button>
 
         <div className="rounded-xl border border-border bg-muted/25 p-3">
-          <Switch checked={remember} onChange={setRemember} label="不再提醒（以后一直按此次选择执行，可在设置中更改）" />
+          <Switch checked={remember} onChange={setRemember} label="不再提醒（可在设置里改回）" />
         </div>
       </div>
     </Modal>

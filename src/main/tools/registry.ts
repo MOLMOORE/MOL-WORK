@@ -7,12 +7,11 @@ import { downloadTool } from './runners/download.runner'
 import { extractTool } from './runners/extract.runner'
 import { unitConvertTool } from './runners/unit-convert.runner'
 import { circuitCalcTool } from './runners/circuit-calc.runner'
-import { flashcardTool } from './runners/flashcard.runner'
+import { filterCalcTool } from './runners/filter-calc.runner'
+import { opampCalcTool } from './runners/opamp-calc.runner'
+import { filterSimTool } from './runners/filter-sim.runner'
 
-/**
- * 工具注册表：新增工具只需把 runner 加入此数组，UI 会根据 manifest 自动渲染表单，
- * 无需改动任何核心代码。
- */
+/** 工具注册表：加入此数组即出现在工具集市，表单由 manifest 自动渲染。 */
 const DEFINITIONS: ToolDefinition[] = [
   imageConvertTool,
   audioConvertTool,
@@ -22,7 +21,9 @@ const DEFINITIONS: ToolDefinition[] = [
   extractTool,
   unitConvertTool,
   circuitCalcTool,
-  flashcardTool
+  filterCalcTool,
+  opampCalcTool,
+  filterSimTool
 ]
 
 const INDEX = new Map<string, ToolDefinition>(DEFINITIONS.map((item) => [item.manifest.id, item]))

@@ -98,12 +98,11 @@ export async function runSelfTest(): Promise<void> {
 
   await run('unit-convert', { value: 1, fromUnit: 'km', toUnit: 'm' })
   await run('circuit-calc', { mode: 'ohm', voltage: 12, current: 0.5 })
-  await run('flashcard-maker', {
-    taskId: task.id,
-    question: '阶段二自检问题？',
-    answer: '用于验证卡片与复习计划联动。',
-    tags: '自检'
-  })
+  await run('filter-calc', { mode: 'rc', r: '10k', c: '100n' })
+  await run('opamp-calc', { mode: 'gain', rf: '100k', rg: '10k' })
+  // 滤波仿真走内置 MNA 引擎，无需外部程序，顺带校验 -3 dB 点
+  await run('filter-sim', { topology: 'rc-lowpass', r: '10k', c: '100n', fStart: '10', fStop: '100k' })
+  await run('filter-sim', { topology: 'sallen-lowpass', r: '10k', r2: '20k', c: '100n', c2: '47n', fStart: '10', fStop: '100k' })
 
   // 网页提取：正文 Markdown + 整页截图（Playwright）
   await run('web-extract', { url: 'https://pypi.org/project/requests/', mode: 'article' })

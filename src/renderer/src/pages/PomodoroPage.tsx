@@ -256,7 +256,7 @@ export function PomodoroPage(): JSX.Element {
           <Card className="flex h-full flex-col overflow-y-auto">
             <SectionHeader
               title="番茄钟参数"
-              description="改一下就走：数值即时生效并同步到设置"
+              description="改动即时生效并同步到设置"
               action={
                 <Button size="sm" variant="ghost" onClick={() => navigate('/settings')}>
                   前往设置
@@ -324,7 +324,7 @@ interface PomodoroStatsDialogProps {
 
 const CHART_TITLES: Record<Exclude<StatsChart, null>, { title: string; description: string }> = {
   phase: { title: '阶段结构占比', description: '当前番茄钟配置中各阶段时长占比' },
-  tomato: { title: '近 7 日番茄产出', description: '每日完成的专注时段数（每 25 分钟约 1 个番茄）' },
+  tomato: { title: '近 7 日番茄产出', description: '每日完成的专注段数（25 分钟 ≈ 1 个番茄）' },
   today: { title: '今日专注分布', description: '按小时统计的今日专注时长（分钟）' },
   duration: { title: '近 7 日专注时长', description: '每日累计专注分钟数趋势' }
 }

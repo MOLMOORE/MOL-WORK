@@ -44,6 +44,16 @@ export function validatePayload(fields: ToolField[], payload: ToolPayload): Reco
   return errors
 }
 
+/** 按 visibleWhen 过滤出当前该填的字段（多模式计算器共用一张表单） */
+export function visibleFields(fields: ToolField[], payload: ToolPayload): ToolField[] {
+  return fields.filter((field) => {
+    if (!field.visibleWhen) return true
+    const current = payload[field.visibleWhen.key]
+    if (current === undefined || current === null || String(current) === '') return true
+    return field.visibleWhen.values.includes(String(current))
+  })
+}
+
 export interface ToolRunnerFormProps {
   fields: ToolField[]
   value: ToolPayload
@@ -60,7 +70,7 @@ export function ToolRunnerForm({ fields, value, errors, disabled, onChange }: To
 
   return (
     <div className="grid gap-4">
-      {fields.map((field) => {
+      {visibleFields(fields, value).map((field) => {
         const current = value[field.name]
         const error = errors[field.name]
 

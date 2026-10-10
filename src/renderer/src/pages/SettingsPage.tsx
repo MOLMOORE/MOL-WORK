@@ -46,13 +46,13 @@ import { cn, todayKey } from '../lib/utils'
 
 /** 设置分区：列表页纵向排列，点击进入详情修改 */
 const SECTIONS: { key: string; title: string; description: string; icon: typeof Palette }[] = [
-  { key: 'general', title: '外观与通用', description: '称呼、8 款主题皮肤（默认主题下再挑 18 种风格）、深浅色与字号', icon: Palette },
-  { key: 'review', title: '复习与计划', description: '复习算法、每日上限、工作时段与自动排程', icon: Repeat },
+  { key: 'general', title: '外观与通用', description: '称呼、8 款皮肤与 13 种风格、深浅色与字号', icon: Palette },
+  { key: 'review', title: '复习与计划', description: '复习算法、每日上限与自动排程', icon: Repeat },
   { key: 'notify', title: '提醒与通知', description: '提醒提前量与截止提醒提示音', icon: Bell },
   { key: 'pomodoro', title: '番茄钟', description: '专注时长、休息节奏与阶段提示音', icon: Timer },
   { key: 'deps', title: '外部工具依赖', description: 'Pandoc、FFmpeg、yt-dlp、Playwright 检测与排查', icon: Terminal },
   { key: 'data', title: '数据与维护', description: '数据目录、日报导出与示例数据', icon: Database },
-  { key: 'about', title: '关于与版本', description: '当前版本与本版较于上一版本的更新内容', icon: Info }
+  { key: 'about', title: '关于与版本', description: '当前版本与更新历史', icon: Info }
 ]
 
 /** 可选时钟风格（只描述时间怎么显示） */
@@ -322,7 +322,16 @@ const CHANGELOG: { version: string; date: string; items: string[] }[] = [
       "番茄 · 快捷键：空格 开始 / 暂停，R 重置本阶段，提示收进舞台底栏一行",
       "番茄 · 参数面板改步进器 + 单档预设，再加一排「整套预设」（标准番茄 / 深度工作 / 轻松节奏）一键套用四个参数",
       "番茄 · 新增「节奏预览」带与「今日节奏」24 格热力带；重复的「节奏建议」卡删除，页面栅格 v4 升 v5",
-      "番茄 · 视觉组件拆到 components/pomodoro/（PomoStage / PomoPanels）"
+      "番茄 · 视觉组件拆到 components/pomodoro/（PomoStage / PomoPanels）",
+      "工具 · 工具页收紧：删掉重复的说明卡，四张指标卡并成三张，外部依赖压成一行一条，看板布局升到 v5",
+      "工具 · 新增「滤波电路速算」：RC / LC（L·T·π）/ Sallen-Key / 双 T / 谐振带宽 / 滚降阶数 / 电抗 / dB 电平，支持 10k、4m7、100n 工程写法并给出就近标准值",
+      "工具 · 新增「滤波电路仿真」：调用开源 MNA 引擎 analog-filter-designer 解真实电路，实测 -3 dB 点、极点零点、阶跃过冲，含负载效应，曲线导出 CSV",
+      "工具 · 新增「运放比较器速算」：增益配对、GBW 带宽、压摆率与满功率带宽、迟滞门限、热噪声",
+      "工具 · 「电路常用计算」里的 RC / LC 并入滤波速算；移除「学习卡片制作」（与笔记页新建卡片重复）",
+      "工具 · 计算器只渲染当前模式用得到的输入项",
+      "主题 · 默认主题的配色风格由 10 种精简到 5 种（素白简约 / 极简黑白 / 宣纸暖白 / 靛青 / 苔原），8 种观感风格不变",
+      "文案 · 全应用面向用户的提示统一重写精简：长说明改一句话，重复与铺陈的提示删掉",
+      "外壳 · 标题栏去掉与侧栏重复的软件图标与那条下边线，侧栏分隔线续到窗口顶边，顶部读成同一块面板"
     ]
   },
   {
@@ -703,8 +712,7 @@ export function SettingsPage(): JSX.Element {
               />
               <p className="text-[11px] leading-relaxed text-muted-foreground/80">
                 {THEME_SKINS.find((item) => item.key === (draft.themeSkin ?? 'default'))?.hint ?? ''}。
-                皮肤改的是界面结构（导航位置、卡片造型、字体、底纹、状态栏），不只换颜色；上面显示的是当前
-                {mode === 'dark' ? '深色' : '浅色'}下的效果。
+                皮肤会重排界面结构，不只换颜色。
               </p>
             </div>
             {draft.themeSkin === 'default' ? (
@@ -722,8 +730,7 @@ export function SettingsPage(): JSX.Element {
                 />
                 <p className="text-[11px] leading-relaxed text-muted-foreground/80">
                   {THEME_PRESETS.find((item) => item.key === draft.themePreset)?.hint ?? ''}。
-                  配色风格只换颜色；观感风格连圆角、描边、阴影、字体与页面底纹一起换。
-                  两者都与深浅色互不影响，切换上方「主题」到其他皮肤时这套风格会暂时收起，回到默认主题即恢复。
+                  配色只换颜色，观感连圆角、描边、阴影与字体一起换，两者都与深浅色互不影响；切到其他皮肤时暂时收起。
                 </p>
               </div>
             ) : null}
@@ -736,7 +743,7 @@ export function SettingsPage(): JSX.Element {
                 items={Object.entries(FONT_SIZE_META).map(([key, meta]) => ({ key, label: meta.label }))}
               />
               <p className="text-[11px] text-muted-foreground/80">
-                当前字号 {FONT_SIZE_META[draft.fontSize]?.label ?? '标准'}（根字号 {FONT_SIZE_META[draft.fontSize]?.root ?? '16px'}），界面会立即缩放。
+                根字号 {FONT_SIZE_META[draft.fontSize]?.root ?? '16px'}，切换后立即生效。
               </p>
             </div>
             <div className="grid gap-3 rounded-xl border border-border bg-muted/25 p-3">
@@ -907,10 +914,10 @@ export function SettingsPage(): JSX.Element {
               <Switch
                 checked={draft.debugMode ?? false}
                 onChange={(checked) => void patch({ debugMode: checked })}
-                label="调试模式（关闭窗口时直接退出，不弹出确认）"
+                label="调试模式（关闭时不再询问）"
               />
               <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground/80">
-                用于开发与排查：开启后点击右上角 X 会直接关闭软件，不再询问「进入后台 / 真正关闭」；调试结束请关闭本项，恢复原来的关闭行为。
+                开启后点右上角 X 直接退出，不再询问「进入后台 / 真正关闭」。
               </p>
             </div>
           </div>

@@ -2,18 +2,13 @@ import { useEffect, useRef, useState } from 'react'
 import { Copy, Maximize2, Minus, Square, X } from 'lucide-react'
 import { isEscapeFullscreenBlocked } from '../../lib/escape'
 import type { WindowStatePayload } from '@shared/types/ipc'
-import appIcon from '../../assets/app-icon.png'
 import { api } from '../../lib/ipc'
 import { cn } from '../../lib/utils'
 
 /**
- * 软件自绘的窗口标题栏（v1.2.4 第五轮）。
- * 原来这条是系统标题栏：写着 MOL-WORK、和主题无关、也没法软件内控制。
- * 现在改成窗口内的一行：整条随主题变色（背景、描边、按钮都用主题令牌），
- * 左边只留一个软件图标，右边是全屏 / 最小化 / 最大化还原 / 关闭。
- *
- * 快捷键对齐常见桌面软件：F11 切换全屏（全屏后整条标题栏隐藏，Esc 或再按 F11 退出），
- * 双击标题栏空白处最大化 / 还原由系统 drag 区域原生支持。
+ * 自绘窗口标题栏：整条随主题变色，右侧是全屏 / 最小化 / 最大化还原 / 关闭。
+ * 左侧只留拖动区（双击最大化 / 还原），不再重复放软件图标——侧栏顶部已有品牌标识。
+ * F11 切全屏，全屏后本条隐藏，Esc 或再按 F11 退出。
  */
 export function TitleBar(): JSX.Element | null {
   const [state, setState] = useState<WindowStatePayload>({ maximized: false, fullscreen: false })
@@ -78,10 +73,10 @@ export function TitleBar(): JSX.Element | null {
   }
 
   return (
-    <div className={cn('app-titlebar flex h-[34px] shrink-0 items-stretch justify-between border-b border-border bg-surface select-none')}>
-      {/* 左侧：整条都是拖动区（双击最大化 / 还原） */}
-      <div className="titlebar-drag flex min-w-0 flex-1 items-center gap-2 pl-2">
-        <img src={appIcon} alt="" draggable={false} className="h-4 w-4 shrink-0 opacity-90" />
+    <div className={cn('app-titlebar flex h-8 shrink-0 items-stretch justify-between bg-surface select-none')}>
+      {/* 左侧整条可拖动；分隔线在侧栏宽度处续上，让标题栏与下方外壳连成一片 */}
+      <div className="titlebar-drag flex min-w-0 flex-1 items-stretch">
+        <span className="titlebar-rail" aria-hidden />
       </div>
 
       {/* 右侧：窗口控制按钮 */}
@@ -96,7 +91,7 @@ export function TitleBar(): JSX.Element | null {
         <button
           type="button"
           className="titlebar-btn"
-          title={state.maximized ? '还原（双击标题栏同样有效）' : '最大化（双击标题栏同样有效）'}
+          title={state.maximized ? '还原（双击标题栏）' : '最大化（双击标题栏）'}
           onClick={() => void api.win.toggleMaximize()}
         >
           {state.maximized ? <Square className="h-3 w-3" /> : <Copy className="h-3.5 w-3.5" />}

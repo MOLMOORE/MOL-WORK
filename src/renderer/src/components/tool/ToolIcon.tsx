@@ -1,10 +1,12 @@
 import {
+  Activity,
   AudioLines,
   CircuitBoard,
   Download,
   FileText,
+  Gauge,
   Image,
-  Layers,
+  Radio,
   Ruler,
   ScanText,
   Video,
@@ -15,6 +17,7 @@ import { cn } from '../../lib/utils'
 
 /** manifest.icon 字符串 → 图标组件；新增工具只需在此登记图标名 */
 const REGISTRY: Record<string, LucideIcon> = {
+  Activity,
   Image,
   AudioLines,
   Video,
@@ -23,7 +26,8 @@ const REGISTRY: Record<string, LucideIcon> = {
   ScanText,
   Ruler,
   CircuitBoard,
-  Layers,
+  Gauge,
+  Radio,
   Wrench
 }
 

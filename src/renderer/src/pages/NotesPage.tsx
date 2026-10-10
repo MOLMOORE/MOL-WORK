@@ -415,7 +415,7 @@ export function NotesPage(): JSX.Element {
       pushToast({ title: `导入失败：${item.file}`, description: item.reason ?? '未知错误', tone: 'danger' })
     })
     if (failed.length > 4) {
-      pushToast({ title: `还有 ${failed.length - 4} 个文件未导入`, description: '多为老格式或扫描版 PDF，详见逐条提示', tone: 'warning' })
+      pushToast({ title: `还有 ${failed.length - 4} 个文件未导入`, description: '多为老格式或扫描版 PDF', tone: 'warning' })
     }
   }
 
@@ -459,7 +459,7 @@ export function NotesPage(): JSX.Element {
       .map((file) => window.nativeFiles?.pathForFile(file) ?? '')
       .filter((path) => path !== '')
     if (paths.length === 0) {
-      pushToast({ title: '没能取到文件路径', description: '请改用笔记列表右上角的「导入」按钮选择文件', tone: 'warning' })
+      pushToast({ title: '没能取到文件路径', description: '请用右上角「导入」选择文件', tone: 'warning' })
       return
     }
     stageImport(paths)
@@ -614,7 +614,7 @@ export function NotesPage(): JSX.Element {
             </span>
             <button
               type="button"
-              title={selectMode ? '退出多选模式' : '勾选多条资料 / 笔记 / 卡片，批量移到任务、项目或换类型，也可一次确认删除'}
+              title={selectMode ? '退出多选' : '勾选多条，批量改归属或删除'}
               onClick={() => {
                 if (selectMode) exitSelectMode()
                 else setSelectMode(true)
@@ -740,7 +740,7 @@ export function NotesPage(): JSX.Element {
                 <Spinner />
               </div>
             ) : filtered.length === 0 ? (
-              <EmptyState icon={<FileText className="h-5 w-5" />} title="还没有笔记" description="点击右上角的「导入」把 PDF / Word / PPT 等文档收进书柜，或先新建一篇笔记" />
+              <EmptyState icon={<FileText className="h-5 w-5" />} title="还没有笔记" description="用右上角「导入」收进 PDF / Word / PPT，或先新建笔记" />
             ) : (
               filtered.map((note) => (
                 <div
@@ -848,7 +848,7 @@ export function NotesPage(): JSX.Element {
                       ) : null}
                       <button
                         type="button"
-                        title="快速删除：移入回收站，保留期内可恢复"
+                        title="移入回收站，保留期内可恢复"
                         onClick={(event) => {
                           event.stopPropagation()
                           setConfirmId(note.id)
@@ -1002,7 +1002,7 @@ export function NotesPage(): JSX.Element {
                     rows={2}
                     value={importSummary}
                     onChange={(event) => setImportSummary(event.target.value)}
-                    placeholder="例如：电路原理实验课的讲义与实验报告模板，重点看第 3 章的桥式电路"
+                    placeholder="例：电路原理实验讲义与报告模板"
                   />
                 </Field>
 
@@ -1293,7 +1293,7 @@ export function NotesPage(): JSX.Element {
       <ConfirmDialog
         open={batchAsk}
         title={'删除所选 ' + selected.length + ' 项'}
-        description="多选模式里选中的资料 / 笔记 / 卡片将一并移入回收站，复习计划暂时挂起，保留期内可随时恢复。"
+        description="选中的资料 / 笔记 / 卡片一起移入回收站，复习计划暂时挂起"
         confirmText="确认删除"
         onCancel={() => setBatchAsk(false)}
         onConfirm={() => void confirmBatchDelete()}

@@ -155,7 +155,7 @@ export function NoteRecycleBinModal({ open, onClose }: NoteRecycleBinModalProps)
           <EmptyState
             icon={<Trash2 className="h-5 w-5" />}
             title="回收站是空的"
-            description="用列表右上角的「快速删除」批量删掉的条目会先进入这里，保留期内可随时恢复"
+            description="批量删除的条目先进这里，保留期内可恢复"
           />
         ) : (
           <div className="flex flex-col gap-2">
@@ -203,7 +203,7 @@ export function NoteRecycleBinModal({ open, onClose }: NoteRecycleBinModalProps)
       <ConfirmDialog
         open={purgeTarget !== null}
         title="彻底删除"
-        description="彻底删除后正文、批注、复习计划与书库里的渲染文件一并移除，无法恢复。确定继续吗？"
+        description="正文、批注、复习计划与书库渲染件一并清除，无法恢复"
         confirmText="彻底删除"
         onCancel={() => setPurgeTarget(null)}
         onConfirm={() => void handlePurge()}

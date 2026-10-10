@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { NavLink } from 'react-router-dom'
 import {
   BarChart3,
@@ -41,6 +41,18 @@ export function Sidebar(): JSX.Element {
     setCollapsed(skin === 'hud')
   }, [skin])
 
+  const asideRef = useRef<HTMLElement>(null)
+  // 把侧栏真实宽度交给标题栏，那条分隔线才对得齐（折叠、驾驶舱皮肤都会改宽度）
+  useEffect(() => {
+    const el = asideRef.current
+    if (!el) return
+    const sync = (): void => document.documentElement.style.setProperty('--sidebar-w', `${el.offsetWidth}px`)
+    sync()
+    const observer = new ResizeObserver(sync)
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
+
   const pendingCount = overview?.pendingCount ?? 0
   const reviewCount = overview?.dueReviews.length ?? 0
 
@@ -52,6 +64,7 @@ export function Sidebar(): JSX.Element {
 
   return (
     <aside
+      ref={asideRef}
       className={cn(
         'app-sidebar relative z-20 flex h-full shrink-0 flex-col border-r border-border bg-surface transition-all duration-250',
         collapsed && 'is-rail',

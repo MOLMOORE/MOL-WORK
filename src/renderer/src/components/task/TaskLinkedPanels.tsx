@@ -273,7 +273,7 @@ export function NotesPanel({ detail, onRefresh }: PanelProps): JSX.Element {
       )}
 
       {detail.notes.length === 0 ? (
-        <EmptyState icon={<FileText className="h-5 w-5" />} title="任务下还没有笔记" description="笔记与资料可挂在任务下，并按遗忘曲线安排复习" />
+        <EmptyState icon={<FileText className="h-5 w-5" />} title="任务下还没有笔记" description="挂在这里的笔记与资料会按遗忘曲线复习" />
       ) : (
         detail.notes.map((note) => (
           <button
@@ -345,7 +345,7 @@ export function FocusPanel({ detail, onRefresh }: PanelProps): JSX.Element {
       </div>
 
       {detail.focusSessions.length === 0 ? (
-        <EmptyState icon={<Clock className="h-5 w-5" />} title="还没有专注记录" description="开始一次专注，用时会计入项目投入统计" />
+        <EmptyState icon={<Clock className="h-5 w-5" />} title="还没有专注记录" description="开始专注，用时计入投入统计" />
       ) : (
         detail.focusSessions.map((session) => (
           <div key={session.id} className="flex items-center gap-3 rounded-xl border border-border bg-muted/25 p-3">

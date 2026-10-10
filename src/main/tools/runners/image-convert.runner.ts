@@ -16,7 +16,7 @@ export const imageConvertTool: ToolDefinition = {
     name: '图片转换',
     category: 'image',
     description:
-      '基于 FFmpeg 在 PNG / JPEG / WebP / BMP / GIF / TIFF 之间互转，可顺带压缩体积。转换结果写入输出目录并记录存放位置。',
+      '用 FFmpeg 互转 PNG / JPEG / WebP / BMP / GIF / TIFF，可顺带压缩体积。',
     icon: 'Image',
     requires: ['ffmpeg'],
     builtin: true,
@@ -28,7 +28,7 @@ export const imageConvertTool: ToolDefinition = {
         pathKind: 'file',
         required: true,
         placeholder: 'D:\\图片\\封面.png',
-        hint: '支持 png / jpg / jpeg / webp / bmp / gif / tiff / avif / heic'
+        hint: '源可为 png / jpg / webp / bmp / gif / tiff / avif / heic'
       },
       {
         name: 'targetFormat',
@@ -43,7 +43,7 @@ export const imageConvertTool: ToolDefinition = {
         label: '输出目录',
         type: 'path',
         pathKind: 'directory',
-        placeholder: '留空则输出到工作站 outputs 目录'
+        placeholder: '留空 = outputs 目录'
       }
     ]
   },

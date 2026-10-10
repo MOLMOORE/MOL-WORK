@@ -121,7 +121,7 @@ export function RecycleBinModal({ open, onClose }: { open: boolean; onClose: () 
           <EmptyState
             icon={<Trash2 className="h-5 w-5" />}
             title="回收站是空的"
-            description="删除的任务会先进入这里，保留期内可随时恢复"
+            description="删除的任务先进这里，保留期内可恢复"
           />
         ) : (
           <div className="flex flex-col gap-2">
@@ -175,7 +175,7 @@ export function RecycleBinModal({ open, onClose }: { open: boolean; onClose: () 
       <ConfirmDialog
         open={purgeTarget !== null}
         title="彻底删除任务"
-        description="彻底删除后任务及其日程、笔记、复习计划将一并移除，无法恢复。确定继续吗？"
+        description="任务的日程、笔记与复习计划一并清除，无法恢复"
         confirmText="彻底删除"
         onCancel={() => setPurgeTarget(null)}
         onConfirm={() => void handlePurge()}

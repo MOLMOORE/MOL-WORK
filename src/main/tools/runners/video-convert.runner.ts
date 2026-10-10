@@ -16,7 +16,7 @@ export const videoConvertTool: ToolDefinition = {
     name: '视频转换',
     category: 'video',
     description:
-      '基于 FFmpeg 在 MP4 / MKV / WebM / MOV / AVI 之间互转，也可导出 GIF 动图，适合统一素材格式或压缩体积。',
+      '用 FFmpeg 互转 MP4 / MKV / WebM / MOV / AVI，也可导出 GIF。',
     icon: 'Video',
     requires: ['ffmpeg'],
     builtin: true,
@@ -28,7 +28,7 @@ export const videoConvertTool: ToolDefinition = {
         pathKind: 'file',
         required: true,
         placeholder: 'D:\\视频\\录制.mp4',
-        hint: '支持 mp4 / mkv / avi / mov / webm / flv / wmv / ts'
+        hint: '源可为 mp4 / mkv / avi / mov / webm / flv / wmv / ts'
       },
       {
         name: 'targetFormat',
@@ -43,7 +43,7 @@ export const videoConvertTool: ToolDefinition = {
         label: '输出目录',
         type: 'path',
         pathKind: 'directory',
-        placeholder: '留空则输出到工作站 outputs 目录'
+        placeholder: '留空 = outputs 目录'
       }
     ]
   },

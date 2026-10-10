@@ -72,7 +72,7 @@ export function ProcrastinationPanel({ report, items, onOpenTask, loading }: Pro
     <Card className="flex h-full flex-col">
       <SectionHeader
         title="拖延识别"
-        description="截止时间一到，无论选择延期还是进入逾期都计为一次拖延；次数与单次时长共同决定拖延程度"
+        description="到点后延期与逾期都算一次拖延，次数和时长共同决定程度"
         action={
           <div className="flex items-center gap-2">
             <Badge tone={level.tone} dot>
@@ -91,7 +91,7 @@ export function ProcrastinationPanel({ report, items, onOpenTask, loading }: Pro
           <EmptyState
             icon={<TriangleAlert className="h-5 w-5" />}
             title="没有发现拖延事项"
-            description="所有任务都在正常推进中；截止时间到点后的延期或逾期都会在这里留下记忆"
+            description="暂无拖延记录，到点后的延期与逾期会记在这里"
           />
         ) : (
           <div className="flex flex-col gap-4">

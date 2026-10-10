@@ -30,7 +30,7 @@ import { useAppStore } from '../stores/appStore'
 import { formatDateTime, formatDurationMs, formatMinutes, todayKey } from '../lib/utils'
 import { api } from '../lib/ipc'
 
-const CATEGORY_ORDER: ToolCategory[] = ['image', 'audio', 'video', 'doc', 'download', 'extract', 'calc', 'flashcard']
+const CATEGORY_ORDER: ToolCategory[] = ['image', 'audio', 'video', 'doc', 'download', 'extract', 'calc']
 
 export function ToolsPage(): JSX.Element {
   const tools = useToolStore((state) => state.tools)
@@ -53,7 +53,7 @@ export function ToolsPage(): JSX.Element {
   const [outputsPath, setOutputsPath] = useState('')
   const [pendingRemove, setPendingRemove] = useState<ToolManifest | null>(null)
   /** 顶部四个指标卡点击后弹出的明细类型 */
-  const [statDetail, setStatDetail] = useState<'tools' | 'deps' | 'today' | 'cost' | null>(null)
+  const [statDetail, setStatDetail] = useState<'tools' | 'deps' | 'runs' | null>(null)
 
   useEffect(() => {
     void load()
@@ -157,7 +157,7 @@ export function ToolsPage(): JSX.Element {
         </div>
       )
     }
-    const list = statDetail === 'today' ? todayRuns : history
+    const list = history
     if (list.length === 0) {
       return <EmptyState icon={<Clock4 className="h-5 w-5" />} title="暂无记录" description="执行任意工具后，这里会列出每次调用的耗时与结果" />
     }
@@ -192,14 +192,9 @@ export function ToolsPage(): JSX.Element {
     )
   }
 
-  const headerNode = (
-      <Card className="relative overflow-hidden">
-        <div className="pointer-events-none absolute -right-10 -top-16 h-52 w-52 rounded-full bg-primary/25 blur-3xl" />
-        <div className="relative flex flex-wrap items-start justify-between gap-4">
-          <div className="max-w-2xl">
-            <h2 className="text-lg font-semibold tracking-tight text-foreground">可插拔工具集</h2>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
+  const toolbarNode = (
+      <div className="flex h-full items-center justify-end">
+          <div className="flex flex-wrap items-center justify-end gap-2">
             <Button
               variant="secondary"
               size="sm"
@@ -226,20 +221,19 @@ export function ToolsPage(): JSX.Element {
               打开输出目录
             </Button>
           </div>
-        </div>
-      </Card>
+      </div>
   )
 
   const entries: GridEntry[] = [
-    { id: 'header', title: '工具集说明', x: 0, y: 3, w: 12, h: 2, minW: 6, minH: 2, node: headerNode },
+    { id: 'toolbar', title: '工具操作', x: 0, y: 3, w: 12, h: 1, minW: 6, minH: 1, node: toolbarNode },
     {
       id: 'metric-tools',
       title: '已注册工具',
       x: 0,
-      y: 5,
-      w: 3,
+      y: 4,
+      w: 4,
       h: 2,
-      minW: 2,
+      minW: 3,
       minH: 2,
       node: (
         <StatCard
@@ -254,11 +248,11 @@ export function ToolsPage(): JSX.Element {
     {
       id: 'metric-deps',
       title: '外部依赖',
-      x: 3,
-      y: 5,
-      w: 3,
+      x: 4,
+      y: 4,
+      w: 4,
       h: 2,
-      minW: 2,
+      minW: 3,
       minH: 2,
       node: (
         <StatCard
@@ -272,44 +266,40 @@ export function ToolsPage(): JSX.Element {
       )
     },
     {
-      id: 'metric-today',
-      title: '今日调用',
-      x: 6,
-      y: 5,
-      w: 3,
+      id: 'metric-runs',
+      title: '运行记录',
+      x: 8,
+      y: 4,
+      w: 4,
       h: 2,
-      minW: 2,
+      minW: 3,
       minH: 2,
       node: (
-        <StatCard label="今日调用" value={`${todayRuns.length} 次`} hint={`累计记录 ${history.length} 条`} tone="info" icon={<Play className="h-4 w-4" />} onClick={() => setStatDetail('today')} />
+        <StatCard
+          label="运行记录"
+          value={`${history.length} 条`}
+          hint={`今日 ${todayRuns.length} 次 · 累计耗时 ${formatMinutes(totalToolMinutes)}`}
+          tone="info"
+          icon={<Play className="h-4 w-4" />}
+          onClick={() => setStatDetail('runs')}
+        />
       )
-    },
-    {
-      id: 'metric-cost',
-      title: '累计工具耗时',
-      x: 9,
-      y: 5,
-      w: 3,
-      h: 2,
-      minW: 2,
-      minH: 2,
-      node: <StatCard label="累计工具耗时" value={formatMinutes(totalToolMinutes)} tone="primary" icon={<Clock4 className="h-4 w-4" />} onClick={() => setStatDetail('cost')} />
     },
     {
       id: 'deps',
       group: 'runtime',
       title: '外部依赖状态',
       x: 0,
-      y: 19,
+      y: 18,
       w: 6,
-      h: 7,
+      h: 6,
       minW: 4,
       minH: 4,
       node: (
         <Card className="flex h-full flex-col overflow-y-auto">
         <SectionHeader
           title="外部依赖状态"
-          description="按托管目录 → 系统 PATH → winget → pip 的顺序自动解析可执行文件"
+          description="托管目录 → PATH → winget → pip 依次解析"
           action={
             missingDependencies.length === 0 ? (
               <Badge tone="success" dot>
@@ -322,42 +312,31 @@ export function ToolsPage(): JSX.Element {
             )
           }
         />
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <div className="flex flex-col gap-1">
           {dependencies.map((dependency) => (
-            <div key={dependency.id} className="rounded-xl border border-border bg-muted/25 p-3">
-              <div className="flex items-center justify-between gap-2">
-                <span className="flex items-center gap-1.5 text-xs font-medium text-foreground">
-                  {dependency.available ? (
-                    <CheckCircle2 className="h-3.5 w-3.5 text-success" />
-                  ) : (
-                    <TriangleAlert className="h-3.5 w-3.5 text-warning" />
-                  )}
-                  {dependency.label}
-                </span>
-                {dependency.resolvedPath ? (
-                  <IconButton
-                    label="在文件夹中显示"
-                    onClick={() => void api.app.showItemInFolder(dependency.resolvedPath as string)}
-                  >
-                    <FolderOpen className="h-3.5 w-3.5" />
-                  </IconButton>
-                ) : null}
-              </div>
-              {dependency.version ? (
-                <p className="mt-1.5 truncate text-[11px] text-muted-foreground" title={dependency.version}>
-                  {dependency.version}
-                </p>
+            <div
+              key={dependency.id}
+              className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-muted/40"
+              title={dependency.resolvedPath ?? dependency.installHint}
+            >
+              {dependency.available ? (
+                <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-success" />
               ) : (
-                <p className="mt-1.5 text-[11px] text-muted-foreground">未检测到</p>
+                <TriangleAlert className="h-3.5 w-3.5 shrink-0 text-warning" />
               )}
+              <span className="w-20 shrink-0 truncate text-xs font-medium text-foreground">{dependency.label}</span>
+              <span className="min-w-0 flex-1 truncate text-[11px] text-muted-foreground">
+                {dependency.version ?? '未检测到'}
+              </span>
               {dependency.resolvedPath ? (
-                <p className="mt-1 break-all text-[10px] leading-relaxed text-muted-foreground/80">
-                  {dependency.resolvedPath}
-                </p>
+                <IconButton
+                  label="在文件夹中显示"
+                  onClick={() => void api.app.showItemInFolder(dependency.resolvedPath as string)}
+                >
+                  <FolderOpen className="h-3.5 w-3.5" />
+                </IconButton>
               ) : (
-                <code className="mt-1.5 block overflow-x-auto rounded-lg bg-background/70 px-2 py-1 text-[10px] text-muted-foreground">
-                  {dependency.installHint}
-                </code>
+                <Badge tone="warning">缺失</Badge>
               )}
             </div>
           ))}
@@ -369,7 +348,7 @@ export function ToolsPage(): JSX.Element {
         id: 'market',
         title: '工具集市',
         x: 0,
-        y: 7,
+        y: 6,
         w: 12,
         h: 12,
         minW: 5,
@@ -378,7 +357,7 @@ export function ToolsPage(): JSX.Element {
           <Card className="flex h-full flex-col overflow-y-auto">
         <SectionHeader
           title="工具集市"
-          description="按 manifest 自动渲染表单，点击工具卡片或「执行」开始使用"
+          description="点开卡片填参数，执行结果与耗时记进下方运行记录"
           action={
             <div className="flex items-center gap-2">
               <div className="relative">
@@ -407,7 +386,7 @@ export function ToolsPage(): JSX.Element {
           <EmptyState
             icon={<Wrench className="h-5 w-5" />}
             title="没有匹配的工具"
-            description="调整分类或搜索关键词；已移除的工具可通过「恢复内置工具」找回来。"
+            description="换个分类或关键词试试；被移除的工具可用上方「恢复内置工具」找回。"
             action={
               <Button size="sm" variant="outline" icon={<Sparkles className="h-3.5 w-3.5" />} onClick={() => void restore()}>
                 恢复内置工具
@@ -415,7 +394,7 @@ export function ToolsPage(): JSX.Element {
             }
           />
         ) : (
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+          <div className="grid grid-cols-1 gap-2.5 md:grid-cols-2 xl:grid-cols-3">
             {filtered.map((tool) => {
               const meta = TOOL_CATEGORY_META[tool.category]
               const deps = tool.dependencyStatus ?? []
@@ -424,7 +403,7 @@ export function ToolsPage(): JSX.Element {
               return (
                 <div
                   key={tool.id}
-                  className="glass-card-hover flex flex-col p-4"
+                  className="glass-card-hover flex flex-col gap-2.5 p-3"
                   role="button"
                   tabIndex={0}
                   onClick={() => select(tool.id)}
@@ -437,7 +416,7 @@ export function ToolsPage(): JSX.Element {
                       <ToolIcon name={tool.icon} color={meta.color} />
                       <div>
                         <p className="text-sm font-semibold text-foreground">{tool.name}</p>
-                        <p className="mt-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">{meta.label}</p>
+                        <p className="mt-0.5 text-[10px] tracking-wider text-muted-foreground">{meta.label}</p>
                       </div>
                     </div>
                     <span onClick={(event) => event.stopPropagation()}>
@@ -445,24 +424,23 @@ export function ToolsPage(): JSX.Element {
                     </span>
                   </div>
 
-                  <p className="mt-3 line-clamp-3 text-[11px] leading-relaxed text-muted-foreground">{tool.description}</p>
+                  <p className="line-clamp-2 text-[11px] leading-relaxed text-muted-foreground">{tool.description}</p>
 
                   {deps.length > 0 ? (
-                    <div className="mt-2.5 flex flex-wrap gap-1.5">
+                    <div className="flex flex-wrap gap-1.5">
                       {deps.map((dependency) => (
                         <Badge key={dependency.id} tone={dependency.available ? 'success' : 'warning'}>
-                          {dependency.label}
-                          {dependency.available ? '' : ' 缺失'}
+                          {dependency.available ? dependency.label : `${dependency.label} 缺失`}
                         </Badge>
                       ))}
                     </div>
                   ) : (
-                    <div className="mt-2.5">
-                      <Badge tone="info">内置纯计算</Badge>
+                    <div>
+                      <Badge tone="info">内置计算</Badge>
                     </div>
                   )}
 
-                  <div className="mt-3 flex items-center justify-between gap-2 border-t border-border pt-3">
+                  <div className="flex items-center justify-between gap-2 border-t border-border pt-2.5">
                     <div className="flex items-center gap-1.5">
                       <Button
                         size="xs"
@@ -503,24 +481,24 @@ export function ToolsPage(): JSX.Element {
         group: 'runtime',
         title: '运行记录',
         x: 6,
-        y: 19,
+        y: 18,
         w: 6,
-        h: 7,
+        h: 6,
         minW: 6,
         minH: 5,
         node: (
           <Card className="flex h-full flex-col overflow-y-auto">
         <SectionHeader
           title="运行记录"
-          description="工具执行的输入摘要、耗时、状态与结果路径，可直接打开产出文件"
+          description="每次执行的耗时、结果与产出文件"
           action={<Badge tone="primary">{history.length} 条</Badge>}
         />
         {history.length === 0 ? (
-          <EmptyState icon={<Clock4 className="h-5 w-5" />} title="暂无运行记录" description="执行任意工具后，这里会记录每次调用的耗时与结果" />
+          <EmptyState icon={<Clock4 className="h-5 w-5" />} title="暂无运行记录" description="执行任意工具后，这里会记录耗时与结果" />
         ) : (
           <div className="flex max-h-[420px] flex-col gap-2 overflow-y-auto pr-1">
             {history.slice(0, 40).map((run) => (
-              <div key={run.id} className="rounded-xl border border-border bg-muted/25 p-3">
+              <div key={run.id} className="rounded-lg border border-border bg-muted/25 px-2.5 py-2">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className="flex items-center gap-2 text-xs font-medium text-foreground">
@@ -570,30 +548,20 @@ export function ToolsPage(): JSX.Element {
 
   return (
     <div className="grid gap-5">
-      <PageGrid pageKey="tools" entries={entries} storageKey="workstation.grid.tools.v4" />
+      <PageGrid pageKey="tools" entries={entries} storageKey="workstation.grid.tools.v5" />
 
       <ToolDetailDrawer manifest={selected} open={selected !== null} onClose={() => select(null)} />
 
       <Modal
         open={statDetail !== null}
         onClose={() => setStatDetail(null)}
-        title={
-          statDetail === 'tools'
-            ? '已注册工具'
-            : statDetail === 'deps'
-              ? '外部依赖'
-              : statDetail === 'today'
-                ? '今日调用'
-                : '累计工具耗时'
-        }
+        title={statDetail === 'tools' ? '已注册工具' : statDetail === 'deps' ? '外部依赖' : '运行记录'}
         description={
           statDetail === 'tools'
-            ? `共 ${tools.length} 个工具，其中 ${tools.filter((tool) => tool.enabled).length} 个已启用`
+            ? `${tools.filter((tool) => tool.enabled).length} / ${tools.length} 个已启用`
             : statDetail === 'deps'
               ? `${dependencies.length - missingDependencies.length} / ${dependencies.length} 项可用`
-              : statDetail === 'today'
-                ? `今日执行 ${todayRuns.length} 次 · 累计记录 ${history.length} 条`
-                : `累计 ${formatMinutes(totalToolMinutes)} · 共 ${history.length} 条记录`
+              : `今日 ${todayRuns.length} 次 · 累计 ${formatMinutes(totalToolMinutes)}`
         }
         width="max-w-2xl"
       >

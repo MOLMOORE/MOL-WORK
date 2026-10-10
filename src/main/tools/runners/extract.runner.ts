@@ -16,7 +16,7 @@ export const extractTool: ToolDefinition = {
     name: '网页与截图提取',
     category: 'extract',
     description:
-      '使用 Playwright 无头浏览器渲染页面，可提取正文为 Markdown 笔记，或对可视区/整页截图保存为 PNG，用于资料归档与快速摘录。',
+      '用 Playwright 渲染网页：正文转 Markdown 笔记，或截取可视区 / 整页存 PNG。',
     icon: 'ScanText',
     requires: ['playwright'],
     builtin: true,
@@ -44,7 +44,7 @@ export const extractTool: ToolDefinition = {
         label: '保存目录',
         type: 'path',
         pathKind: 'directory',
-        placeholder: '留空则保存到工作站 outputs 目录'
+        placeholder: '留空 = outputs 目录'
       }
     ]
   },

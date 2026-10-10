@@ -36,7 +36,7 @@ export const THEME_SKINS: {
   {
     key: 'default',
     label: '默认主题',
-    hint: '左侧栏 + 顶栏 + 卡片看板。选它之后可在下方继续挑 18 种风格（配色 / 观感）',
+    hint: '左侧栏 + 顶栏 + 卡片看板，可再挑 5 种配色与 8 种观感',
     nativeMode: 'light',
     layout: '侧边导航 · 卡片看板',
     shape: 'soft',
@@ -45,7 +45,7 @@ export const THEME_SKINS: {
   {
     key: 'magazine',
     label: '纸间杂志',
-    hint: '导航抬到顶部变成刊头，卡片去掉描边改用细线与留白，正文换衬线字并首字下沉，像翻一本杂志',
+    hint: '顶部刊头导航，细线卡片，正文衬线并首字下沉',
     nativeMode: 'light',
     layout: '顶部刊头 · 分栏正文',
     shape: 'sharp',
@@ -54,7 +54,7 @@ export const THEME_SKINS: {
   {
     key: 'glass',
     label: '琉璃极光',
-    hint: '侧栏浮起成胶囊，卡片改半透明毛玻璃，页面底是缓慢流动的极光渐变，圆角与柔影整体放大',
+    hint: '胶囊侧栏 + 毛玻璃卡片 + 流动极光底',
     nativeMode: 'dark',
     layout: '悬浮胶囊侧栏 · 毛玻璃卡片',
     shape: 'pill',
@@ -63,7 +63,7 @@ export const THEME_SKINS: {
   {
     key: 'terminal',
     label: '荧光终端',
-    hint: '全等宽字体、ASCII 双线面板、底部状态行与扫描线，荧光绿磷光，整个软件变成一台终端',
+    hint: '等宽字 + ASCII 双线面板 + 荧光绿扫描线',
     nativeMode: 'dark',
     layout: '终端侧栏 · 底部状态行',
     shape: 'sharp',
@@ -72,7 +72,7 @@ export const THEME_SKINS: {
   {
     key: 'brutalism',
     label: '粗野主义',
-    hint: '导航改成顶部块状标签，3px 实描边 + 6px 硬投影，标题全部大写加粗，色块直接铺在页面上',
+    hint: '顶部块状标签，3px 描边 + 硬投影，标题大写',
     nativeMode: 'light',
     layout: '顶部块状标签 · 硬投影色块',
     shape: 'sharp',
@@ -81,7 +81,7 @@ export const THEME_SKINS: {
   {
     key: 'hud',
     label: '数据驾驶舱',
-    hint: '直角面板配四角括号与细准线，页面铺网格，标签改窄体大写字距，底部一条遥测状态栏',
+    hint: '四角括号面板 + 网格底 + 遥测状态栏',
     nativeMode: 'dark',
     layout: '窄图标侧栏 · 遥测状态栏',
     shape: 'sharp',
@@ -90,7 +90,7 @@ export const THEME_SKINS: {
   {
     key: 'soft',
     label: '奶油拟物',
-    hint: '描边全部消失，改用一明一暗双向柔光把模块「顶」出奶油底，控件一律胶囊形，配色降饱和',
+    hint: '无描边，双向柔光顶出浮雕，控件胶囊形',
     nativeMode: 'light',
     layout: '内嵌侧栏 · 浮雕卡片',
     shape: 'pill',
@@ -99,7 +99,7 @@ export const THEME_SKINS: {
   {
     key: 'retro',
     label: '复古桌面',
-    hint: '每张卡片长出蓝色渐变标题栏，窗口式立体斜边与方块滚动条，顶栏变成标题栏，底部一排状态格',
+    hint: '蓝色渐变标题栏 + 立体斜边 + 分格状态栏',
     nativeMode: 'light',
     layout: '标题栏卡片 · 分格状态栏',
     shape: 'sharp',
@@ -113,12 +113,10 @@ export function themeSkinLabel(skin: ThemeSkin | undefined): string {
 }
 
 /**
- * 预设主题清单。
- * 这 18 种全部属于「默认主题」，只有选中默认主题时才可选：
- * - group='palette'（配色风格）：10 种，只改颜色旋钮，版式与默认完全一致；
- * - group='style'（观感风格）：8 种，在配色之外还改圆角 / 描边 / 阴影 / 字体 / 页面底纹，
- *   配色值取自各风格的官方规范（Nord、Dracula、Gruvbox、Catppuccin、Tokyo Night 等）。
- * preview 三元组 = [页面底, 卡片底, 强调色]，由 styles/index.css 里的同名旋钮换算而来。
+ * 「默认主题」下的 13 种风格，只有选中默认主题时才可选：
+ * - palette（配色风格）5 种：只改颜色旋钮，版式与默认一致；
+ * - style（观感风格）8 种：连圆角 / 描边 / 阴影 / 字体 / 底纹一起改，配色取自各风格官方规范。
+ * preview 三元组 = [页面底, 卡片底, 强调色]，与 styles/index.css 的同名旋钮对应。
  */
 export const THEME_PRESETS: {
   key: ThemePreset
@@ -132,7 +130,7 @@ export const THEME_PRESETS: {
   {
     key: 'minimal',
     label: '素白简约',
-    hint: '冷中性灰白 + 克制的蓝，细描边、无渐变无光晕，默认主题',
+    hint: '冷灰白 + 克制蓝，默认风格',
     group: 'palette',
     nativeMode: 'light',
     preview: { light: ['#F9FAFB', '#FFFFFF', '#1D7EED'], dark: ['#141619', '#1D2024', '#559EF1'] }
@@ -140,7 +138,7 @@ export const THEME_PRESETS: {
   {
     key: 'mono',
     label: '极简黑白',
-    hint: '完全去色，只靠明度与描边分层，最克制的一套',
+    hint: '完全去色，只靠明暗分层',
     group: 'palette',
     nativeMode: 'light',
     preview: { light: ['#FAFAFA', '#FFFFFF', '#242424'], dark: ['#141414', '#1F1F1F', '#F5F5F5'] }
@@ -148,7 +146,7 @@ export const THEME_PRESETS: {
   {
     key: 'paper',
     label: '宣纸暖白',
-    hint: '暖米色纸底 + 松绿，长时间阅读不刺眼',
+    hint: '暖米纸底 + 松绿，久读不刺眼',
     group: 'palette',
     nativeMode: 'light',
     preview: { light: ['#F9F8F6', '#FFFFFF', '#2F7E61'], dark: ['#1F1B13', '#24201A', '#4FBF95'] }
@@ -156,7 +154,7 @@ export const THEME_PRESETS: {
   {
     key: 'ocean',
     label: '靛青',
-    hint: '清冷青蓝，适合信息密度高的工作台',
+    hint: '清冷青蓝，适合高密度信息',
     group: 'palette',
     nativeMode: 'light',
     preview: { light: ['#FAFCFD', '#FFFFFF', '#0E88B8'], dark: ['#141819', '#1D2224', '#3EB6DE'] }
@@ -164,55 +162,15 @@ export const THEME_PRESETS: {
   {
     key: 'moss',
     label: '苔原',
-    hint: '草绿强调 + 微绿中性，最省眼的一套',
+    hint: '草绿强调，最省眼',
     group: 'palette',
     nativeMode: 'light',
     preview: { light: ['#F9FBF9', '#FFFFFF', '#2E834F'], dark: ['#141815', '#1D221E', '#5CC08A'] }
   },
   {
-    key: 'sand',
-    label: '暮沙',
-    hint: '暖沙底 + 赤陶橙，纸质暖调',
-    group: 'palette',
-    nativeMode: 'light',
-    preview: { light: ['#FAF7F3', '#FFFFFF', '#D25A17'], dark: ['#1A1611', '#211C17', '#E8813F'] }
-  },
-  {
-    key: 'graphite',
-    label: '石墨',
-    hint: '纯中性深灰，强调色只用亮灰，工业感',
-    group: 'palette',
-    nativeMode: 'dark',
-    preview: { light: ['#F7F8F9', '#FFFFFF', '#4A5158'], dark: ['#1A1C1E', '#222528', '#CFD4D8'] }
-  },
-  {
-    key: 'midnight',
-    label: '午夜靛蓝',
-    hint: '深蓝夜色 + 亮靛强调，夜间久用',
-    group: 'palette',
-    nativeMode: 'dark',
-    preview: { light: ['#F7F8FD', '#FFFFFF', '#4A6EF5'], dark: ['#0F1119', '#1B1F2B', '#567AF0'] }
-  },
-  {
-    key: 'plum',
-    label: '紫棠',
-    hint: '暗紫底 + 兰紫强调，冷艳但不刺眼',
-    group: 'palette',
-    nativeMode: 'dark',
-    preview: { light: ['#FAF7FD', '#FFFFFF', '#8A2BE2'], dark: ['#151018', '#1F1924', '#A65CF0'] }
-  },
-  {
-    key: 'forest',
-    label: '墨绿夜色',
-    hint: '近黑的墨绿底 + 草绿强调，深色里偏暖的选择',
-    group: 'palette',
-    nativeMode: 'dark',
-    preview: { light: ['#F6FAF8', '#FFFFFF', '#2F8A63'], dark: ['#0D1512', '#141E1A', '#60C797'] }
-  },
-  {
     key: 'nord',
     label: '北欧极光',
-    hint: 'Polar Night 深蓝灰 + Frost 冰蓝，扁平无投影（Nord 官方配色）',
+    hint: '深蓝灰 + 冰蓝，扁平无投影（Nord）',
     group: 'style',
     nativeMode: 'dark',
     preview: { light: ['#ECEFF4', '#E5E9F0', '#5E81AC'], dark: ['#2E3440', '#3B4252', '#88C0D0'] }
@@ -220,7 +178,7 @@ export const THEME_PRESETS: {
   {
     key: 'dracula',
     label: '德古拉',
-    hint: '暗紫灰底 + 粉 / 紫 / 青三色，卡片带霓虹描边（Dracula 官方配色）',
+    hint: '暗紫灰 + 粉紫青，卡片霓虹描边（Dracula）',
     group: 'style',
     nativeMode: 'dark',
     preview: { light: ['#F8F8F2', '#FFFFFF', '#BD93F9'], dark: ['#282A36', '#343746', '#FF79C6'] }
@@ -228,7 +186,7 @@ export const THEME_PRESETS: {
   {
     key: 'gruvbox',
     label: '复古木纹',
-    hint: '暖褐底 + 姜黄赭红，直角与双线描边，像旧终端打印（Gruvbox 官方配色）',
+    hint: '暖褐 + 姜黄赭红，直角双线（Gruvbox）',
     group: 'style',
     nativeMode: 'dark',
     preview: { light: ['#FBF1C7', '#F2E5BC', '#AF3A00'], dark: ['#282828', '#3C3836', '#FABD2F'] }
@@ -236,7 +194,7 @@ export const THEME_PRESETS: {
   {
     key: 'catppuccin',
     label: '卡布奇诺',
-    hint: '豆沙紫中性 + 大圆角软阴影，最柔和的一套（Catppuccin Mocha / Latte）',
+    hint: '豆沙紫 + 大圆角软影（Catppuccin）',
     group: 'style',
     nativeMode: 'dark',
     preview: { light: ['#EFF1F5', '#F5F6FC', '#8839EF'], dark: ['#1E1E2E', '#313244', '#CBA6F7'] }
@@ -244,7 +202,7 @@ export const THEME_PRESETS: {
   {
     key: 'tokyonight',
     label: '东京夜色',
-    hint: '墨蓝底 + 靛青紫，卡片顶部一道渐变光带（Tokyo Night 官方配色）',
+    hint: '墨蓝 + 靛青紫，卡片顶部渐变光带（Tokyo Night）',
     group: 'style',
     nativeMode: 'dark',
     preview: { light: ['#EAF1F8', '#FFFFFF', '#1A5CAB'], dark: ['#1A1B26', '#24283B', '#7AA2F7'] }
@@ -252,7 +210,7 @@ export const THEME_PRESETS: {
   {
     key: 'synthwave',
     label: '赛博霓虹',
-    hint: '渐变夜色页面底 + 半透明卡片与霓虹辉光（SynthWave ’84 风格）',
+    hint: '夜色渐变底 + 半透明卡片与霓虹辉光',
     group: 'style',
     nativeMode: 'dark',
     preview: { light: ['#FDE7F3', '#FFFFFF', '#D4267E'], dark: ['#1A1029', '#2A1B45', '#FF7EDB'] }
@@ -260,7 +218,7 @@ export const THEME_PRESETS: {
   {
     key: 'brutalism',
     label: '粗野主义',
-    hint: '2px 黑描边 + 硬投影 + 直角大写标题（Neo-brutalism 风格）',
+    hint: '黑描边 + 硬投影 + 直角大写标题',
     group: 'style',
     nativeMode: 'light',
     preview: { light: ['#FFF9E6', '#FFFFFF', '#FFD400'], dark: ['#111111', '#1B1B1B', '#FFD400'] }
@@ -268,7 +226,7 @@ export const THEME_PRESETS: {
   {
     key: 'terminal',
     label: '荧光终端',
-    hint: '纯黑底 + 荧光绿等宽字与扫描线，整站 CRT 终端观感',
+    hint: '纯黑 + 荧光绿等宽 + 扫描线',
     group: 'style',
     nativeMode: 'dark',
     preview: { light: ['#F2F5F2', '#FFFFFF', '#0A6B34'], dark: ['#050D07', '#0A1810', '#33FF66'] }
@@ -278,11 +236,11 @@ export const THEME_PRESETS: {
 export const THEME_GROUP_META: Record<ThemeGroup, { label: string; description: string }> = {
   palette: {
     label: '配色风格',
-    description: '界面结构与默认主题完全一致，只换中性色与强调色'
+    description: '只换中性色与强调色，版式与默认一致'
   },
   style: {
     label: '观感风格',
-    description: '在配色之外一起换圆角、描边、阴影、字体与页面底纹，观感差异明显'
+    description: '连圆角、描边、阴影、字体与底纹一起换'
   }
 }
 
@@ -334,8 +292,7 @@ export const TOOL_CATEGORY_META: Record<ToolCategory, { label: string; color: st
   doc: { label: '文档转换', color: '#A855F7', description: '文档格式互转（Pandoc）' },
   download: { label: '下载整理', color: '#22C55E', description: '资源下载与归档' },
   extract: { label: '提取', color: '#38BDF8', description: '网页与截图内容抽取' },
-  calc: { label: '计算', color: '#F59E0B', description: '单位换算与电路计算' },
-  flashcard: { label: '卡片', color: '#C084FC', description: '学习卡片制作' }
+  calc: { label: '计算', color: '#F59E0B', description: '单位换算与电路速算' }
 }
 
 export const DEPENDENCY_META: Record<DependencyId, { label: string; installHint: string }> = {

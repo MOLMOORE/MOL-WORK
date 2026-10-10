@@ -88,7 +88,7 @@ export function ProjectManager({ open, onClose }: { open: boolean; onClose: () =
         open={open}
         onClose={onClose}
         title="项目与课程"
-        description="管理任务归属的项目或课程，新建后可在任务表单中选择"
+        description="任务归属的项目 / 课程，新建后可在任务表单里选"
         width="max-w-lg"
         footer={
           <>
@@ -159,7 +159,7 @@ export function ProjectManager({ open, onClose }: { open: boolean; onClose: () =
           <EmptyState
             icon={<FolderKanban className="h-5 w-5" />}
             title="还没有项目或课程"
-            description="新建一个项目/课程后，任务可以按归属分类统计"
+            description="新建后，任务可按归属分类统计"
             action={
               <Button variant="primary" size="sm" icon={<Plus className="h-3.5 w-3.5" />} onClick={startCreate}>
                 新增项目 / 课程

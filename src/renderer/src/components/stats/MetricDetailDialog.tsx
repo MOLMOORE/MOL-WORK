@@ -211,7 +211,7 @@ export function MetricDetailDialog({
 
           {kind === 'tools' ? (
             windowToolRuns.length === 0 ? (
-              <EmptyState title="区间内没有工具调用" description="在工具集市执行任意工具后会在这里出现明细" />
+              <EmptyState title="区间内没有工具调用" description="工具执行明细会出现在这里" />
             ) : (
               <div className="flex flex-col gap-2">
                 {windowToolRuns.map((run) => (
@@ -241,7 +241,7 @@ export function MetricDetailDialog({
                 ))}
               </div>
             ) : (
-              <EmptyState title="今日还没有记录" description="专注、任务、复习与工具调用都会进入今日时间线" />
+              <EmptyState title="今日还没有记录" description="专注、任务、复习与工具调用都进这条时间线" />
             )
           ) : null}
         </div>

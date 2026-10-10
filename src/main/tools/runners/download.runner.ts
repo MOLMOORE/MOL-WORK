@@ -19,7 +19,7 @@ export const downloadTool: ToolDefinition = {
     name: '文件下载与整理',
     category: 'download',
     description:
-      '基于 yt-dlp 下载网络视频/音频/课程资源，自动按模板命名并归档到指定目录，支持仅音频抽取与播放列表开关。',
+      '用 yt-dlp 下载视频 / 音频 / 课程，按模板命名归档，可只取音频。',
     icon: 'Download',
     requires: ['yt-dlp'],
     builtin: true,
@@ -30,7 +30,7 @@ export const downloadTool: ToolDefinition = {
         type: 'text',
         required: true,
         placeholder: 'https://www.bilibili.com/video/BV1xx411c7mD',
-        hint: '支持 YouTube / Bilibili / 慕课等 yt-dlp 覆盖的站点'
+        hint: 'YouTube / B 站 / 慕课等 yt-dlp 支持的站点'
       },
       {
         name: 'mode',
@@ -48,7 +48,7 @@ export const downloadTool: ToolDefinition = {
         label: '归档目录',
         type: 'path',
         pathKind: 'directory',
-        placeholder: '留空则归档到工作站 outputs 目录'
+        placeholder: '留空 = outputs 目录'
       },
       {
         name: 'allowPlaylist',

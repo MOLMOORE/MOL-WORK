@@ -101,7 +101,7 @@ export function FocusTrendCard({ trendData, loading }: FocusTrendCardProps): JSX
         <EmptyState
           icon={<TrendingUp className="h-5 w-5" />}
           title="区间内暂无投入记录"
-          description="开始一次专注计时或执行工具后即可看到趋势"
+          description="有专注或工具调用后即可看到趋势"
           className="h-full py-0"
         />
       ) : null}
@@ -151,7 +151,7 @@ export function OutputTrendCard({ trendData, loading }: OutputTrendCardProps): J
         <EmptyState
           icon={<BarChart3 className="h-5 w-5" />}
           title="区间内暂无产出记录"
-          description="完成任务、复习或调用工具都会计入产出趋势"
+          description="完成、复习与工具调用都计入产出"
           className="h-full py-0"
         />
       ) : null}

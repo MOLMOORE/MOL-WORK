@@ -17,7 +17,7 @@ export const docConvertTool: ToolDefinition = {
     name: '文档转换',
     category: 'doc',
     description:
-      '基于 Pandoc 在 Markdown / Word / HTML / 纯文本 / EPUB / OpenDocument / LaTeX 之间互转，适合笔记与论文材料归档。',
+      '用 Pandoc 在 Markdown / Word / HTML / 纯文本 / EPUB / ODT / LaTeX 之间互转。',
     icon: 'FileText',
     requires: ['pandoc'],
     builtin: true,
@@ -29,7 +29,7 @@ export const docConvertTool: ToolDefinition = {
         pathKind: 'file',
         required: true,
         placeholder: 'D:\\学习资料\\计算机网络.docx',
-        hint: '支持 md / markdown / docx / html / txt / rst / epub / odt / tex / rtf / csv / org'
+        hint: '源可为 md / docx / html / txt / rst / epub / odt / tex / rtf / csv / org'
       },
       {
         name: 'targetFormat',
@@ -44,7 +44,7 @@ export const docConvertTool: ToolDefinition = {
         label: '输出目录',
         type: 'path',
         pathKind: 'directory',
-        placeholder: '留空则输出到工作站 outputs 目录'
+        placeholder: '留空 = outputs 目录'
       }
     ]
   },

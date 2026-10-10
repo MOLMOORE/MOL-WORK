@@ -101,7 +101,7 @@ export function TaskForm({ open, onClose, initial, defaultProjectId, defaultDueA
       open={open}
       onClose={onClose}
       title={initial ? '编辑任务' : '新建任务'}
-      description="任务会自动关联日程、提醒、笔记与专注记录"
+      description="自动关联日程、提醒、笔记与专注记录"
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>
@@ -168,7 +168,7 @@ export function TaskForm({ open, onClose, initial, defaultProjectId, defaultDueA
           <Switch
             checked={isPriority}
             onChange={setIsPriority}
-            label="标记为优先事项（日程与列表中红色高亮）"
+            label="优先事项（列表与日程高亮）"
           />
         </div>
 
@@ -194,7 +194,7 @@ export function TaskForm({ open, onClose, initial, defaultProjectId, defaultDueA
             rows={4}
             value={detail}
             onChange={(event) => setDetail(event.target.value)}
-            placeholder="补充完成标准、参考资料或拆解步骤，便于后续复盘"
+            placeholder="完成标准、参考资料、拆解步骤，便于复盘"
           />
         </Field>
       </div>

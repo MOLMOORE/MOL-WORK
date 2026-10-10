@@ -40,7 +40,7 @@ export function ProjectDonut({ projects, totalMinutes }: ProjectDonutProps): JSX
         <EmptyState
           icon={<PieIcon className="h-5 w-5" />}
           title="暂无投入记录"
-          description="在任务详情页开始一次专注计时即可产生分布数据"
+          description="在任务详情页开始专注后即有数据"
           className="h-full py-0"
         />
       ) : (
@@ -116,7 +116,7 @@ export function ToolUsageDonut({ toolRuns }: ToolUsageDonutProps): JSX.Element {
     <Card className="flex h-full flex-col">
       <SectionHeader
         title="工具调用分布"
-        description="按工具类别统计调用次数，闭环回流统计层"
+        description="按类别统计工具调用次数"
         action={<Wrench className="h-4 w-4 text-muted-foreground" />}
         className="mb-3"
       />
@@ -124,7 +124,7 @@ export function ToolUsageDonut({ toolRuns }: ToolUsageDonutProps): JSX.Element {
         <EmptyState
           icon={<Wrench className="h-5 w-5" />}
           title="暂无工具调用"
-          description="在工具集市执行任意工具后即可看到分布"
+          description="执行任意工具后即可看到分布"
           className="h-full py-0"
         />
       ) : (

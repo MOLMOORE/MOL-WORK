@@ -1,4 +1,5 @@
 import type { ToolDefinition, ToolExecutionResult } from '../types'
+import { parseQty } from '../engineering'
 
 const MODES = [
   { label: '欧姆定律（U/I/R 求其一）', value: 'ohm' },
@@ -6,9 +7,7 @@ const MODES = [
   { label: '电阻串联', value: 'series' },
   { label: '电阻并联', value: 'parallel' },
   { label: '分压电路（求 Vout）', value: 'divider' },
-  { label: 'RC 时间常数', value: 'rc' },
   { label: 'RL 时间常数', value: 'rl' },
-  { label: 'LC 谐振频率', value: 'lc' },
   { label: '电容储能（E=½CV²）', value: 'cap-energy' },
   { label: 'LED 限流电阻', value: 'led' }
 ]
@@ -18,10 +17,8 @@ const MODE_HINT: Record<string, string> = {
   power: '填写 电压(V)+电流(A)，或 电压(V)+电阻(Ω)，或 电流(A)+电阻(Ω)，计算功率与其余参数。',
   series: '填写 电阻(Ω) 与 电阻2(Ω) 求串联总阻值；再填 电压(V) 可一并算出回路电流。',
   parallel: '填写 电阻(Ω) 与 电阻2(Ω) 求并联等效阻值。',
-  divider: '填写 电压(Vin)、电阻(R1)、电阻2(R2)，输出 Vout = Vin·R2/(R1+R2)。',
-  rc: '填写 电阻(Ω) 与 电容(F)，输出时间常数 τ=RC 与 5τ 充电完成时间。',
-  rl: '填写 电阻(Ω) 与 电感(H)，输出时间常数 τ=L/R。',
-  lc: '填写 电感(H) 与 电容(F)，输出谐振频率 f=1/(2π√(LC))。',
+  divider: '填 Vin、R1、R2，求 Vout 与分压比。',
+  rl: '填 R 与 L，求时间常数 τ=L/R。',
   'cap-energy': '填写 电容(F) 与 电压(V)，输出储能 E=½CV²。',
   led: '填写 电源电压(Vs)、正向压降(Vf)、目标电流(mA)，输出限流电阻与功耗。'
 }
@@ -38,30 +35,30 @@ export const circuitCalcTool: ToolDefinition = {
     id: 'circuit-calc',
     name: '电路常用计算',
     category: 'calc',
-    description:
-      '面向电子/电工课程的常用计算集合：' +
-      Object.entries(MODE_HINT)
-        .map(([, hint]) => hint)
-        .join(' '),
+    description: '欧姆定律、功率、串并联、分压、LED 限流与电容储能。',
     icon: 'CircuitBoard',
     requires: [],
     builtin: true,
     fields: [
       { name: 'mode', label: '计算类型', type: 'select', required: true, defaultValue: 'ohm', options: MODES },
-      { name: 'voltage', label: '电压 U (V)', type: 'number', placeholder: '例如 12' },
-      { name: 'current', label: '电流 I (A)', type: 'number', placeholder: '例如 0.5' },
-      { name: 'resistance', label: '电阻 R (Ω)', type: 'number', placeholder: '例如 1000' },
-      { name: 'resistance2', label: '电阻 R2 (Ω)', type: 'number', placeholder: '串联/并联/分压时使用' },
-      { name: 'capacitance', label: '电容 C (F)', type: 'number', placeholder: '例如 0.0001（=100µF）' },
-      { name: 'inductance', label: '电感 L (H)', type: 'number', placeholder: '例如 0.001（=1mH）' },
-      { name: 'forwardVoltage', label: 'LED 正向压降 Vf (V)', type: 'number', placeholder: '例如 2.0' },
-      { name: 'currentMa', label: 'LED 目标电流 (mA)', type: 'number', placeholder: '例如 20' }
+      { name: 'voltage', label: '电压 U (V)', type: 'text', placeholder: '12' },
+      { name: 'current', label: '电流 I (A)', type: 'text', placeholder: '0.5、20m' },
+      { name: 'resistance', label: '电阻 R (Ω)', type: 'text', placeholder: '1k、4m7' },
+      { name: 'resistance2', label: '电阻 R2 (Ω)', type: 'text', placeholder: '串并联 / 分压时填' },
+      { name: 'capacitance', label: '电容 C (F)', type: 'text', placeholder: '100n、1u' },
+      { name: 'inductance', label: '电感 L (H)', type: 'text', placeholder: '1m、4u7' },
+      { name: 'forwardVoltage', label: 'LED 正向压降 Vf (V)', type: 'text', placeholder: '2' },
+      { name: 'currentMa', label: 'LED 目标电流 (mA)', type: 'text', placeholder: '20' }
     ]
   },
 
   async run(payload, ctx): Promise<ToolExecutionResult> {
     const mode = ctx.getString(payload, 'mode', 'ohm')
     const num = (key: string): number => {
+      const parsed = parseQty(payload[key])
+      return parsed === null ? Number.NaN : parsed
+    }
+    const plain = (key: string): number => {
       const raw = payload[key]
       if (raw === undefined || raw === null || raw === '') return Number.NaN
       return Number(raw)
@@ -73,7 +70,7 @@ export const circuitCalcTool: ToolDefinition = {
     const C = num('capacitance')
     const L = num('inductance')
     const Vf = num('forwardVoltage')
-    const ImA = num('currentMa')
+    const ImA = plain('currentMa')
 
     const outputs: { label: string; value: string }[] = []
     let summary = ''
@@ -138,25 +135,11 @@ export const circuitCalcTool: ToolDefinition = {
         outputs.push({ label: '输入电压', value: fmt(U, 'V') }, { label: '输出电压 Vout', value: fmt(vout, 'V') }, { label: '分压比', value: fmt(R2 / (R + R2), '', 4) })
         break
       }
-      case 'rc': {
-        if (!Number.isFinite(R) || !Number.isFinite(C)) return fail('RC 时间常数需要填写 电阻 R 与 电容 C')
-        const tau = R * C
-        summary = `τ = R · C = ${fmt(tau, 's')}`
-        outputs.push({ label: '时间常数 τ', value: fmt(tau, 's') }, { label: '充电至 99.3% 约需', value: fmt(5 * tau, 's') }, { label: '截止频率 fc', value: fmt(1 / (2 * Math.PI * tau), 'Hz') })
-        break
-      }
       case 'rl': {
         if (!Number.isFinite(R) || !Number.isFinite(L) || R === 0) return fail('RL 时间常数需要填写非零 电阻 R 与 电感 L')
         const tau = L / R
         summary = `τ = L / R = ${fmt(tau, 's')}`
         outputs.push({ label: '时间常数 τ', value: fmt(tau, 's') }, { label: '达稳态约需', value: fmt(5 * tau, 's') })
-        break
-      }
-      case 'lc': {
-        if (!Number.isFinite(L) || !Number.isFinite(C) || L <= 0 || C <= 0) return fail('LC 谐振需要填写正的 电感 L 与 电容 C')
-        const f = 1 / (2 * Math.PI * Math.sqrt(L * C))
-        summary = `f = 1/(2π√(LC)) = ${fmt(f, 'Hz')}`
-        outputs.push({ label: '谐振频率 f', value: fmt(f, 'Hz') }, { label: '角频率 ω', value: fmt(2 * Math.PI * f, 'rad/s') })
         break
       }
       case 'cap-energy': {

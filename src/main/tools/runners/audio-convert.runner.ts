@@ -17,7 +17,7 @@ export const audioConvertTool: ToolDefinition = {
     name: '音频转换',
     category: 'audio',
     description:
-      '基于 FFmpeg 转码 MP3 / WAV / M4A / FLAC / AAC / OGG / Opus，也可直接从视频中提取音轨。结果写入输出目录并记录耗时与存放位置。',
+      '用 FFmpeg 转码音频，或从视频里提取音轨。',
     icon: 'AudioLines',
     requires: ['ffmpeg'],
     builtin: true,
@@ -29,7 +29,7 @@ export const audioConvertTool: ToolDefinition = {
         pathKind: 'file',
         required: true,
         placeholder: 'D:\\音频\\录音.m4a',
-        hint: '支持音频（mp3/wav/flac/aac/m4a/ogg/opus/wma）与视频（自动提取音轨）'
+        hint: '源可以是视频，会自动取音轨'
       },
       {
         name: 'targetFormat',
@@ -44,7 +44,7 @@ export const audioConvertTool: ToolDefinition = {
         label: '输出目录',
         type: 'path',
         pathKind: 'directory',
-        placeholder: '留空则输出到工作站 outputs 目录'
+        placeholder: '留空 = outputs 目录'
       }
     ]
   },

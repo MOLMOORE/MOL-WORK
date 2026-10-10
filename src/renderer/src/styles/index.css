@@ -193,56 +193,6 @@
   [data-preset='moss'][data-theme='light'] { --p-l: 32%; --p-l-text: 26%; --n-l-page: 98%; }
   [data-preset='moss'][data-theme='dark'] { --n-l-page: 10%; --n-l-card: 13%; }
 
-  /* 暮沙：暖沙底 + 赤陶橙 */
-  [data-preset='sand'] {
-    --p-h: 19; --p-s: 80%; --n-h: 32; --n-s: 24%; --n-s-fg: 20%;
-  }
-  [data-preset='sand'][data-theme='light'] { --p-l: 45%; --p-l-text: 37%; --n-l-page: 97%; }
-  [data-preset='sand'][data-theme='dark'] { --n-l-page: 10%; --n-l-card: 13%; }
-
-  /* 石墨：纯中性深灰，强调只用亮灰 */
-  [data-preset='graphite'] {
-    --p-h: 210; --p-s: 12%; --n-h: 210; --n-s: 8%; --n-s-fg: 6%;
-  }
-  [data-preset='graphite'][data-theme='dark'] {
-    --p-l: 82%; --p-l-text: 84%; --p-on: 210 8% 10%;
-    --n-l-page: 10%; --n-l-surface: 13%; --n-l-card: 14%; --n-l-input: 17%;
-    --n-l-muted: 18%; --n-l-border: 28%;
-  }
-  [data-preset='graphite'][data-theme='light'] { --p-l: 30%; --p-l-text: 26%; }
-
-  /* 午夜靛蓝：深蓝夜色 + 亮靛 */
-  [data-preset='midnight'] {
-    --p-h: 226; --p-s: 84%; --n-h: 228; --n-s: 26%;
-  }
-  [data-preset='midnight'][data-theme='dark'] {
-    --n-l-page: 8%; --n-l-surface: 12%; --n-l-card: 14%; --n-l-input: 18%;
-    --n-l-muted: 19%; --n-l-border: 28%;
-  }
-  [data-preset='midnight'][data-theme='light'] { --p-l: 48%; --p-l-text: 42%; }
-
-  /* 紫棠：暗紫底 + 兰紫 */
-  [data-preset='plum'] {
-    --p-h: 268; --p-s: 74%; --n-h: 272; --n-s: 20%;
-  }
-  [data-preset='plum'][data-theme='dark'] {
-    --p-l: 68%; --p-l-text: 76%;
-    --n-l-page: 9%; --n-l-surface: 12%; --n-l-card: 14%; --n-l-input: 18%;
-    --n-l-muted: 19%; --n-l-border: 28%;
-  }
-  [data-preset='plum'][data-theme='light'] { --p-l: 46%; --p-l-text: 40%; }
-
-  /* 墨绿夜色：近黑的墨绿底 */
-  [data-preset='forest'] {
-    --p-h: 152; --p-s: 48%; --n-h: 160; --n-s: 16%;
-  }
-  [data-preset='forest'][data-theme='dark'] {
-    --p-l: 58%; --p-l-text: 66%; --p-on: 160 20% 8%;
-    --n-l-page: 9%; --n-l-surface: 12%; --n-l-card: 13%; --n-l-input: 17%;
-    --n-l-muted: 18%; --n-l-border: 27%;
-  }
-  [data-preset='forest'][data-theme='light'] { --p-l: 32%; --p-l-text: 26%; }
-
   /* ==================== 二、风格主题（配色 + 版式一起换） ==================== */
 
   /* 北欧极光 Nord：Polar Night + Frost，扁平无投影、小直角 */
@@ -1011,6 +961,17 @@
     -webkit-user-select: none;
     user-select: none;
     z-index: 60;
+    /* 与下方顶栏同色、不再单独压一条边，整块读起来像同一个面板的顶 */
+  }
+  .titlebar-rail {
+    display: none;
+    width: var(--sidebar-w, 222px);
+    transition: width 250ms ease;
+  }
+  /* 只有默认外壳的侧栏是通高的实线分隔，其他皮肤的侧栏形状不同，不强行续线 */
+  html[data-skin='default'] .titlebar-rail {
+    display: block;
+    border-right: 1px solid hsl(var(--border));
   }
   .titlebar-drag {
     -webkit-app-region: drag;

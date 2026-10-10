@@ -120,7 +120,7 @@ export const unitConvertTool: ToolDefinition = {
     name: '单位换算',
     category: 'calc',
     description:
-      '覆盖长度、质量、面积、体积、速度、数据量、时间、压强、能量、频率、角度、温度共 12 类常用单位，自动识别单位所属类别并校验一致性。',
+      '长度、质量、面积、体积、速度、数据量、时间、压强、能量、频率、角度、温度 12 类单位互转。',
     icon: 'Ruler',
     requires: [],
     builtin: true,

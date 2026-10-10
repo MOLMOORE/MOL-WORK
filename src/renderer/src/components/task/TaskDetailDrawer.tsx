@@ -394,7 +394,7 @@ export function TaskDetailDrawer(): JSX.Element | null {
       <ConfirmDialog
         open={confirmOpen}
         title="删除任务"
-        description="任务会先移入回收站，保留期内可随时恢复；超过保留期后自动彻底删除。"
+        description="先入回收站，保留期内可恢复，过期自动清除"
         confirmText="移入回收站"
         onCancel={() => setConfirmOpen(false)}
         onConfirm={async () => {

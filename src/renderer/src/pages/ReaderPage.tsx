@@ -1484,7 +1484,7 @@ export function ReaderPage(): JSX.Element {
             <ToolButton
               on={showInk}
               label="圈画"
-              hint="显示 / 隐藏画在纸上的圈画与涂亮的正文"
+              hint="显示 / 隐藏圈画与荧光"
               icon={<CircleDashed className="h-3.5 w-3.5" />}
               onClick={() => setShowInk((value) => !value)}
             />
@@ -1492,7 +1492,7 @@ export function ReaderPage(): JSX.Element {
               <ToolButton
                 on={showNotes}
                 label="旁注"
-                hint="显示 / 隐藏贴在页面边上（或上下空白）的整页注释"
+                hint="显示 / 隐藏旁注"
                 icon={<StickyNote className="h-3.5 w-3.5" />}
                 onClick={() => setShowNotes((value) => !value)}
               />

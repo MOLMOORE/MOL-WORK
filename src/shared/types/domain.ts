@@ -18,7 +18,7 @@ export type EventType = 'task' | 'review' | 'reminder' | 'focus'
 export type ReviewStatus = 'active' | 'suspended' | 'mastered'
 /** 0=重来 1=困难 2=一般 3=简单 */
 export type ReviewRating = 0 | 1 | 2 | 3
-export type ToolCategory = 'image' | 'audio' | 'video' | 'doc' | 'download' | 'extract' | 'calc' | 'flashcard'
+export type ToolCategory = 'image' | 'audio' | 'video' | 'doc' | 'download' | 'extract' | 'calc'
 export type DependencyId = 'pandoc' | 'ffmpeg' | 'yt-dlp' | 'playwright'
 export type ThemeMode = 'dark' | 'light' | 'system'
 /**
@@ -28,17 +28,12 @@ export type ThemeMode = 'dark' | 'light' | 'system'
  * 全部风格与深浅色正交，任意风格都能在深色 / 浅色下使用。
  */
 export type ThemePreset =
-  /* 默认主题的 10 种配色 */
+  /* 默认主题的 5 种配色 */
   | 'minimal'
   | 'mono'
   | 'paper'
   | 'ocean'
   | 'moss'
-  | 'sand'
-  | 'graphite'
-  | 'midnight'
-  | 'plum'
-  | 'forest'
   /* 独立风格主题 */
   | 'nord'
   | 'dracula'
@@ -451,6 +446,8 @@ export interface ToolField {
   optionsSource?: 'tasks' | 'projects'
   defaultValue?: string | number | boolean
   hint?: string
+  /** 仅当同表单另一字段取指定值时才显示（多模式计算器用它收起无关输入） */
+  visibleWhen?: { key: string; values: string[] }
   /** type=path 时用于调用系统选择对话框的形式 */
   pathKind?: 'file' | 'directory'
 }

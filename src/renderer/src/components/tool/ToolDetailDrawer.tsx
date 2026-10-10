@@ -5,7 +5,7 @@ import { TOOL_CATEGORY_META } from '@shared/constants'
 import { Drawer } from '../ui/Overlay'
 import { Badge } from '../ui/Feedback'
 import { Button, IconButton } from '../ui/Button'
-import { ToolRunnerForm, initialPayload, validatePayload, type ToolPayload } from './ToolRunnerForm'
+import { ToolRunnerForm, initialPayload, validatePayload, visibleFields, type ToolPayload } from './ToolRunnerForm'
 import { useToolStore } from '../../stores/toolStore'
 import { useAppStore } from '../../stores/appStore'
 import { formatDateTime, formatDurationMs } from '../../lib/utils'
@@ -59,7 +59,7 @@ export function ToolDetailDrawer({ manifest, open, onClose }: ToolDetailDrawerPr
   }
 
   const handleRun = async (): Promise<void> => {
-    const validation = validatePayload(fields, payload)
+    const validation = validatePayload(visibleFields(fields, payload), payload)
     setErrors(validation)
     if (Object.keys(validation).length > 0) {
       pushToast({ title: '请先补全必填项', tone: 'warning' })

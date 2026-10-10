@@ -54,17 +54,21 @@
 - IPC 面：`src/main/ipc/note.ipc.ts`（`note:doc` / `note:marks` / `note:mark-save` / `note:extract-pages` / `note:reorder` / `note:move-many` …）+ `src/shared/types/ipc.ts` + `src/renderer/src/lib/ipc.ts`（新增通道三处同步）
 
 ## 5. 窗口与外壳
-- 自绘标题栏（最小化/最大化/关闭、全屏）：`src/renderer/src/components/layout/TitleBar.tsx`；主进程 `src/main/index.ts`
+- 自绘标题栏（无图标、无下边线；最小化/最大化/关闭、全屏 F11/Esc）：`components/layout/TitleBar.tsx` 的 `.titlebar-rail` 续侧栏分隔线，宽度由 `Sidebar.tsx` 的 ResizeObserver 写进 `--sidebar-w`；主进程 `src/main/index.ts`
 - 应用外壳 / 侧栏 / 皮肤装饰：`AppLayout.tsx`、`Sidebar.tsx`、`SkinChrome.tsx`、`PageGrid.tsx`、`GridBoard.tsx`
 - 全局状态：`src/renderer/src/stores/appStore.ts`（主题、皮肤、设置）
 
 ## 6. 主题与皮肤（`src/renderer/src/styles/index.css`）
 - 令牌：`[data-theme]` / `[data-skin]` 上的 `--n-*`、`--p-*`、`--r-*`；皮肤规则块按 `html[data-skin=...]` 分组（magazine / glass / terminal / brutal / dash / cream / retro …）
+- 风格预设：`shared/constants.ts` 的 `THEME_PRESETS`（默认主题下 5 种配色 + 8 种观感）+ `index.css` 第一节 `[data-preset=...]`；`themePresetsOf(group)` 分组、`themePreview()` 取预览色；删预设要同时改 `ThemePreset` 联合与 CSS 段
+- 面向用户的提示文案（hint / 占位 / 空态）改动规矩见 `docs/modifications/by-feature/ui-copy.md`
 - **新增组件样式一律走主题令牌**（`hsl(var(--...))`），不要写死颜色，否则会破坏皮肤适配
 - 阅读与批注相关组件层：`.mw-*`（书页、圈画、旁注）、`.cmp-*`（对比工作台）、`.reader-*`
 
 ## 7. 工具集 / 任务 / 统计 / 番茄（速查）
-- 工具：`src/main/tools/registry.ts`（注册即生效）、`tools/runners/*.runner.ts`、`src/main/utils/{binaries,command,dependency-check}.ts`、页面 `ToolsPage.tsx` + `components/tool/*`
+- 工具：`src/main/tools/registry.ts`（注册即生效）、`tools/runners/*.runner.ts`、`src/main/utils/{binaries,command,dependency-check}.ts`、页面 `ToolsPage.tsx`（看板 `workstation.grid.tools.v5`）+ `components/tool/*`
+- 计算类共用件：`src/main/tools/engineering.ts`（`parseQty` 工程计数法 / `fmtQty` / `E24·E12·nearestSeries·standardText`）；多模式表单按 `ToolField.visibleWhen` 只显示当前模式的输入项（`ToolRunnerForm.tsx#visibleFields`）
+- 滤波与电路：`filter-calc.runner.ts`（速算与反算）、`opamp-calc.runner.ts`、`filter-sim.runner.ts#buildNetlist`（九种结构搭网表）；求解用开源引擎 `analog-filter-designer`，本项目封装在 `src/main/tools/mna.ts`（`sweep / bandMetrics / polesAndZeros / stepResponse / toCsv`），类型声明 `analog-filter-designer.d.ts`
 - 任务：`pages/TasksPage.tsx`、`components/task/*`、`services/task.service.ts`、`repositories/task.repo.ts`
 - 统计：`pages/StatsPage.tsx`、`components/stats/*`、`services/stats.service.ts`、`overview.service.ts`
 - 番茄与专注：`pages/PomodoroPage.tsx`（取数 + 栅格 storageKey v5 + 空格 / R 快捷键）、视觉组件 `components/pomodoro/PomoStage.tsx`（`PHASE_VISUALS` / `bodyColorsFor` / `TomatoDial` / 六行栅格舞台）与 `PomoPanels.tsx`（`RHYTHM_PRESETS` 整套预设 / `PomoParams` 步进器 + `RhythmBand` 节奏带 / `PomoToday` 今日热力带）、CSS `.pomo-*`（`--pomo-h` 阶段色相、`.pomo-stage` 六行 grid）

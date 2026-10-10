@@ -465,7 +465,7 @@ export function TasksPage(): JSX.Element {
                     ? '本周日程'
                     : '本月日程'
               }
-              description="拖拽卡片可在任意日期之间移动，同一日期内可自由排序；超时事项置顶、优先事项其次，未设置截止时间的事项可随意拖拽；把截止时间早的事项拖到更晚位置时会弹窗确认是否修改截止时间"
+              description="拖到别的日期即改期，同一天内可拖动排序；截止时间变晚会弹窗确认"
               action={
                 <div className="flex items-center gap-2">
                   <IconButton label="上一页" onClick={() => shift(-1)}>
