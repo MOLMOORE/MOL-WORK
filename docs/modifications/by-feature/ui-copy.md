@@ -10,6 +10,7 @@
   - **复述标题 / 按钮的 description**：ToolsPage 3 处、NotesPage 2 处、统计面板 3 处、两个回收站弹窗、GridBoard 的 title；
   - **营销与拟人尾句**：「保持节奏即可」「继续保持」「最贴合本站气质」「开始规划」「留下记忆」「便于复盘 / 便于后续识别」；
   - **工具 description 里的引擎名与实现背景**：FFmpeg / Pandoc / yt-dlp / Playwright / 开源 MNA 引擎。
+- 用户复核后补删两处（v1.2.7 第 2 轮）：时钟形状脚注的「不再出现「中等看着和常规一样、粗和特粗又回到半粗」的情况」与英文日期那句「日期格式选「英文」时，星期会跟着变成英文（如 Sep 17, 2026 · Thu）」——都是历史修复说明，不是当前功能的作用。
 - 结果：`hint-scan.mjs` 口径下 ≥18 字的提示 65 → 45 条，剩下的全是格式清单、URL / 路径示例、快捷键与不可逆后果警告。
 - 位置：`components/**` 16 文件、`pages/**` 7 文件、`main/tools/runners/**` 7 文件、`shared/constants.ts`、`SettingsPage.tsx`。
 - 验证：`node work/patch/hint-scan.mjs` 复扫计数；`work/patch/v127-verify.mjs` 把 diff 里的中文剥离后逐文件比对，确认无一处非文案改动；tsc + build 通过。

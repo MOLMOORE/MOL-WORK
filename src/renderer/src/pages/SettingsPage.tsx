@@ -793,8 +793,7 @@ export function SettingsPage(): JSX.Element {
                 <p className="text-[11px] leading-relaxed text-muted-foreground/80">
                   选「自适应」时字号随时块大小变化；选固定档位时，若方块太小，
                   仍按能完整显示的最大尺寸呈现（把方块拖大即可看到该档位的真实效果）。
-                  笔画粗细已内置可变字体，细 / 常规 / 中等 / 半粗 / 粗 / 特粗 六档各对应一个真实字重，
-                  不再出现「中等看着和常规一样、粗和特粗又回到半粗」的情况。
+                  笔画粗细已内置可变字体，细 / 常规 / 中等 / 半粗 / 粗 / 特粗 六档各对应一个真实字重。
                 </p>
               </div>
 
@@ -845,7 +844,6 @@ export function SettingsPage(): JSX.Element {
 
               <p className="text-[11px] leading-relaxed text-muted-foreground/80">
                 {CLOCK_STYLES.find((item) => item.key === clockStyle)?.hint ?? ''}。
-                日期格式选「英文」时，星期会跟着变成英文（如 Sep 17, 2026 · Thu）。
               </p>
             </div>
             <div className="grid grid-cols-2 gap-4">
