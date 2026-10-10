@@ -3,6 +3,9 @@
 > 功能线速查：`AGENTS.md` 第 0 / 6 节、`docs/feature-index.md`、`docs/modifications/`
 > 记录格式见 `docs/modifications/README.md`；新改动**追加在本行下方的最前面**。
 
+## 2026-10-10 · v1.2.6（housekeeping）
+- 新增仓库精简记录：`by-version/v1.2.6-housekeeping.md`（`.gitignore` 增 `work/`；README 增「目录结构」节）。
+
 ## 2026-09-23 · v1.2.5 第 4 轮（建立）
 - 需求：① 自查之前几轮有没有按 AGENTS.md 执行（尤其「先查参考并核验再动手」），没有就记进记忆；② 建一份功能→文件索引；③ 建一个存修改记录的文件夹（按版本 + 按功能两套），并把这套做法写进 AGENTS.md。
 - 自查：第 5 节只在部分改动上做到位（翻页动效 / fixed 包含块 / Tailwind preflight 查过规范；批注锚定、对比层级、文字视图是凭推断改的，同一块返工三次）。第 4 节检查分级一直合规。

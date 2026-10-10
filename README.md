@@ -6,6 +6,20 @@
 软件内部是一条闭环：任务挂上笔记，笔记生成复习计划，复习到点自动排进第二天的日程，调度器到点弹系统通知；
 专注记录和工具执行记录回流到统计层，最后汇总成趋势图和日报。
 
+## 目录结构
+
+```text
+src/       # main / preload / renderer / shared 四层
+docs/      # feature-index.md + modifications（by-version / by-feature）
+build/     # 图标与安装脚本
+scripts/   # check-tools / selftest / make-icon
+release/   # 最新安装包 + archive（仅存 GitHub 未发布的旧版）
+work/      # 一次性取证与临时脚本，不入库
+out/       # 构建产物，不入库
+```
+
+`release/` 根目录只保留最新版安装包，GitHub Releases 是 1.2.0+ 各版的权威副本。
+
 ## 功能
 
 ### 任务与日程
