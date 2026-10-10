@@ -22,27 +22,10 @@ export type ToolCategory = 'image' | 'audio' | 'video' | 'doc' | 'download' | 'e
 export type DependencyId = 'pandoc' | 'ffmpeg' | 'yt-dlp' | 'playwright'
 export type ThemeMode = 'dark' | 'light' | 'system'
 /**
- * 「默认主题」下的风格（配色 / 观感）清单，共 18 种。
- * 1.2.4 起历史上那些独立命名的主题全部收编为默认主题的风格：
- * 选中「默认主题」后才能挑风格；风格只改颜色与观感，不改界面结构。
- * 全部风格与深浅色正交，任意风格都能在深色 / 浅色下使用。
+ * 「默认主题」下的 5 种配色，选中「默认主题」后才能挑；只改颜色，不改界面结构。
+ * 全部配色与深浅色正交，任意一种都能在深色 / 浅色下使用。
  */
-export type ThemePreset =
-  /* 默认主题的 5 种配色 */
-  | 'minimal'
-  | 'mono'
-  | 'paper'
-  | 'ocean'
-  | 'moss'
-  /* 独立风格主题 */
-  | 'nord'
-  | 'dracula'
-  | 'gruvbox'
-  | 'catppuccin'
-  | 'tokyonight'
-  | 'synthwave'
-  | 'brutalism'
-  | 'terminal'
+export type ThemePreset = 'minimal' | 'mono' | 'paper' | 'ocean' | 'moss'
 /**
  * 主题皮肤（顶层）。与「默认主题」下的风格并列，皮肤会重排界面结构：
  * 侧栏位置、导航形态、卡片造型、字体、页面底纹与状态栏一起变。

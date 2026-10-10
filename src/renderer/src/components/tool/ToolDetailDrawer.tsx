@@ -217,7 +217,7 @@ export function ToolDetailDrawer({ manifest, open, onClose }: ToolDetailDrawerPr
             该工具运行记录
           </p>
           {toolHistory.length === 0 ? (
-            <p className="mt-2 text-[11px] text-muted-foreground">暂无记录，执行一次即可生成历史。</p>
+            <p className="mt-2 text-[11px] text-muted-foreground">执行一次后生成历史</p>
           ) : (
             <div className="mt-2 flex flex-col gap-1.5">
               {toolHistory.map((item) => (

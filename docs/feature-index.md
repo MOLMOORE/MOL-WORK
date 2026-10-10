@@ -60,7 +60,7 @@
 
 ## 6. 主题与皮肤（`src/renderer/src/styles/index.css`）
 - 令牌：`[data-theme]` / `[data-skin]` 上的 `--n-*`、`--p-*`、`--r-*`；皮肤规则块按 `html[data-skin=...]` 分组（magazine / glass / terminal / brutal / dash / cream / retro …）
-- 风格预设：`shared/constants.ts` 的 `THEME_PRESETS`（默认主题下 5 种配色 + 8 种观感）+ `index.css` 第一节 `[data-preset=...]`；`themePresetsOf(group)` 分组、`themePreview()` 取预览色；删预设要同时改 `ThemePreset` 联合与 CSS 段
+- 配色预设：`shared/constants.ts` 的 `THEME_PRESETS`（v1.2.7 起默认主题下只剩 5 种配色，「观感风格」整组已删）+ `index.css` 第一节 `[data-preset=...]`；`themePreview()` 取预览色；`appStore#applyTheme` 会把设置里已下架的值落回 `minimal`；删预设要同时改 `ThemePreset` 联合与 CSS 段
 - 面向用户的提示文案（hint / 占位 / 空态）改动规矩见 `docs/modifications/by-feature/ui-copy.md`
 - **新增组件样式一律走主题令牌**（`hsl(var(--...))`），不要写死颜色，否则会破坏皮肤适配
 - 阅读与批注相关组件层：`.mw-*`（书页、圈画、旁注）、`.cmp-*`（对比工作台）、`.reader-*`

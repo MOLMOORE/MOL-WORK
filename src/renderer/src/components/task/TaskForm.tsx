@@ -194,7 +194,7 @@ export function TaskForm({ open, onClose, initial, defaultProjectId, defaultDueA
             rows={4}
             value={detail}
             onChange={(event) => setDetail(event.target.value)}
-            placeholder="完成标准、参考资料、拆解步骤，便于复盘"
+            placeholder="完成标准、参考资料、拆解步骤"
           />
         </Field>
       </div>

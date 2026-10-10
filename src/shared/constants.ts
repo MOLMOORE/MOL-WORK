@@ -17,10 +17,8 @@ import type {
 /** 软件名：侧边栏字标、窗口标题、托盘提示与系统通知统一使用 */
 export const APP_NAME = 'MOL-WORK'
 
-export type ThemeGroup = 'palette' | 'style'
-
 /**
- * 主题皮肤（顶层）：与「默认主题」下的风格并列，每种皮肤会重排界面结构。
+ * 主题皮肤（顶层）：与「默认主题」下的配色并列，每种皮肤会重排界面结构。
  * layout 描述导航与模块摆放，shape 决定设置页预览缩略图的圆角语言。
  */
 export const THEME_SKINS: {
@@ -36,7 +34,7 @@ export const THEME_SKINS: {
   {
     key: 'default',
     label: '默认主题',
-    hint: '左侧栏 + 顶栏 + 卡片看板，可再挑 5 种配色与 8 种观感',
+    hint: '左侧栏 + 顶栏 + 卡片看板，可再挑 5 种配色',
     nativeMode: 'light',
     layout: '侧边导航 · 卡片看板',
     shape: 'soft',
@@ -113,25 +111,21 @@ export function themeSkinLabel(skin: ThemeSkin | undefined): string {
 }
 
 /**
- * 「默认主题」下的 13 种风格，只有选中默认主题时才可选：
- * - palette（配色风格）5 种：只改颜色旋钮，版式与默认一致；
- * - style（观感风格）8 种：连圆角 / 描边 / 阴影 / 字体 / 底纹一起改，配色取自各风格官方规范。
+ * 「默认主题」下的 5 种配色，只有选中默认主题时才可选：只改颜色旋钮，版式与默认一致。
  * preview 三元组 = [页面底, 卡片底, 强调色]，与 styles/index.css 的同名旋钮对应。
  */
 export const THEME_PRESETS: {
   key: ThemePreset
   label: string
   hint: string
-  group: ThemeGroup
-  /** 该主题原本的深浅色底色，用于「跟随系统」与预览 */
+  /** 该配色原本的深浅色底色，用于「跟随系统」与预览 */
   nativeMode: 'dark' | 'light'
   preview: { dark: [string, string, string]; light: [string, string, string] }
 }[] = [
   {
     key: 'minimal',
     label: '素白简约',
-    hint: '冷灰白 + 克制蓝，默认风格',
-    group: 'palette',
+    hint: '冷灰白 + 克制蓝，默认配色',
     nativeMode: 'light',
     preview: { light: ['#F9FAFB', '#FFFFFF', '#1D7EED'], dark: ['#141619', '#1D2024', '#559EF1'] }
   },
@@ -139,7 +133,6 @@ export const THEME_PRESETS: {
     key: 'mono',
     label: '极简黑白',
     hint: '完全去色，只靠明暗分层',
-    group: 'palette',
     nativeMode: 'light',
     preview: { light: ['#FAFAFA', '#FFFFFF', '#242424'], dark: ['#141414', '#1F1F1F', '#F5F5F5'] }
   },
@@ -147,7 +140,6 @@ export const THEME_PRESETS: {
     key: 'paper',
     label: '宣纸暖白',
     hint: '暖米纸底 + 松绿，久读不刺眼',
-    group: 'palette',
     nativeMode: 'light',
     preview: { light: ['#F9F8F6', '#FFFFFF', '#2F7E61'], dark: ['#1F1B13', '#24201A', '#4FBF95'] }
   },
@@ -155,7 +147,6 @@ export const THEME_PRESETS: {
     key: 'ocean',
     label: '靛青',
     hint: '清冷青蓝，适合高密度信息',
-    group: 'palette',
     nativeMode: 'light',
     preview: { light: ['#FAFCFD', '#FFFFFF', '#0E88B8'], dark: ['#141819', '#1D2224', '#3EB6DE'] }
   },
@@ -163,90 +154,11 @@ export const THEME_PRESETS: {
     key: 'moss',
     label: '苔原',
     hint: '草绿强调，最省眼',
-    group: 'palette',
     nativeMode: 'light',
     preview: { light: ['#F9FBF9', '#FFFFFF', '#2E834F'], dark: ['#141815', '#1D221E', '#5CC08A'] }
-  },
-  {
-    key: 'nord',
-    label: '北欧极光',
-    hint: '深蓝灰 + 冰蓝，扁平无投影（Nord）',
-    group: 'style',
-    nativeMode: 'dark',
-    preview: { light: ['#ECEFF4', '#E5E9F0', '#5E81AC'], dark: ['#2E3440', '#3B4252', '#88C0D0'] }
-  },
-  {
-    key: 'dracula',
-    label: '德古拉',
-    hint: '暗紫灰 + 粉紫青，卡片霓虹描边（Dracula）',
-    group: 'style',
-    nativeMode: 'dark',
-    preview: { light: ['#F8F8F2', '#FFFFFF', '#BD93F9'], dark: ['#282A36', '#343746', '#FF79C6'] }
-  },
-  {
-    key: 'gruvbox',
-    label: '复古木纹',
-    hint: '暖褐 + 姜黄赭红，直角双线（Gruvbox）',
-    group: 'style',
-    nativeMode: 'dark',
-    preview: { light: ['#FBF1C7', '#F2E5BC', '#AF3A00'], dark: ['#282828', '#3C3836', '#FABD2F'] }
-  },
-  {
-    key: 'catppuccin',
-    label: '卡布奇诺',
-    hint: '豆沙紫 + 大圆角软影（Catppuccin）',
-    group: 'style',
-    nativeMode: 'dark',
-    preview: { light: ['#EFF1F5', '#F5F6FC', '#8839EF'], dark: ['#1E1E2E', '#313244', '#CBA6F7'] }
-  },
-  {
-    key: 'tokyonight',
-    label: '东京夜色',
-    hint: '墨蓝 + 靛青紫，卡片顶部渐变光带（Tokyo Night）',
-    group: 'style',
-    nativeMode: 'dark',
-    preview: { light: ['#EAF1F8', '#FFFFFF', '#1A5CAB'], dark: ['#1A1B26', '#24283B', '#7AA2F7'] }
-  },
-  {
-    key: 'synthwave',
-    label: '赛博霓虹',
-    hint: '夜色渐变底 + 半透明卡片与霓虹辉光',
-    group: 'style',
-    nativeMode: 'dark',
-    preview: { light: ['#FDE7F3', '#FFFFFF', '#D4267E'], dark: ['#1A1029', '#2A1B45', '#FF7EDB'] }
-  },
-  {
-    key: 'brutalism',
-    label: '粗野主义',
-    hint: '黑描边 + 硬投影 + 直角大写标题',
-    group: 'style',
-    nativeMode: 'light',
-    preview: { light: ['#FFF9E6', '#FFFFFF', '#FFD400'], dark: ['#111111', '#1B1B1B', '#FFD400'] }
-  },
-  {
-    key: 'terminal',
-    label: '荧光终端',
-    hint: '纯黑 + 荧光绿等宽 + 扫描线',
-    group: 'style',
-    nativeMode: 'dark',
-    preview: { light: ['#F2F5F2', '#FFFFFF', '#0A6B34'], dark: ['#050D07', '#0A1810', '#33FF66'] }
   }
 ]
 
-export const THEME_GROUP_META: Record<ThemeGroup, { label: string; description: string }> = {
-  palette: {
-    label: '配色风格',
-    description: '只换中性色与强调色，版式与默认一致'
-  },
-  style: {
-    label: '观感风格',
-    description: '连圆角、描边、阴影、字体与底纹一起换'
-  }
-}
-
-export function themePresetsOf(group: ThemeGroup): typeof THEME_PRESETS {
-  return THEME_PRESETS.filter((item) => item.group === group)
-}
 /** 主题预览取哪套底色：跟随当前生效的深浅色 */
 export function themePreview(preset: ThemePreset, mode: 'dark' | 'light'): [string, string, string] {
   const meta = THEME_PRESETS.find((item) => item.key === preset) ?? THEME_PRESETS[0]

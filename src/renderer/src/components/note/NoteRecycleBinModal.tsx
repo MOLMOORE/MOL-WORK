@@ -142,7 +142,7 @@ export function NoteRecycleBinModal({ open, onClose }: NoteRecycleBinModalProps)
             ))}
           </div>
           <span className="text-[10px] text-muted-foreground/80">
-            保留期内正文、批注与阅读进度都原样保存，恢复后回到原来的位置
+            保留期内正文、批注与阅读进度原样保存
           </span>
         </div>
 
@@ -155,7 +155,6 @@ export function NoteRecycleBinModal({ open, onClose }: NoteRecycleBinModalProps)
           <EmptyState
             icon={<Trash2 className="h-5 w-5" />}
             title="回收站是空的"
-            description="批量删除的条目先进这里，保留期内可恢复"
           />
         ) : (
           <div className="flex flex-col gap-2">
@@ -212,7 +211,7 @@ export function NoteRecycleBinModal({ open, onClose }: NoteRecycleBinModalProps)
       <ConfirmDialog
         open={clearAsk}
         title="清空回收站"
-        description={`将彻底删除回收站中的 ${deleted.length} 条资料，无法恢复。确定继续吗？`}
+        description={`将彻底删除回收站中的 ${deleted.length} 条资料，无法恢复。`}
         confirmText="全部彻底删除"
         onCancel={() => setClearAsk(false)}
         onConfirm={() => void handleClearAll()}

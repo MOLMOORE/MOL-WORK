@@ -26,7 +26,7 @@ export function CloseBehaviorDialog(): JSX.Element | null {
         await api.app.updateSettings({ closeAction: action })
         pushToast({
           title: '已记住关闭行为',
-          description: action === 'background' ? '以后点击 X 将直接进入后台，可在设置中更改' : '以后点击 X 将直接退出，可在设置中更改',
+          description: action === 'background' ? '点 X 直接进入后台（可在设置改回）' : '点 X 直接退出（可在设置改回）',
           tone: 'success'
         })
       }
@@ -46,7 +46,6 @@ export function CloseBehaviorDialog(): JSX.Element | null {
       open={open}
       onClose={() => setOpen(false)}
       title={`关闭 ${APP_NAME}`}
-      description="后台运行会留在系统托盘，提醒照常"
       width="max-w-lg"
       footer={
         <>
@@ -67,7 +66,7 @@ export function CloseBehaviorDialog(): JSX.Element | null {
           <span className="min-w-0 flex-1">
             <span className="block text-xs font-semibold text-foreground">进入后台运行（推荐）</span>
             <span className="mt-0.5 block text-[11px] leading-relaxed text-muted-foreground">
-              窗口隐藏到系统托盘，截止提醒、复习提醒依然生效，双击托盘图标即可回到软件
+              隐藏到系统托盘，提醒照常 · 双击托盘图标回到软件
             </span>
           </span>
         </button>
@@ -82,7 +81,7 @@ export function CloseBehaviorDialog(): JSX.Element | null {
           <span className="min-w-0 flex-1">
             <span className="block text-xs font-semibold text-foreground">真正关闭软件</span>
             <span className="mt-0.5 block text-[11px] leading-relaxed text-muted-foreground">
-              完全退出应用，关闭后不会收到任何截止与日程提醒
+              退出后不再收到截止与日程提醒
             </span>
           </span>
         </button>

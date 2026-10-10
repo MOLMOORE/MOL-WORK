@@ -88,7 +88,7 @@ export function ProjectManager({ open, onClose }: { open: boolean; onClose: () =
         open={open}
         onClose={onClose}
         title="项目与课程"
-        description="任务归属的项目 / 课程，新建后可在任务表单里选"
+        description="新建后可在任务表单里选择"
         width="max-w-lg"
         footer={
           <>
@@ -146,7 +146,7 @@ export function ProjectManager({ open, onClose }: { open: boolean; onClose: () =
                 </div>
               </Field>
             </div>
-            <Field label="描述" hint="可选，便于后续识别">
+            <Field label="描述" hint="可选">
               <Textarea
                 rows={3}
                 value={draft.description}
@@ -159,7 +159,6 @@ export function ProjectManager({ open, onClose }: { open: boolean; onClose: () =
           <EmptyState
             icon={<FolderKanban className="h-5 w-5" />}
             title="还没有项目或课程"
-            description="新建后，任务可按归属分类统计"
             action={
               <Button variant="primary" size="sm" icon={<Plus className="h-3.5 w-3.5" />} onClick={startCreate}>
                 新增项目 / 课程
@@ -205,7 +204,7 @@ export function ProjectManager({ open, onClose }: { open: boolean; onClose: () =
       <ConfirmDialog
         open={removeTarget !== null}
         title="删除项目 / 课程"
-        description={`删除「${removeTarget?.name ?? ''}」后，其下任务不会丢失，将变为未归属。确定删除吗？`}
+        description={`删除「${removeTarget?.name ?? ''}」后，其下任务变为未归属，不会丢失。`}
         confirmText="确认删除"
         onCancel={() => setRemoveTarget(null)}
         onConfirm={() => void handleRemove()}

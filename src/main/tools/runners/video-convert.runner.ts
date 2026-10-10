@@ -16,7 +16,7 @@ export const videoConvertTool: ToolDefinition = {
     name: '视频转换',
     category: 'video',
     description:
-      '用 FFmpeg 互转 MP4 / MKV / WebM / MOV / AVI，也可导出 GIF。',
+      '视频格式互转，可导出 GIF。',
     icon: 'Video',
     requires: ['ffmpeg'],
     builtin: true,

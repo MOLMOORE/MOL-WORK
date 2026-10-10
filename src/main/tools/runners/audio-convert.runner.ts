@@ -17,7 +17,7 @@ export const audioConvertTool: ToolDefinition = {
     name: '音频转换',
     category: 'audio',
     description:
-      '用 FFmpeg 转码音频，或从视频里提取音轨。',
+      '转码音频，或从视频提取音轨。',
     icon: 'AudioLines',
     requires: ['ffmpeg'],
     builtin: true,

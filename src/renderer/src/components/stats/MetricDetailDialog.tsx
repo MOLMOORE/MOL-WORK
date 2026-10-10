@@ -22,28 +22,28 @@ export interface MetricDetailDialogProps {
 const META: Record<MetricDetailKind, { title: string; description: string; icon: JSX.Element; path: string; pathLabel: string }> = {
   focus: {
     title: '区间专注明细',
-    description: '统计区间内每一次专注计时记录',
+    description: '每一次专注计时',
     icon: <TrendingUp className="h-4 w-4" />,
     path: '/focus',
     pathLabel: '前往专注'
   },
   completed: {
     title: '区间完成任务',
-    description: '统计区间内完成的事项清单',
+    description: '已完成事项清单',
     icon: <BarChart3 className="h-4 w-4" />,
     path: '/tasks',
     pathLabel: '前往任务'
   },
   tools: {
     title: '区间工具调用',
-    description: '统计区间内每一次工具执行记录',
+    description: '每一次工具执行',
     icon: <FileText className="h-4 w-4" />,
     path: '/tools',
     pathLabel: '前往工具集市'
   },
   today: {
     title: '今日快照',
-    description: '今日专注、完成、复习与工具调用概览',
+    description: '专注、完成、复习与工具调用',
     icon: <CalendarRange className="h-4 w-4" />,
     path: '/',
     pathLabel: '前往仪表盘'
@@ -177,7 +177,7 @@ export function MetricDetailDialog({
           {summary}
           {kind === 'focus' ? (
             sessions.length === 0 ? (
-              <EmptyState title="区间内没有专注记录" description="开始一次专注计时后会在这里出现明细" />
+              <EmptyState title="区间内没有专注记录" description="开始专注计时后出现明细" />
             ) : (
               <div className="flex flex-col gap-2">
                 {sessions.map((session) => (
@@ -211,7 +211,7 @@ export function MetricDetailDialog({
 
           {kind === 'tools' ? (
             windowToolRuns.length === 0 ? (
-              <EmptyState title="区间内没有工具调用" description="工具执行明细会出现在这里" />
+              <EmptyState title="区间内没有工具调用" />
             ) : (
               <div className="flex flex-col gap-2">
                 {windowToolRuns.map((run) => (

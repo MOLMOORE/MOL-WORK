@@ -82,7 +82,7 @@ export function TopBar(): JSX.Element {
         <button
           type="button"
           onClick={() => setProjectsOpen(true)}
-          title="管理项目与课程（可新增、编辑、删除）"
+          title="管理项目与课程"
           className="hidden items-center gap-1 rounded-full border border-border bg-muted/50 px-2.5 py-1 text-[11px] text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground xl:flex"
         >
           <FolderKanban className="h-3 w-3 text-tint-primary" />

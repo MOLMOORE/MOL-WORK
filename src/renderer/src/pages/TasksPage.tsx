@@ -415,7 +415,7 @@ export function TasksPage(): JSX.Element {
             <EmptyState
               icon={<ListChecks className="h-5 w-5" />}
               title="没有符合条件的任务"
-              description="调整筛选条件，或新建一个任务开始规划"
+              description="调整筛选条件，或新建任务"
               action={
                 <Button variant="primary" size="sm" icon={<Plus className="h-3.5 w-3.5" />} onClick={() => openCreate()}>
                   新建任务

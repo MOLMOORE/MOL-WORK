@@ -1349,14 +1349,14 @@ export function ReaderPage(): JSX.Element {
             label="滚轮翻页"
             hint={
               wheelFlip
-                ? '滚轮滚到页面边缘就翻页：点一下关掉可以防误触（Ctrl+滚轮缩放不受影响）'
-                : '滚轮翻页已关闭：滚轮只滚动这一页，翻页用 ←／→、两侧点击或上方按键'
+                ? '滚到页面边缘即翻页（Ctrl+滚轮缩放不受影响）'
+                : '已关闭：滚轮只滚动本页，翻页用 ←／→ 或两侧点击'
             }
             icon={<Mouse className="h-3.5 w-3.5" />}
             onClick={() => {
               const next = !wheelFlip
               setWheelFlip(next)
-              showHint(next ? '已开启滚轮翻页：滚到页面边缘就翻页' : '已关闭滚轮翻页：滚轮只滚动当前页面')
+              showHint(next ? '已开启滚轮翻页：滚到边缘即翻页' : '已关闭滚轮翻页：滚轮只滚本页')
             }}
           />
         ) : null}
@@ -1379,7 +1379,7 @@ export function ReaderPage(): JSX.Element {
           </IconButton>
           <button
             type="button"
-            title={mode === 'pages' ? '恢复适页（Ctrl+0）' : pagedText ? '恢复适页（Ctrl+0）：页面边界也交还给窗口' : '恢复 100%（Ctrl+0）'}
+            title={mode === 'pages' ? '恢复适页（Ctrl+0）' : pagedText ? '恢复适页（Ctrl+0）' : '恢复 100%（Ctrl+0）'}
             onClick={() => {
               if (mode === 'pages') {
                 resetZoom()
@@ -1439,7 +1439,7 @@ export function ReaderPage(): JSX.Element {
           {canTextView ? (
             <Segmented
               value={textView ? 'text' : 'pages'}
-              title="阅读方式：书页按原版式整页放大，文字可以换字体与字号"
+              title="书页按原版式，文字可换字体字号"
               options={[
                 { key: 'pages', label: '书页' },
                 { key: 'text', label: '文字' }
@@ -1468,12 +1468,12 @@ export function ReaderPage(): JSX.Element {
                 <ToolButton
                   on={inkMode}
                   label="圈注"
-                  hint={inkMode ? '当前形状：' + (INK_SHAPE_LABELS.find((item) => item.key === inkShape)?.label ?? '') + ' · 再点一下退出圈注（Esc 也可以）' : '在页面上圈出一块（可选形状），松手就能给它写批注'}
+                  hint={inkMode ? '当前形状：' + (INK_SHAPE_LABELS.find((item) => item.key === inkShape)?.label ?? '') + ' · 再点退出（Esc）' : '在页面上圈出一块写批注（形状可选）'}
                   icon={<Highlighter className="h-3.5 w-3.5" />}
                   onClick={() =>
                     setInkMode((value) => {
                       const next = !value
-                      showHint(next ? '圈注模式：在页面上按住拖动圈住要注释的部分，松手写批注（Esc 退出）' : '已退出圈注模式')
+                      showHint(next ? '圈注模式：按住拖动圈出要注释的部分（Esc 退出）' : '已退出圈注模式')
                       return next
                     })}
                 />
@@ -1501,7 +1501,6 @@ export function ReaderPage(): JSX.Element {
           {inkMode ? (
             <Segmented
               value={inkShape}
-              title="圈注形状：这一笔用什么形状圈"
               options={INK_SHAPE_LABELS.map((item) => ({ key: item.key, label: item.label }))}
               onChange={(key) => setInkShape(key as InkShape)}
             />
@@ -1512,7 +1511,7 @@ export function ReaderPage(): JSX.Element {
           {mode === 'pages' && pdf ? (
             <>
               <IconButton
-                label={compare.length >= 2 ? '页面对比（已选 ' + compare.length + ' 页）' : '页面对比：把任意几页并排放着比'}
+                label={compare.length >= 2 ? '页面对比（已选 ' + compare.length + ' 页）' : '页面对比：把几页并排看'}
                 onClick={() => {
                   setCompare((list) => (list.includes(page) ? list : [...list, page].sort((a, b) => a - b).slice(0, MAX_COMPARE)))
                   setCompareOpen(true)
@@ -1718,12 +1717,12 @@ export function ReaderPage(): JSX.Element {
               {hasPages ? `第 ${page} / ${pageCount} 页` : '连续阅读'}
             </span>
             <span className="h-3 w-px bg-border" />
-            <span title="方向键翻页，点页面两侧的小按键也行；翻到头会提示一声">← → 翻页</span>
+            <span title="方向键翻页，或点页面两侧小按键">← → 翻页</span>
             <span title="空格 / PageDown 下一页，Shift+空格 / PageUp 上一页，Home / End 首尾页">空格 下页</span>
             <span title="Ctrl+滚轮或 +/- 缩放，0 复位；放大后按住左键拖动画面">Ctrl+滚轮 缩放</span>
             <span title="给这一页加书签 / 标为重点页 / 写注释">B 书签 · S 重点 · E 注释</span>
             <span title="1 单页 · 2 双页 · 3 连续，L 依次切换">1 2 3 布局</span>
-            {mode === 'pages' ? <span title="R 旋转这一页；圈注可选形状，点纸上的圈在旁边展开">R 旋转</span> : null}
+            {mode === 'pages' ? <span title="R 旋转这一页">R 旋转</span> : null}
             {mode === 'text' ? <span title="选中正文后按下即涂亮，再按一次取消">Ctrl+Shift+H 高亮</span> : null}
             <span title="F 或 F11 全屏；Esc 先收浮层、再退全屏">F 全屏</span>
             {readMinutes > 0 ? (
@@ -1813,7 +1812,7 @@ export function ReaderPage(): JSX.Element {
 /* ==================== 分段按钮 ==================== */
 function Segmented(props: {
   value: string
-  title: string
+  title?: string
   options: { key: string; label: string; icon?: JSX.Element }[]
   onChange: (key: string) => void
 }): JSX.Element {
@@ -1873,7 +1872,7 @@ interface InkRegion {
 }
 
 const INK_SHAPE_LABELS: { key: InkShape; label: string; hint: string }[] = [
-  { key: 'free', label: '自由', hint: '按住拖动，想怎么圈就怎么圈' },
+  { key: 'free', label: '自由', hint: '按住拖动自由圈画' },
   { key: 'rect', label: '矩形', hint: '按住拖出一个矩形框' },
   { key: 'ellipse', label: '圆圈', hint: '按住拖出一个椭圆，往斜角拖就是圆圈' },
   { key: 'polygon', label: '多边形', hint: '单击逐个落点，点回起点或按 Enter 闭合成形，Esc 作废' }
@@ -2258,7 +2257,7 @@ function SelectionBar(props: {
             className="tx-selbar-dot"
             data-on={item.key === color ? '1' : '0'}
             style={{ background: item.css }}
-            title={'用' + item.label + '色荧光笔涂亮这一段（选中后按 Ctrl+Shift+H 也能涂亮 / 取消）'}
+            title={'用' + item.label + '色荧光笔涂亮这一段'}
             onClick={() => {
               onHighlight(sel.range, sel.quote, item.key)
               onClose()
@@ -2270,7 +2269,7 @@ function SelectionBar(props: {
       <button
         type="button"
         className="tx-selbar-btn is-primary"
-        title="给选中的这段在旁边写条注释"
+        title="在旁边写注释"
         onClick={() => {
           onAnnotate(sel.range, sel.quote)
           onClose()
@@ -3769,7 +3768,7 @@ function TextBook(props: TextBookProps): JSX.Element {
           <>
             <span
               className="tx-grip tx-grip-w"
-              title="按住拖动改页面宽度：正文跟着重排，装不下的推到下一页（可以拖得比窗口还宽，超出部分用滚动条看）"
+              title="拖动改页面宽度：正文重排，溢出推到下一页（可比窗口宽，滚动看）"
               onPointerDown={startResize('w')}
               onPointerMove={moveResize}
               onPointerUp={endResize}
@@ -3777,7 +3776,7 @@ function TextBook(props: TextBookProps): JSX.Element {
             />
             <span
               className="tx-grip tx-grip-h"
-              title="按住拖动改页面高度：正文跟着重排，装不下的推到下一页（一屏封顶，免得整篇挤进一页）"
+              title="拖动改页面高度：正文重排，溢出推到下一页（一屏封顶）"
               onPointerDown={startResize('h')}
               onPointerMove={moveResize}
               onPointerUp={endResize}
@@ -4087,8 +4086,7 @@ function ReaderPanel(props: {
             ) : null}
             {tx ? (
               <p className="text-[11px] leading-relaxed text-muted-foreground">
-                这些是「文字页」：按现在的字体、字号与页面边界排出来的一栏一张，改了排版就跟着重排；
-                原版式的页码在「书页」阅读方式下看，两套页码不是一回事。
+                文字页按当前字体与页面边界重排，与书页的页码不是同一套。
               </p>
             ) : null}
           </div>
@@ -4102,10 +4100,10 @@ function ReaderPanel(props: {
               className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-border px-2 py-2 text-[11px] text-muted-foreground hover:text-foreground"
             >
               <NotebookPen className="h-3.5 w-3.5" />
-              给第 {page} 页写注释（E）· 可圈住局部，文字页还能选中一段再标注
+              给第 {page} 页写注释（E）
             </button>
             {notes.length === 0 ? (
-              <p className="p-3 text-xs text-muted-foreground">还没有注释。圈住一块或选中一段文字写下的注释，会带着原文一起存，点纸上的标记就能就地展开。</p>
+              <p className="p-3 text-xs text-muted-foreground">还没有注释。圈住一块或选中一段，注释会连原文一起存。</p>
             ) : (
               notes.map((mark) => <MarkRow key={mark.id} mark={mark} onJump={onJump} onRemove={onRemoveMark} />)
             )}
@@ -4177,7 +4175,7 @@ function ReaderPanel(props: {
 
         {tab === 'page-text' && pdf ? (
           <div className="space-y-2">
-            <p className="text-[11px] text-muted-foreground">这一页的文字（可选中后引用去写注释）</p>
+            <p className="text-[11px] text-muted-foreground">本页文字可选中后引用写注释</p>
             <button
               type="button"
               onClick={() => onCompose(window.getSelection()?.toString().trim() ?? '')}
@@ -4287,7 +4285,7 @@ function MarkComposer(props: {
           autoFocus
           value={body}
           onChange={(event) => setBody(event.target.value)}
-          placeholder="写下你的想法、疑问或总结…"
+          placeholder="想法、疑问或总结…"
           className="field-base mt-3 min-h-[140px] w-full resize-y text-sm leading-relaxed"
         />
         <div className="mt-3 flex items-center justify-end gap-2">
@@ -4903,7 +4901,7 @@ function CompareOverlay(props: {
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold text-foreground">页面对比</p>
           <p className="truncate text-[11px] text-muted-foreground">
-            拖标题条或中键搬整页 · 滚轮或 −／+ 单独放大 · 放大后左键按住纸面拖到任意一角 · 右下角拉大纸框 · 上下调层（两页得先重叠，点「叠放」最直观）
+            拖标题条或中键搬整页 · 滚轮或 −／+ 单独放大 · 放大后左键按住纸面拖动 · 右下角拉大纸框 · 上下调层（需两页重叠）
           </p>
         </div>
         <div className="ml-auto flex shrink-0 items-center gap-1">
@@ -4919,7 +4917,6 @@ function CompareOverlay(props: {
             icon={<Layers className="h-3.5 w-3.5" />}
             onClick={stack}
             disabled={pages.length < 2}
-            title="把挑出来的页错开摞成一叠，方便看谁盖着谁"
           >
             叠放
           </Button>
@@ -4941,7 +4938,7 @@ function CompareOverlay(props: {
         {pages.length === 0 ? (
           <div className="absolute inset-0 grid place-items-center px-6 text-center">
             <div>
-              <p className="text-sm text-muted-foreground">还没挑页：在下方缩略图里点两页就能并排比</p>
+              <p className="text-sm text-muted-foreground">还没挑页：在下方缩略图里点两页</p>
               <Button size="sm" variant="secondary" className="mt-3" onClick={() => setDrawer(true)}>
                 去挑页
               </Button>
@@ -5193,7 +5190,7 @@ function ExtractDialog(props: {
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold text-foreground">页面提取</p>
           <p className="truncate text-[11px] text-muted-foreground">
-            从《{sourceTitle}》里挑任意几页，拼成一份新的 PDF 资料
+            从《{sourceTitle}》挑几页拼成一份新的 PDF 资料
           </p>
         </div>
         <IconButton label="关闭（Esc）" onClick={onClose}>
@@ -5259,8 +5256,7 @@ function ExtractDialog(props: {
               className="field-base mt-1 h-8 w-full text-xs"
             />
             <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
-              提取会原样搬运页面（矢量文字与图片都不重画），新资料单独存进书柜，
-              原书不受影响；也可以直接另存成一份 PDF 文件。
+              提取的页原样存入一份新资料，不改动原书。
             </p>
             {sorted.length > 0 ? (
               <p className="mt-2 max-h-24 overflow-y-auto break-words text-[11px] leading-relaxed text-muted-foreground">

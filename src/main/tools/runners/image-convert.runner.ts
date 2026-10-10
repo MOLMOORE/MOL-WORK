@@ -16,7 +16,7 @@ export const imageConvertTool: ToolDefinition = {
     name: '图片转换',
     category: 'image',
     description:
-      '用 FFmpeg 互转 PNG / JPEG / WebP / BMP / GIF / TIFF，可顺带压缩体积。',
+      '图片格式互转，可压缩体积。',
     icon: 'Image',
     requires: ['ffmpeg'],
     builtin: true,

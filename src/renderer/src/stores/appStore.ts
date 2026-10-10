@@ -9,7 +9,7 @@ import type {
   ThemeSkin
 } from '@shared/types/domain'
 import type { ReminderPayload } from '@shared/types/ipc'
-import { FONT_SIZE_META } from '@shared/constants'
+import { FONT_SIZE_META, THEME_PRESETS } from '@shared/constants'
 import { api } from '../lib/ipc'
 
 export interface ToastItem {
@@ -47,9 +47,10 @@ export function resolveTheme(theme: ThemeMode): 'dark' | 'light' {
 }
 
 /**
- * 应用主题：深浅色 + 皮肤 + 风格一起落到 <html> 的 data 属性上，CSS 变量随即生效。
- * 皮肤（data-skin）是顶层概念，会重排界面结构；风格（data-preset）只在「默认主题」下生效，
- * 切到其他皮肤时把风格临时归一到 minimal，避免旧风格的规则串台（用户挑的风格仍记在设置里）。
+ * 应用主题：深浅色 + 皮肤 + 配色一起落到 <html> 的 data 属性上，CSS 变量随即生效。
+ * 皮肤（data-skin）是顶层概念，会重排界面结构；配色（data-preset）只在「默认主题」下生效，
+ * 切到其他皮肤时临时归一到 minimal（用户挑的配色仍记在设置里）。
+ * 设置里存着已下架配色时同样落回 minimal，避免界面与设置页显示不一致。
  */
 export function applyTheme(
   theme: ThemeMode,
@@ -57,9 +58,10 @@ export function applyTheme(
   skin: ThemeSkin = 'default'
 ): void {
   const root = document.documentElement
+  const known = THEME_PRESETS.some((item) => item.key === preset)
   root.dataset.theme = resolveTheme(theme)
   root.dataset.skin = skin
-  root.dataset.preset = skin === 'default' ? preset : 'minimal'
+  root.dataset.preset = skin === 'default' && known ? preset : 'minimal'
 }
 
 /** 当前生效的深浅色（供图表取色等场景使用） */

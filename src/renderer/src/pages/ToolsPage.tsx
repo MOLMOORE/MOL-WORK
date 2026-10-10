@@ -159,7 +159,7 @@ export function ToolsPage(): JSX.Element {
     }
     const list = history
     if (list.length === 0) {
-      return <EmptyState icon={<Clock4 className="h-5 w-5" />} title="暂无记录" description="执行任意工具后，这里会列出每次调用的耗时与结果" />
+      return <EmptyState icon={<Clock4 className="h-5 w-5" />} title="暂无记录" />
     }
     return (
       <div className="flex max-h-[58vh] flex-col gap-2 overflow-y-auto pr-1">
@@ -357,7 +357,6 @@ export function ToolsPage(): JSX.Element {
           <Card className="flex h-full flex-col overflow-y-auto">
         <SectionHeader
           title="工具集市"
-          description="点开卡片填参数，执行结果与耗时记进下方运行记录"
           action={
             <div className="flex items-center gap-2">
               <div className="relative">
@@ -386,7 +385,7 @@ export function ToolsPage(): JSX.Element {
           <EmptyState
             icon={<Wrench className="h-5 w-5" />}
             title="没有匹配的工具"
-            description="换个分类或关键词试试；被移除的工具可用上方「恢复内置工具」找回。"
+            description="换个分类或关键词试试"
             action={
               <Button size="sm" variant="outline" icon={<Sparkles className="h-3.5 w-3.5" />} onClick={() => void restore()}>
                 恢复内置工具
@@ -494,7 +493,7 @@ export function ToolsPage(): JSX.Element {
           action={<Badge tone="primary">{history.length} 条</Badge>}
         />
         {history.length === 0 ? (
-          <EmptyState icon={<Clock4 className="h-5 w-5" />} title="暂无运行记录" description="执行任意工具后，这里会记录耗时与结果" />
+          <EmptyState icon={<Clock4 className="h-5 w-5" />} title="暂无运行记录" />
         ) : (
           <div className="flex max-h-[420px] flex-col gap-2 overflow-y-auto pr-1">
             {history.slice(0, 40).map((run) => (
@@ -571,7 +570,7 @@ export function ToolsPage(): JSX.Element {
       <ConfirmDialog
         open={pendingRemove !== null}
         title="移除该工具？"
-        description={`「${pendingRemove?.name ?? ''}」将从工具集市隐藏，历史运行记录会保留。可随时通过「恢复内置工具」找回。`}
+        description={`「${pendingRemove?.name ?? ''}」仅从集市隐藏，运行记录保留，可用「恢复内置工具」找回。`}
         confirmText="移除"
         onConfirm={() => void handleRemove()}
         onCancel={() => setPendingRemove(null)}

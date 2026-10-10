@@ -158,7 +158,7 @@ export const filterSimTool: ToolDefinition = {
     id: 'filter-sim',
     name: '滤波电路仿真',
     category: 'calc',
-    description: '用开源 MNA 引擎解真实电路：实测 -3 dB 点、极点零点与阶跃响应，含负载效应，可导出 CSV。',
+    description: '算出 -3 dB 点、极点零点与阶跃响应，含负载效应，可导出 CSV。',
     icon: 'Activity',
     requires: [],
     builtin: true,

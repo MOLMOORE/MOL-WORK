@@ -323,10 +323,10 @@ interface PomodoroStatsDialogProps {
 }
 
 const CHART_TITLES: Record<Exclude<StatsChart, null>, { title: string; description: string }> = {
-  phase: { title: '阶段结构占比', description: '当前番茄钟配置中各阶段时长占比' },
+  phase: { title: '阶段结构占比', description: '取自当前番茄钟配置' },
   tomato: { title: '近 7 日番茄产出', description: '每日完成的专注段数（25 分钟 ≈ 1 个番茄）' },
   today: { title: '今日专注分布', description: '按小时统计的今日专注时长（分钟）' },
-  duration: { title: '近 7 日专注时长', description: '每日累计专注分钟数趋势' }
+  duration: { title: '近 7 日专注时长', description: '每日累计专注分钟数' }
 }
 
 /** 番茄钟统计弹窗：点击统计卡片后展示对应图表 */
@@ -422,7 +422,6 @@ function PomodoroStatsDialog({ chart, config, onClose }: PomodoroStatsDialogProp
           )}
         </ResponsiveContainer>
       </div>
-      <p className="mt-2 text-center text-[11px] text-muted-foreground">数据来自本地专注记录与统计聚合</p>
     </Modal>
   )
 }

@@ -117,7 +117,7 @@ export function StatsPage(): JSX.Element {
     } else if (lastDegree !== null && reportData.degree > lastDegree && reportData.degree >= 25) {
       pushToast({
         title: '拖延程度上升',
-        description: `较上次查看上升 ${reportData.degree - lastDegree} 分，当前 ${reportData.degree} 分`,
+        description: `较上次上升 ${reportData.degree - lastDegree} 分，当前 ${reportData.degree} 分`,
         tone: 'warning'
       })
     }

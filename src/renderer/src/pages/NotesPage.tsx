@@ -61,7 +61,7 @@ type NoteSortDir = 'asc' | 'desc'
 const SORT_KEY = 'workstation.notes.sort.v1'
 const SORT_DIR_KEY = 'workstation.notes.sortdir.v1'
 const NOTE_SORTS: { key: NoteSort; label: string; hint: string }[] = [
-  { key: 'manual', label: '手动排序', hint: '按住卡片拖动即可自由排列，顺序会保存' },
+  { key: 'manual', label: '手动排序', hint: '按住卡片拖动排列，顺序会保存' },
   { key: 'updated', label: '按修改日期排序', hint: '最近改过的排前面' },
   { key: 'created', label: '按加入日期排序', hint: '最近导入的排前面' },
   { key: 'title', label: '按首字符排序', hint: '按标题第一个字 / 字母排序（中文按拼音）' },
@@ -482,7 +482,6 @@ export function NotesPage(): JSX.Element {
       <Card className="flex h-full flex-col">
         <SectionHeader
           title="归属任务"
-          description="按任务浏览笔记与资料"
           action={
             <IconButton label="新建笔记" onClick={() => setCreateOpen(true)}>
               <Plus className="h-3.5 w-3.5" />
@@ -614,7 +613,7 @@ export function NotesPage(): JSX.Element {
             </span>
             <button
               type="button"
-              title={selectMode ? '退出多选' : '勾选多条，批量改归属或删除'}
+              title={selectMode ? '退出多选' : '勾选多条批量改归属或删除'}
               onClick={() => {
                 if (selectMode) exitSelectMode()
                 else setSelectMode(true)
@@ -925,7 +924,7 @@ export function NotesPage(): JSX.Element {
           />
           <div className="relative z-10 w-full max-w-md rounded-xl border border-border bg-surface p-5 shadow-pop animate-scale-in">
             <p className="text-sm font-semibold text-foreground">新建笔记</p>
-            <p className="mt-0.5 text-xs text-muted-foreground">可选择归属任务或项目 / 课程，保存后自动加入复习计划</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">可选归属任务或项目 / 课程，保存后排入复习计划</p>
             <div className="mt-4 grid gap-4">
               <div className="grid gap-3 sm:grid-cols-2">
                 <Field label="归属任务">
@@ -1174,7 +1173,6 @@ export function NotesPage(): JSX.Element {
                 rows={2}
                 value={draftSummary}
                 onChange={(event) => setDraftSummary(event.target.value)}
-                placeholder="简介填在此处"
               />
             </Field>
 
@@ -1211,8 +1209,7 @@ export function NotesPage(): JSX.Element {
               )
             ) : (
               <p className="text-[11px] leading-relaxed text-muted-foreground">
-                这份资料按原版式只读保存（图片、表格、排版都在）。要记想法请点「进入阅读」，
-                在书里加书签、重点页与注释；上面填的简介会显示在卡片与详情里。
+                这份资料按原版式只读，不能改正文。要记想法点「进入阅读」加批注。
               </p>
             )}
 
@@ -1230,7 +1227,7 @@ export function NotesPage(): JSX.Element {
                 />
               ) : (
                 <p className="text-[11px] leading-relaxed text-muted-foreground">
-                  这条资料还没有排进遗忘曲线。打开上方开关并保存，就会自动生成复习计划。
+                  打开上方开关并保存即可排入复习计划。
                 </p>
               )}
             </div>
@@ -1277,7 +1274,7 @@ export function NotesPage(): JSX.Element {
       <ConfirmDialog
         open={confirmId !== null}
         title="移入回收站"
-        description="删除后可在列表右上角的「回收站」里恢复，保留期过后才会彻底清除。"
+        description="删除后进「回收站」，保留期内可恢复。"
         confirmText="确认删除"
         onCancel={() => setConfirmId(null)}
         onConfirm={async () => {
@@ -1286,14 +1283,14 @@ export function NotesPage(): JSX.Element {
           setConfirmId(null)
           setDetailOpen(false)
           await refreshOverview()
-          pushToast({ title: '已移入回收站', description: '在「回收站」里可以恢复', tone: 'success' })
+          pushToast({ title: '已移入回收站', tone: 'success' })
         }}
       />
 
       <ConfirmDialog
         open={batchAsk}
         title={'删除所选 ' + selected.length + ' 项'}
-        description="选中的资料 / 笔记 / 卡片一起移入回收站，复习计划暂时挂起"
+        description="一起移入回收站，复习计划暂时挂起"
         confirmText="确认删除"
         onCancel={() => setBatchAsk(false)}
         onConfirm={() => void confirmBatchDelete()}

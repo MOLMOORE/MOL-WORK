@@ -800,7 +800,7 @@ export function GridBoard({
       y += rowHeight
     }
     applyLayout(placed)
-    setHint('已随机重排：顺序与宽高都随机，同组相邻且整页紧贴铺满，可继续拖动微调')
+    setHint('已随机重排，可继续拖动微调')
   }, [applyLayout])
 
 
@@ -817,7 +817,7 @@ export function GridBoard({
     }
     customDefaultRef.current = next
     setCustomDefault(next)
-    setHint('已保存为「我的默认布局」：以后点重置就回到这里')
+    setHint('已存为「我的默认布局」，重置即回到这里')
   }, [defaultKey])
 
   /** 恢复系统默认：清除自定义默认并回到各页面出厂的布局 */
@@ -836,7 +836,7 @@ export function GridBoard({
   /** 进入编辑模式 */
   const enterEditing = useCallback(() => {
     setEditing(true)
-    setHint('编辑模式：直接拖动模块或拉边改变大小，模块内容暂不可点击')
+    setHint('编辑模式：拖动摆放，拉边改大小')
   }, [])
 
   const cancelLongPress = useCallback(() => {
@@ -866,7 +866,7 @@ export function GridBoard({
           longPressRef.current = null
           suppressClickRef.current = true
           setEditing(true)
-          setHint('已通过长按进入编辑模式：拖动或拉边调整布局')
+          setHint('长按已进入编辑模式')
           window.setTimeout(() => {
             suppressClickRef.current = false
           }, 600)
@@ -951,8 +951,8 @@ export function GridBoard({
             <span className="mr-auto flex items-center gap-1 text-[11px] text-muted-foreground">
               <LayoutDashboard className="h-3.5 w-3.5" />
               {editing
-                ? '编辑模式：整块拖动即可摆放 · 四边与四角拉伸大小 · 模块内容暂不可点击'
-                : '常规模式下模块固定不可拖动 · 长按任意模块或点「编辑布局」即可调整'}
+                ? '编辑模式：拖动摆放 · 拉边或角改大小 · 内容暂不可点击'
+                : '长按模块或点「编辑布局」进入编辑'}
             </span>
           )}
           {editing ? (
@@ -961,11 +961,11 @@ export function GridBoard({
                 <Shuffle className="h-3.5 w-3.5" />
                 一键排列
               </Button>
-              <Button size="sm" variant="ghost" onClick={saveAsDefault} title="把当前布局保存为自己的默认布局">
+              <Button size="sm" variant="ghost" onClick={saveAsDefault}>
                 <Save className="h-3.5 w-3.5" />
                 保存为我的默认
               </Button>
-              <Button size="sm" variant="ghost" onClick={restoreSystemDefault} title="删除自定义默认布局，回到系统出厂布局">
+              <Button size="sm" variant="ghost" onClick={restoreSystemDefault} title="清除自定义默认，回到出厂布局">
                 <History className="h-3.5 w-3.5" />
                 恢复系统默认
               </Button>
@@ -985,7 +985,7 @@ export function GridBoard({
                 <RotateCcw className="h-3.5 w-3.5" />
                 重置布局
               </Button>
-              <Button size="sm" variant="secondary" onClick={enterEditing} title="进入编辑模式，自由调整模块位置与大小">
+              <Button size="sm" variant="secondary" onClick={enterEditing} title="拖动位置、调整大小">
                 <Pencil className="h-3.5 w-3.5" />
                 编辑布局
               </Button>

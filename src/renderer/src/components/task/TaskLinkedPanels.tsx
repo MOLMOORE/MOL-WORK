@@ -46,7 +46,7 @@ export function SchedulePanel({ detail, onRefresh }: PanelProps): JSX.Element {
         </Button>
       </div>
       {detail.schedules.length === 0 ? (
-        <EmptyState icon={<CalendarPlus className="h-5 w-5" />} title="尚未排入日程" description="排入后到点会自动弹出系统通知提醒" />
+        <EmptyState icon={<CalendarPlus className="h-5 w-5" />} title="尚未排入日程" description="排入后到点弹系统通知" />
       ) : (
         detail.schedules.map((event) => (
           <div key={event.id} className="flex items-center gap-3 rounded-xl border border-border bg-muted/25 p-3">
@@ -119,7 +119,7 @@ export function ReminderPanel({ detail, onRefresh }: PanelProps): JSX.Element {
   return (
     <div className="grid gap-3">
       <div className="flex items-center justify-between gap-2">
-        <p className="text-[11px] text-muted-foreground">到点会弹出系统通知，可在此实时新建或调整提醒时间</p>
+        <p className="text-[11px] text-muted-foreground">到点会弹系统通知</p>
         {addOpen ? (
           <Button size="sm" variant="ghost" icon={<X className="h-3.5 w-3.5" />} onClick={() => setAddOpen(false)}>
             取消
@@ -151,7 +151,7 @@ export function ReminderPanel({ detail, onRefresh }: PanelProps): JSX.Element {
         <EmptyState
           icon={<Bell className="h-5 w-5" />}
           title="没有设置提醒"
-          description="点击「新建提醒」实时添加，排入日程时也会按提前量自动创建"
+          description="排入日程时按提前量自动创建"
         />
       ) : (
         withReminder.map((event) => (

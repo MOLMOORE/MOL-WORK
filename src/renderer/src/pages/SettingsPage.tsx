@@ -24,14 +24,11 @@ import {
   CLOCK_WEIGHT_TIERS,
   CLOCK_WIDTH_TIERS,
   FONT_SIZE_META,
-  THEME_GROUP_META,
   THEME_PRESETS,
   THEME_SKINS,
-  themePresetsOf,
   themeSkinLabel,
   nearestTier,
-  resolveClockSettings,
-  type ThemeGroup
+  resolveClockSettings
 } from '@shared/constants'
 import { Card, SectionHeader } from '../components/ui/Card'
 import { Badge, Spinner } from '../components/ui/Feedback'
@@ -46,32 +43,32 @@ import { cn, todayKey } from '../lib/utils'
 
 /** 设置分区：列表页纵向排列，点击进入详情修改 */
 const SECTIONS: { key: string; title: string; description: string; icon: typeof Palette }[] = [
-  { key: 'general', title: '外观与通用', description: '称呼、8 款皮肤与 13 种风格、深浅色与字号', icon: Palette },
+  { key: 'general', title: '外观与通用', description: '称呼、8 款皮肤与 5 种配色、深浅色与字号', icon: Palette },
   { key: 'review', title: '复习与计划', description: '复习算法、每日上限与自动排程', icon: Repeat },
   { key: 'notify', title: '提醒与通知', description: '提醒提前量与截止提醒提示音', icon: Bell },
   { key: 'pomodoro', title: '番茄钟', description: '专注时长、休息节奏与阶段提示音', icon: Timer },
-  { key: 'deps', title: '外部工具依赖', description: 'Pandoc、FFmpeg、yt-dlp、Playwright 检测与排查', icon: Terminal },
+  { key: 'deps', title: '外部工具依赖', description: '外部工具检测与排查', icon: Terminal },
   { key: 'data', title: '数据与维护', description: '数据目录、日报导出与示例数据', icon: Database },
   { key: 'about', title: '关于与版本', description: '当前版本与更新历史', icon: Info }
 ]
 
 /** 可选时钟风格（只描述时间怎么显示） */
 const CLOCK_STYLES: { key: ClockStyle; label: string; hint: string }[] = [
-  { key: 'flip', label: '翻页', hint: '大号时分秒配合翻页动画，最贴合本站默认气质。' },
-  { key: 'minimal', label: '极简', hint: '细体数字 + 小号秒，留白充足、观感安静。' },
-  { key: 'ring', label: '秒环', hint: '秒环随秒针走一圈，旁边显示时分。' },
-  { key: 'mono', label: '终端', hint: '等宽字体与括号包裹，终端 / 极客风格。' },
-  { key: 'analog', label: '表盘', hint: '指针表盘 + 时分数字，最安静的传统读法。' },
-  { key: 'dot', label: '圆点', hint: '时 · 分 · 秒用圆点分隔的大号数字。' },
-  { key: 'stack', label: '竖排', hint: '时 / 分 / 秒三行竖排，适合瘦高的小方块。' }
+  { key: 'flip', label: '翻页', hint: '大号数字 + 翻页动画' },
+  { key: 'minimal', label: '极简', hint: '细体数字 + 小号秒' },
+  { key: 'ring', label: '秒环', hint: '秒环计秒，旁边显示时分' },
+  { key: 'mono', label: '终端', hint: '等宽字体 + 括号包裹' },
+  { key: 'analog', label: '表盘', hint: '指针表盘 + 时分数字' },
+  { key: 'dot', label: '圆点', hint: '时 · 分 · 秒圆点分隔的大号数字' },
+  { key: 'stack', label: '竖排', hint: '时 / 分 / 秒三行竖排' }
 ]
 
 /** 可选时钟摆放（只描述日期相对时间的位置，与风格自由组合） */
-const CLOCK_LAYOUTS: { key: ClockLayout; label: string; hint: string }[] = [
-  { key: 'date-bottom', label: '日期在下', hint: '时间在上、日期在下' },
-  { key: 'date-top', label: '日期在上', hint: '日期在上、时间在下' },
-  { key: 'date-left', label: '日期在左', hint: '日期在左、时间在右' },
-  { key: 'date-right', label: '日期在右', hint: '时间在左、日期在右' }
+const CLOCK_LAYOUTS: { key: ClockLayout; label: string }[] = [
+  { key: 'date-bottom', label: '日期在下' },
+  { key: 'date-top', label: '日期在上' },
+  { key: 'date-left', label: '日期在左' },
+  { key: 'date-right', label: '日期在右' }
 ]
 
 /** 时钟形状的默认档位（字号 0 = 随方块尺寸自适应） */
@@ -222,39 +219,16 @@ function SkinPicker(props: {
   )
 }
 
-/** 默认主题下的风格选择：先「配色风格」后「观感风格」，每张卡片用真实 CSS 变量渲染一个迷你窗口 */
+/** 默认主题下的配色选择：每张卡片用真实 CSS 变量渲染一个迷你窗口 */
 function ThemePicker(props: {
   value: ThemePreset
   mode: 'dark' | 'light'
   onChange: (value: ThemePreset) => void
 }): JSX.Element {
   const { value, mode, onChange } = props
-  const groups: ThemeGroup[] = ['palette', 'style']
-  return (
-    <>
-      {groups.map((group) => (
-        <div key={group} className="grid gap-1.5">
-          <p className="text-[11px] font-medium text-foreground">
-            {THEME_GROUP_META[group].label}
-            <span className="ml-1.5 font-normal text-muted-foreground/80">{THEME_GROUP_META[group].description}</span>
-          </p>
-          <ThemeGrid group={group} value={value} mode={mode} onChange={onChange} />
-        </div>
-      ))}
-    </>
-  )
-}
-
-function ThemeGrid(props: {
-  group: ThemeGroup
-  value: ThemePreset
-  mode: 'dark' | 'light'
-  onChange: (value: ThemePreset) => void
-}): JSX.Element {
-  const { group, value, mode, onChange } = props
   return (
     <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
-      {themePresetsOf(group).map((preset) => {
+      {THEME_PRESETS.map((preset) => {
         const selected = preset.key === value
         return (
           <button
@@ -305,6 +279,16 @@ function ThemeGrid(props: {
 
 /** 版本更新日志（新版本发布时在最上方追加一条） */
 const CHANGELOG: { version: string; date: string; items: string[] }[] = [
+  {
+    version: '1.2.7',
+    date: '2026-10-10',
+    items: [
+      "主题 · 默认主题的风格只保留 5 种配色：素白简约 / 极简黑白 / 宣纸暖白 / 靛青 / 苔原；8 种观感风格连同「配色 / 观感」分组一起下架，8 款皮肤不受影响",
+      "主题 · 之前选过已下架风格时启动自动回到「素白简约」，界面与设置页不再对不上",
+      "提示文案 · 全应用再精简约 130 处：只留功能作用、输入格式与后果，删掉设计说明、动机解释与重复复述",
+      "提示文案 · 18 字以上的提示由 65 条降到 45 条，剩下的都是格式清单、输入示例、快捷键与删除后果"
+    ]
+  },
   {
     version: '1.2.6',
     date: '2026-10-09',
@@ -689,10 +673,10 @@ export function SettingsPage(): JSX.Element {
         return (
           <div className="grid gap-4">
             <div className="grid grid-cols-2 gap-4">
-              <Field label="称呼" hint="显示在左上角字标下方，也用于关闭确认等问候文案">
+              <Field label="称呼" hint="用于左上角字标与关闭确认文案">
                 <Input value={draft.userName} onChange={(event) => void patch({ userName: event.target.value })} placeholder="例如：MOL" />
               </Field>
-              <Field label="深浅色" hint="跟随系统会随操作系统实时切换">
+              <Field label="深浅色">
                 <Select value={draft.theme} onChange={(event) => void patch({ theme: event.target.value as AppSettings['theme'] })}>
                   <option value="dark">深色</option>
                   <option value="light">浅色</option>
@@ -710,15 +694,11 @@ export function SettingsPage(): JSX.Element {
                 mode={mode}
                 onChange={(key) => void patch({ themeSkin: key })}
               />
-              <p className="text-[11px] leading-relaxed text-muted-foreground/80">
-                {THEME_SKINS.find((item) => item.key === (draft.themeSkin ?? 'default'))?.hint ?? ''}。
-                皮肤会重排界面结构，不只换颜色。
-              </p>
             </div>
             {draft.themeSkin === 'default' ? (
               <div className="grid gap-2.5 rounded-lg border border-border bg-muted/25 p-3">
                 <div className="flex items-center justify-between gap-2">
-                  <p className="text-xs font-medium text-muted-foreground">默认主题 · 风格</p>
+                  <p className="text-xs font-medium text-muted-foreground">默认主题 · 配色</p>
                   <span className="text-[11px] text-foreground">
                     {THEME_PRESETS.find((item) => item.key === draft.themePreset)?.label ?? '素白简约'}
                   </span>
@@ -728,10 +708,6 @@ export function SettingsPage(): JSX.Element {
                   mode={mode}
                   onChange={(key) => void patch({ themePreset: key })}
                 />
-                <p className="text-[11px] leading-relaxed text-muted-foreground/80">
-                  {THEME_PRESETS.find((item) => item.key === draft.themePreset)?.hint ?? ''}。
-                  配色只换颜色，观感连圆角、描边、阴影与字体一起换，两者都与深浅色互不影响；切到其他皮肤时暂时收起。
-                </p>
               </div>
             ) : null}
             <div className="grid gap-2 rounded-lg border border-border bg-muted/25 p-3">
@@ -743,18 +719,18 @@ export function SettingsPage(): JSX.Element {
                 items={Object.entries(FONT_SIZE_META).map(([key, meta]) => ({ key, label: meta.label }))}
               />
               <p className="text-[11px] text-muted-foreground/80">
-                根字号 {FONT_SIZE_META[draft.fontSize]?.root ?? '16px'}，切换后立即生效。
+                根字号 {FONT_SIZE_META[draft.fontSize]?.root ?? '16px'}
               </p>
             </div>
             <div className="grid gap-3 rounded-xl border border-border bg-muted/25 p-3">
-              <p className="text-xs font-medium text-muted-foreground">时钟风格（时间的显示方式）</p>
+              <p className="text-xs font-medium text-muted-foreground">时钟风格（显示方式）</p>
               <Tabs
                 size="sm"
                 value={clockStyle}
                 onChange={(key) => void patch({ clockStyle: key as ClockStyle, clockLayout })}
                 items={CLOCK_STYLES.map((item) => ({ key: item.key, label: item.label }))}
               />
-              <p className="text-xs font-medium text-muted-foreground">时钟摆放（日期相对时间的位置）</p>
+              <p className="text-xs font-medium text-muted-foreground">时钟摆放（日期位置）</p>
               <Tabs
                 size="sm"
                 value={clockLayout}
@@ -767,7 +743,7 @@ export function SettingsPage(): JSX.Element {
 
               <div className="grid gap-3 border-t border-border pt-3">
                 <div className="flex items-center justify-between gap-2">
-                  <p className="text-xs font-medium text-muted-foreground">时间形状（点选档位，即时生效）</p>
+                  <p className="text-xs font-medium text-muted-foreground">时间形状（点选即生效）</p>
                   <Button
                     size="sm"
                     variant="ghost"
@@ -868,14 +844,12 @@ export function SettingsPage(): JSX.Element {
               </div>
 
               <p className="text-[11px] leading-relaxed text-muted-foreground/80">
-                {CLOCK_STYLES.find((item) => item.key === clockStyle)?.hint ?? ''}
-                {CLOCK_LAYOUTS.find((item) => item.key === clockLayout)?.hint ?? ''}。
-                风格、摆放、形状档位与日期设置彼此独立，任意组合都立即生效。
+                {CLOCK_STYLES.find((item) => item.key === clockStyle)?.hint ?? ''}。
                 日期格式选「英文」时，星期会跟着变成英文（如 Sep 17, 2026 · Thu）。
               </p>
             </div>
             <div className="grid grid-cols-2 gap-4">
-              <Field label="回收站保留时长" hint="删除的任务在回收站保留的时间，到期自动彻底删除">
+              <Field label="回收站保留时长" hint="到期后彻底删除，无法恢复">
                 <Select
                   value={String(draft.recycleBinDays ?? 7)}
                   onChange={(event) => void patch({ recycleBinDays: Number(event.target.value) })}
@@ -926,7 +900,7 @@ export function SettingsPage(): JSX.Element {
         return (
           <div className="grid gap-4">
             <div className="grid grid-cols-2 gap-4">
-              <Field label="复习算法" hint="SM-2 会随评分动态调整难度系数">
+              <Field label="复习算法">
                 <Select
                   value={draft.reviewAlgorithm}
                   onChange={(event) => void patch({ reviewAlgorithm: event.target.value as AppSettings['reviewAlgorithm'] })}
@@ -1065,7 +1039,7 @@ export function SettingsPage(): JSX.Element {
       case 'task':
         return (
           <div className="grid gap-4">
-            <Field label="回收站保留时长" hint="删除的任务在回收站保留的时间，到期自动彻底删除">
+            <Field label="回收站保留时长" hint="到期后彻底删除，无法恢复">
               <Select
                 value={String(draft.recycleBinDays ?? 7)}
                 onChange={(event) => void patch({ recycleBinDays: Number(event.target.value) })}
@@ -1194,7 +1168,7 @@ export function SettingsPage(): JSX.Element {
             )
           })}
         </Card>
-        <p className="text-center text-[11px] text-muted-foreground">点击任意分区进入详情修改，所有改动即时保存</p>
+        <p className="text-center text-[11px] text-muted-foreground">所有改动即时保存</p>
       </div>
     )
   }
@@ -1344,7 +1318,7 @@ function AboutSection(): JSX.Element {
       </div>
 
       <p className="text-[11px] leading-relaxed text-muted-foreground">
-        本地应用无在线更新源；发布新版本后重新安装即可，此页面会自动对比上次使用的版本并展示更新内容。
+        本地应用无在线更新源，发布新版本后重新安装即可。
       </p>
     </div>
   )

@@ -345,7 +345,7 @@ export function DueAlertWatcher(): JSX.Element | null {
       open
       onClose={() => setSnoozeAllAsk(true)}
       title="截止时间提醒"
-      description={`${dueTasks.length} 项刚到期 · ${overdueTasks.length} 项超时事项待处理 · 稍后提醒会自动标记为超时状态`}
+      description={`${dueTasks.length} 项刚到期 · ${overdueTasks.length} 项超时待处理`}
       width="max-w-2xl"
       footer={
         <Button variant="danger" disabled={busyId !== null} onClick={() => setSnoozeAllAsk(true)}>
@@ -377,7 +377,7 @@ export function DueAlertWatcher(): JSX.Element | null {
     <ConfirmDialog
       open={snoozeAsk !== null}
       title="稍后提醒 · 将进入超时状态"
-      description={`「${snoozeAsk?.title ?? ''}」将进入超时（逾期）状态：优先级最高、红色标识，之后每隔 5 分钟重新提醒一次，直到完成或延期。本次提醒将在 5 分钟后再次弹出。确定继续吗？`}
+      description={`「${snoozeAsk?.title ?? ''}」将标记为超时：优先级最高、红色标识，之后每 5 分钟重新提醒一次，直到完成或延期。`}
       confirmText="进入超时并稍后提醒"
       tone="danger"
       onCancel={() => setSnoozeAsk(null)}
@@ -391,7 +391,7 @@ export function DueAlertWatcher(): JSX.Element | null {
     <ConfirmDialog
       open={snoozeAllAsk}
       title="全部稍后提醒 · 将进入超时状态"
-      description={`共 ${dueTasks.length + overdueTasks.length} 项事项将全部进入超时（逾期）状态：优先级最高、红色标识，之后每隔 5 分钟重新提醒一次，直到完成或延期。确定继续吗？`}
+      description={`共 ${dueTasks.length + overdueTasks.length} 项将标记为超时：优先级最高、红色标识，之后每 5 分钟重新提醒一次，直到完成或延期。`}
       confirmText="全部进入超时并稍后提醒"
       tone="danger"
       onCancel={() => setSnoozeAllAsk(false)}

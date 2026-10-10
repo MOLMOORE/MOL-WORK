@@ -109,7 +109,7 @@ export function RecycleBinModal({ open, onClose }: { open: boolean; onClose: () 
               </button>
             ))}
           </div>
-          <span className="text-[10px] text-muted-foreground/80">到期后自动彻底删除，也可在此手动清理</span>
+          <span className="text-[10px] text-muted-foreground/80">也可在此手动清理</span>
         </div>
 
         {loading ? (
@@ -121,7 +121,6 @@ export function RecycleBinModal({ open, onClose }: { open: boolean; onClose: () 
           <EmptyState
             icon={<Trash2 className="h-5 w-5" />}
             title="回收站是空的"
-            description="删除的任务先进这里，保留期内可恢复"
           />
         ) : (
           <div className="flex flex-col gap-2">
@@ -184,7 +183,7 @@ export function RecycleBinModal({ open, onClose }: { open: boolean; onClose: () 
       <ConfirmDialog
         open={clearAsk}
         title="清空回收站"
-        description={`将彻底删除回收站中的 ${deleted.length} 个任务，无法恢复。确定继续吗？`}
+        description={`将彻底删除回收站中的 ${deleted.length} 个任务，无法恢复。`}
         confirmText="全部彻底删除"
         onCancel={() => setClearAsk(false)}
         onConfirm={() => void handleClearAll()}

@@ -16,7 +16,7 @@ export const extractTool: ToolDefinition = {
     name: '网页与截图提取',
     category: 'extract',
     description:
-      '用 Playwright 渲染网页：正文转 Markdown 笔记，或截取可视区 / 整页存 PNG。',
+      '网页正文转 Markdown 笔记，或截图存 PNG。',
     icon: 'ScanText',
     requires: ['playwright'],
     builtin: true,

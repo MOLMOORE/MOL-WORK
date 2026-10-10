@@ -72,7 +72,7 @@ export function ProcrastinationPanel({ report, items, onOpenTask, loading }: Pro
     <Card className="flex h-full flex-col">
       <SectionHeader
         title="拖延识别"
-        description="到点后延期与逾期都算一次拖延，次数和时长共同决定程度"
+        description="延期与逾期各计一次，次数与时长决定程度"
         action={
           <div className="flex items-center gap-2">
             <Badge tone={level.tone} dot>
@@ -86,12 +86,12 @@ export function ProcrastinationPanel({ report, items, onOpenTask, loading }: Pro
 
       <div className="min-h-0 flex-1 overflow-y-auto pr-1">
         {loading && !report ? (
-          <p className="py-10 text-center text-xs text-muted-foreground">正在量化拖延情况…</p>
+          <p className="py-10 text-center text-xs text-muted-foreground">加载中…</p>
         ) : !hasEvents && items.length === 0 ? (
           <EmptyState
             icon={<TriangleAlert className="h-5 w-5" />}
             title="没有发现拖延事项"
-            description="暂无拖延记录，到点后的延期与逾期会记在这里"
+            description="到点后的延期与逾期会记在这里"
           />
         ) : (
           <div className="flex flex-col gap-4">
@@ -272,7 +272,7 @@ export function ProcrastinationPanel({ report, items, onOpenTask, loading }: Pro
                     })}
                   </div>
                 ) : (
-                  <p className="text-[11px] text-muted-foreground">暂无拖延记忆，继续保持</p>
+                  <p className="text-[11px] text-muted-foreground">暂无拖延记录</p>
                 )}
               </div>
             </div>

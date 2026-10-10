@@ -116,7 +116,6 @@ export function ToolUsageDonut({ toolRuns }: ToolUsageDonutProps): JSX.Element {
     <Card className="flex h-full flex-col">
       <SectionHeader
         title="工具调用分布"
-        description="按类别统计工具调用次数"
         action={<Wrench className="h-4 w-4 text-muted-foreground" />}
         className="mb-3"
       />

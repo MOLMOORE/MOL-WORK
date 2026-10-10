@@ -17,7 +17,7 @@ export const docConvertTool: ToolDefinition = {
     name: '文档转换',
     category: 'doc',
     description:
-      '用 Pandoc 在 Markdown / Word / HTML / 纯文本 / EPUB / ODT / LaTeX 之间互转。',
+      '在 Markdown / Word / HTML / EPUB 等格式间互转。',
     icon: 'FileText',
     requires: ['pandoc'],
     builtin: true,

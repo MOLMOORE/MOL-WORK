@@ -24,7 +24,7 @@ export function ReviewQueue({ items, onGrade, onPlanTomorrow, compact, emptyHint
     return (
       <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-border px-4 py-8 text-center">
         <CheckCircle2 className="h-5 w-5 text-success" />
-        <p className="text-xs text-muted-foreground">{emptyHint ?? '今天没有到期复习内容，保持节奏即可'}</p>
+        <p className="text-xs text-muted-foreground">{emptyHint ?? '今天没有到期复习内容'}</p>
       </div>
     )
   }

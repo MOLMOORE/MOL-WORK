@@ -243,7 +243,7 @@ export function ScheduleBoard({
             {list.length === 0 ? (
               <div className="flex flex-1 flex-col items-center justify-center gap-2 py-10 text-center">
                 <CalendarClock className="h-5 w-5 text-muted-foreground" />
-                <p className="text-xs text-muted-foreground">这一天还没有安排，把左侧任务拖进来即可</p>
+                <p className="text-xs text-muted-foreground">把左侧任务拖进来即可排期</p>
                 {onCreateAt ? (
                   <button
                     type="button"

@@ -369,7 +369,7 @@ export function DashboardPage(): JSX.Element {
         <SectionHeader
           className="mb-3"
           title="最近笔记与资料"
-          description="任务下沉淀的笔记会自动生成复习计划"
+          description="笔记会自动生成复习计划"
           action={
             <Button variant="ghost" size="sm" icon={<ArrowRight className="h-3.5 w-3.5" />} onClick={() => navigate('/notes')}>
               进入笔记
