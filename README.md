@@ -13,12 +13,12 @@ src/       # main / preload / renderer / shared 四层
 docs/      # feature-index.md + modifications（by-version / by-feature）
 build/     # 图标与安装脚本
 scripts/   # check-tools / selftest / make-icon
-release/   # 最新安装包 + archive（仅存 GitHub 未发布的旧版）
+release/   # 只保留最新版安装包；历史安装包以 GitHub Releases 为唯一权威副本
 work/      # 一次性取证与临时脚本，不入库
 out/       # 构建产物，不入库
 ```
 
-`release/` 根目录只保留最新版安装包，GitHub Releases 是 1.2.0+ 各版的权威副本。
+`release/` 根目录只保留最新版安装包；GitHub Releases 是全部历史版本（v1.0.0 起）的权威副本，本地不再存放旧安装包。
 
 ## 功能
 
