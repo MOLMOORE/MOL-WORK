@@ -37,6 +37,7 @@
 - 导入：`stageImport()`、`confirmImport()`、`handleDropFiles()`（拖拽遮罩文案）、`importOptions()`
 - 详情弹窗：`openDetail()` 与详情 JSX（「资料简介」等文案在此）
 - 多选模式（v1.2.6）：`selectMode` / `selected` / `visibleIds` / `toggleSelect` / `toggleSelectAll` / `confirmBatchDelete` / `batchAsk` / `recycleOpen` / `applyMove`（批量改任务·项目·类型）；逐行快速删除键在卡片操作区（`setConfirmId`）
+- 归属任务面板删除（v1.2.7）：`tasksNode` 的 `taskSelectMode` / `taskSelected` / `taskDeleteId` / `taskBatchAsk` + `confirmTaskDelete` / `confirmTaskBatchDelete`（复用 `taskStore.removeTask` 软删进任务回收站，笔记保留）
 - 回收站弹窗：`src/renderer/src/components/note/NoteRecycleBinModal.tsx`（`remainingText` / `noteHint` / 保留时长切换）
 - 存储：`KIND_TABS`、`VIEW_MODE_LABEL`；store `src/renderer/src/stores/noteStore.ts`（`deleted` / `loadDeleted` / `removeNotes` / `moveNotes` / `restoreNote` / `purgeNote`）
 
@@ -68,6 +69,7 @@
 ## 7. 工具集 / 任务 / 统计 / 番茄（速查）
 - 工具：`src/main/tools/registry.ts`（注册即生效）、`tools/runners/*.runner.ts`、`src/main/utils/{binaries,command,dependency-check}.ts`、页面 `ToolsPage.tsx`（看板 `workstation.grid.tools.v5`）+ `components/tool/*`
 - 计算类共用件：`src/main/tools/engineering.ts`（`parseQty` 工程计数法 / `fmtQty` / `E24·E12·nearestSeries·standardText`）；多模式表单按 `ToolField.visibleWhen` 只显示当前模式的输入项（`ToolRunnerForm.tsx#visibleFields`）
+- 工具电路配图（v1.2.7）：`components/tool/diagrams/index.tsx#ToolDiagram`（按 toolId 分发 + 统一外框）+ 自包含模块 `<toolId>.diagram.tsx`（读表单 payload 联动切图）；接入点在 `ToolDetailDrawer.tsx` 表单之后
 - 滤波与电路：`filter-calc.runner.ts`（速算与反算）、`opamp-calc.runner.ts`、`filter-sim.runner.ts#buildNetlist`（九种结构搭网表）；求解用开源引擎 `analog-filter-designer`，本项目封装在 `src/main/tools/mna.ts`（`sweep / bandMetrics / polesAndZeros / stepResponse / toCsv`），类型声明 `analog-filter-designer.d.ts`
 - 任务：`pages/TasksPage.tsx`、`components/task/*`、`services/task.service.ts`、`repositories/task.repo.ts`
 - 统计：`pages/StatsPage.tsx`、`components/stats/*`、`services/stats.service.ts`、`overview.service.ts`

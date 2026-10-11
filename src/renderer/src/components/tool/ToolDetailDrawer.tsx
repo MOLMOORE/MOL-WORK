@@ -6,6 +6,7 @@ import { Drawer } from '../ui/Overlay'
 import { Badge } from '../ui/Feedback'
 import { Button, IconButton } from '../ui/Button'
 import { ToolRunnerForm, initialPayload, validatePayload, visibleFields, type ToolPayload } from './ToolRunnerForm'
+import { ToolDiagram } from './diagrams'
 import { useToolStore } from '../../stores/toolStore'
 import { useAppStore } from '../../stores/appStore'
 import { formatDateTime, formatDurationMs } from '../../lib/utils'
@@ -148,6 +149,8 @@ export function ToolDetailDrawer({ manifest, open, onClose }: ToolDetailDrawerPr
         <p className="text-xs leading-relaxed text-muted-foreground">{manifest.description}</p>
 
         <ToolRunnerForm fields={fields} value={payload} errors={errors} disabled={isRunning} onChange={handleChange} />
+
+        <ToolDiagram toolId={manifest.id} payload={payload} />
 
         {result ? (
           <div className="rounded-xl border border-border bg-muted/25 p-4">

@@ -1,7 +1,15 @@
 # 笔记列表 · 排序 / 拖拽 / 文案 / 回收站
 
-> 功能线速查：NotesPage.tsx（NOTE_SORTS/DEFAULT_DIRS/sortNotes/chooseSort/toggleSortDir/applyReorder/stageImport/confirmImport/openDetail + selectMode/toggleSelect/confirmBatchDelete/applyMove）+ components/note/NoteRecycleBinModal.tsx + note.repo.ts(reorderNotes/trashNote/restoreNote/listDeletedNotes) + noteStore.ts + DB v7 notes.sort_order / v9 notes.deleted_at
+> 功能线速查：NotesPage.tsx（NOTE_SORTS/DEFAULT_DIRS/sortNotes/chooseSort/toggleSortDir/applyReorder/stageImport/confirmImport/openDetail + selectMode/toggleSelect/confirmBatchDelete/applyMove）+ components/note/NoteRecycleBinModal.tsx + note.repo.ts(reorderNotes/trashNote/restoreNote/listDeletedNotes) + noteStore.ts + DB v7 notes.sort_order / v9 notes.deleted_at；归属任务删除 = tasksNode + taskStore.removeTask >
 > 记录格式见 `docs/modifications/README.md`；新改动**追加在本行下方的最前面**。
+
+## 2026-10-11 · v1.2.7 第 3 轮（归属任务面板删除）
+- 需求：笔记页「归属任务」要能删任务，要有逐行快速删除键与多选批量删除。
+- 根因：面板只有筛选与「新建笔记」，删除任务必须回任务页。
+- 改法：面板独立多选状态 taskSelectMode / taskSelected / taskDeleteId / taskBatchAsk（与资料卡片多选完全分离）；任务行由单 button 重构为 div.group（主体 button 兼筛选 / 勾选 + 兄弟 Trash2 删除键，避免 button 嵌套）；删除复用 taskStore.removeTask（软删进任务回收站，内部已刷新任务与项目列表），页面只补 noteStore.load()；删中当前 taskFilter 时重置为 null；确认框说明「笔记保留在全部笔记中」（noteCount>0 才带条数）。
+- 位置：NotesPage.tsx（removeTask 选择器、任务删除函数区、tasksNode、底部两个 ConfirmDialog）。
+- 验证：两端 tsc 0 错 + build；详见 by-version/v1.2.7-r3.md。
+- 遗留：批量逐条 removeTask（每条各刷新一次，任务量小无碍）；任务 purge 漏清书库目录仍是 v1.2.6 旧账。
 
 ## 2026-10-09 · v1.2.6 第 2 轮（逐行删除键 + 多选改归属）
 - 需求：每一行资料都要有快速删除小键；「快速删除」键改成「多选」，要能批量移动资料、改归属，也能批量删。

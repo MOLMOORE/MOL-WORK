@@ -1,7 +1,15 @@
 # 工具集 · 计算与转换工具线
 
-> 功能线速查：`src/main/tools/`（registry + runners + engineering.ts + mna.ts）+ `pages/ToolsPage.tsx` + `components/tool/*`
+> 功能线速查：`src/main/tools/`（registry + runners + engineering.ts + mna.ts）+ `pages/ToolsPage.tsx` + `components/tool/*`（diagrams/ = 计算工具电路配图）
 > 记录格式见 `docs/modifications/README.md`；新改动**追加在本行下方的最前面**。
+
+## 2026-10-11 · v1.2.7 第 3 轮（计算工具电路配图）
+- 需求：unit-convert / circuit-calc / filter-calc / opamp-calc / filter-sim 五个计算工具都要图片交互；滤波类每种选择（mode / topo / topology）都要显示对应电路图。
+- 改法：新增 `components/tool/diagrams/` —— index.tsx#ToolDiagram 按 toolId 分发并套统一外框（「电路示意」卡），五个自包含模块 `<toolId>.diagram.tsx`（纯内联 SVG，按 payload 表单值联动切图）；ToolDetailDrawer 在表单后插一行渲染。符号按规范（电阻锯齿 / 电容双板 / 电感半圆 / 运放三角形 / 接地三横线），位号与表单字段一致，图下标结构名 + 核心公式；颜色只走 currentColor + 主题类，无 hex。
+- 覆盖：filter-calc 8 mode（lc 随 topo 三缩略图高亮当前、resonant 随 kind、rolloff 斜率随 n）；filter-sim 9 topology（与 buildNetlist 逐节点核对，梯形图注 sections 级数）；circuit-calc 8 mode；opamp-calc 5 mode（gain 反相 + 同相双图、hysteresis 电路 + 传输曲线）；unit-convert 12 类概念图（fromUnit → 类别）。
+- 位置：`src/renderer/src/components/tool/diagrams/` 下 `types.ts`、`index.tsx` 与 `{unit-convert,circuit-calc,opamp-calc,filter-calc,filter-sim}.diagram.tsx` 共 7 个新文件 + ToolDetailDrawer.tsx（一行 import + 一行渲染）。
+- 验证：两端 tsc 0 错 + build；整合期修掉 Figure children 类型（JSX.Element→ReactNode）与 rolloff 的 xFC 未定义名（tsc 抓到，运行时会 ReferenceError）。
+- 遗留：unit-convert 模块内 UNIT_CATEGORY 表需在 runner 加单位时手动同步；配图为静态示意，不随输入数值改变元件参数标注。
 
 ## 2026-10-10 · v1.2.6 第 3 轮（工具页收紧 + 三个电路工具）
 - 需求：工具页更简洁紧凑；增删工具并加入滤波电路快速运算；**优先用现成开源程序，不要什么都自己写**。

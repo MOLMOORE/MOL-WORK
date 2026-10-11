@@ -151,6 +151,7 @@ export function NotesPage(): JSX.Element {
   const projects = useTaskStore((state) => state.projects)
   const loadTasks = useTaskStore((state) => state.load)
   const loadProjects = useTaskStore((state) => state.loadProjects)
+  const removeTask = useTaskStore((state) => state.removeTask)
   const pushToast = useAppStore((state) => state.pushToast)
   const refreshOverview = useAppStore((state) => state.refreshOverview)
 
@@ -175,6 +176,11 @@ export function NotesPage(): JSX.Element {
   const [selectMode, setSelectMode] = useState(false)
   const [selected, setSelected] = useState<number[]>([])
   const [batchAsk, setBatchAsk] = useState(false)
+  // 归属任务面板的多选删除：独立于资料卡片多选，勾选任务后批量移入任务回收站
+  const [taskSelectMode, setTaskSelectMode] = useState(false)
+  const [taskSelected, setTaskSelected] = useState<number[]>([])
+  const [taskDeleteId, setTaskDeleteId] = useState<number | null>(null)
+  const [taskBatchAsk, setTaskBatchAsk] = useState(false)
   const [recycleOpen, setRecycleOpen] = useState(false)
   const [createOpen, setCreateOpen] = useState(false)
   const [newTaskId, setNewTaskId] = useState<number | null>(null)
@@ -478,14 +484,84 @@ export function NotesPage(): JSX.Element {
     }
   }
 
+  // ---------- 归属任务面板删除：任务软删进回收站，笔记不受影响 ----------
+  const taskDeleteTarget = tasks.find((task) => task.id === taskDeleteId) ?? null
+  const taskAllChecked = tasks.length > 0 && tasks.every((task) => taskSelected.includes(task.id))
+  const taskSelectedNoteCount = tasks
+    .filter((task) => taskSelected.includes(task.id))
+    .reduce((sum, task) => sum + (task.noteCount ?? 0), 0)
+
+  /** 勾选 / 取消勾选一个任务 */
+  const toggleTaskSelect = (id: number): void => {
+    setTaskSelected((prev) => (prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]))
+  }
+
+  const exitTaskSelectMode = (): void => {
+    setTaskSelectMode(false)
+    setTaskSelected([])
+  }
+
+  const toggleTaskSelectAll = (): void => {
+    setTaskSelected(taskAllChecked ? [] : tasks.map((task) => task.id))
+  }
+
+  /** 删除说明：有笔记时才补「笔记不会被删除」后半句 */
+  const taskDeleteDescription = (noteCount: number): string =>
+    '任务移入回收站，保留期内可在任务页恢复' +
+    (noteCount > 0 ? `；该任务下的 ${noteCount} 条笔记不会被删除，会保留在全部笔记中` : '')
+
+  /** 单个删除确认：store 的 removeTask 内部会刷新任务与项目列表，这里只需刷新笔记计数 */
+  const confirmTaskDelete = async (): Promise<void> => {
+    const task = taskDeleteTarget
+    setTaskDeleteId(null)
+    if (!task) return
+    if (taskFilter === task.id) void setTaskFilter(null)
+    await removeTask(task.id)
+    await load()
+    const retained = task.noteCount ?? 0
+    pushToast({
+      title: '任务已移入回收站',
+      description: retained > 0 ? retained + ' 条笔记保留在全部笔记中' : undefined,
+      tone: 'success'
+    })
+  }
+
+  /** 批量删除确认：逐条 removeTask，结束后统一刷新并退出多选 */
+  const confirmTaskBatchDelete = async (): Promise<void> => {
+    const ids = taskSelected
+    setTaskBatchAsk(false)
+    if (ids.length === 0) return
+    if (taskFilter !== null && ids.includes(taskFilter)) void setTaskFilter(null)
+    for (const id of ids) await removeTask(id)
+    exitTaskSelectMode()
+    await load()
+    pushToast({
+      title: '已删除 ' + ids.length + ' 个任务',
+      description: '任务移入回收站，保留期内可在任务页恢复；笔记均保留在全部笔记中',
+      tone: 'success'
+    })
+  }
+
   const tasksNode = (
       <Card className="flex h-full flex-col">
         <SectionHeader
           title="归属任务"
           action={
-            <IconButton label="新建笔记" onClick={() => setCreateOpen(true)}>
-              <Plus className="h-3.5 w-3.5" />
-            </IconButton>
+            <span className="flex items-center gap-1">
+              <IconButton
+                label="多选删除"
+                active={taskSelectMode}
+                onClick={() => {
+                  if (taskSelectMode) exitTaskSelectMode()
+                  else setTaskSelectMode(true)
+                }}
+              >
+                <ListChecks className="h-3.5 w-3.5" />
+              </IconButton>
+              <IconButton label="新建笔记" onClick={() => setCreateOpen(true)}>
+                <Plus className="h-3.5 w-3.5" />
+              </IconButton>
+            </span>
           }
         />
         <div className="flex-1 overflow-y-auto pr-1">
@@ -500,21 +576,70 @@ export function NotesPage(): JSX.Element {
             <span>全部笔记</span>
             <Badge tone="default">{notes.length}</Badge>
           </button>
-          {tasks.map((task) => (
-            <button
-              key={task.id}
-              type="button"
-              onClick={() => void setTaskFilter(task.id)}
-              className={cn(
-                'mb-1 flex w-full items-center justify-between gap-2 rounded-xl px-3 py-2 text-left text-xs transition-colors',
-                taskFilter === task.id ? 'bg-primary/15 text-foreground' : 'text-muted-foreground hover:bg-muted/50'
-              )}
-            >
-              <span className="truncate">{task.title}</span>
-              {task.noteCount ? <Badge tone="default">{task.noteCount}</Badge> : null}
-            </button>
-          ))}
+          {tasks.map((task) => {
+            const checked = taskSelected.includes(task.id)
+            const active = taskSelectMode ? checked : taskFilter === task.id
+            return (
+              <div key={task.id} className="group mb-1 flex w-full items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (taskSelectMode) toggleTaskSelect(task.id)
+                    else void setTaskFilter(task.id)
+                  }}
+                  className={cn(
+                    'flex min-w-0 flex-1 items-center gap-2 rounded-xl px-3 py-2 text-left text-xs transition-colors',
+                    active ? 'bg-primary/15 text-foreground' : 'text-muted-foreground hover:bg-muted/50'
+                  )}
+                >
+                  {taskSelectMode ? (
+                    <span
+                      className={cn(
+                        'grid h-4 w-4 shrink-0 place-items-center rounded-[5px] border transition-colors',
+                        checked ? 'border-primary bg-primary text-white' : 'border-muted-foreground/45 bg-background/60'
+                      )}
+                    >
+                      {checked ? <Check className="h-3 w-3" strokeWidth={3} /> : null}
+                    </span>
+                  ) : null}
+                  <span className="min-w-0 flex-1 truncate">{task.title}</span>
+                  {task.noteCount ? <Badge tone="default">{task.noteCount}</Badge> : null}
+                </button>
+                {taskSelectMode ? null : (
+                  <IconButton
+                    label="删除任务（移入回收站）"
+                    tone="danger"
+                    className="h-7 w-7 shrink-0 opacity-45 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+                    onClick={() => setTaskDeleteId(task.id)}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </IconButton>
+                )}
+              </div>
+            )
+          })}
         </div>
+        {taskSelectMode ? (
+          <div className="mt-2 flex items-center gap-2 border-t border-border pt-2 text-[11px]">
+            <button
+              type="button"
+              onClick={toggleTaskSelectAll}
+              className="flex items-center gap-1 rounded-lg border border-border bg-background/60 px-2 py-1 text-muted-foreground transition-colors hover:text-foreground"
+            >
+              <Check className="h-3 w-3" />
+              {taskAllChecked ? '取消全选' : '全选 ' + tasks.length + ' 项'}
+            </button>
+            <span className="truncate text-muted-foreground">已选 {taskSelected.length} 项</span>
+            <span className="ml-auto flex shrink-0 items-center gap-1.5">
+              <Button size="xs" variant="danger" disabled={taskSelected.length === 0} onClick={() => setTaskBatchAsk(true)}>
+                删除 ({taskSelected.length})
+              </Button>
+              <Button size="xs" variant="ghost" onClick={exitTaskSelectMode}>
+                取消
+              </Button>
+            </span>
+          </div>
+        ) : null}
       </Card>
   )
 
@@ -1294,6 +1419,24 @@ export function NotesPage(): JSX.Element {
         confirmText="确认删除"
         onCancel={() => setBatchAsk(false)}
         onConfirm={() => void confirmBatchDelete()}
+      />
+
+      <ConfirmDialog
+        open={taskDeleteId !== null}
+        title="删除任务"
+        description={taskDeleteTarget ? taskDeleteDescription(taskDeleteTarget.noteCount ?? 0) : ''}
+        confirmText="确认删除"
+        onCancel={() => setTaskDeleteId(null)}
+        onConfirm={() => void confirmTaskDelete()}
+      />
+
+      <ConfirmDialog
+        open={taskBatchAsk}
+        title={'删除所选 ' + taskSelected.length + ' 个任务'}
+        description={taskDeleteDescription(taskSelectedNoteCount)}
+        confirmText="确认删除"
+        onCancel={() => setTaskBatchAsk(false)}
+        onConfirm={() => void confirmTaskBatchDelete()}
       />
 
       <NoteRecycleBinModal open={recycleOpen} onClose={() => setRecycleOpen(false)} />
