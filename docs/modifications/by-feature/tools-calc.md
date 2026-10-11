@@ -3,6 +3,13 @@
 > 功能线速查：`src/main/tools/`（registry + runners + engineering.ts + mna.ts）+ `pages/ToolsPage.tsx` + `components/tool/*`（diagrams/ = 计算工具电路配图）
 > 记录格式见 `docs/modifications/README.md`；新改动**追加在本行下方的最前面**。
 
+## 2026-10-11 · v1.2.7 第 7 轮（阻抗匹配速算 match-calc）
+- 需求：参考 mwstore 阻抗匹配计算器方向，新增匹配网络速算工具。
+- 改法：`runners/match-calc.runner.ts`（L 型 AD-CN0300 式含反接对偶、π 型虚电阻法、单支节 Pozar 二次方程、λ/4 含 ρ=0.2 带宽式；本地 parseZ 复数解析）+ `diagrams/match-calc.diagram.tsx` 四拓扑整页切换；registry/index 各 +1。2 子 agent 并行（runner/diagram 写入集不重叠），主线修 3 处（JSX dot 调用 ×2 属编译期、lmatch G=1/Z0 与 stub 纯电抗退化分支为数值复核发现的逻辑洞）。
+- 位置：match-calc.runner.ts / match-calc.diagram.tsx；详见 by-version/v1.2.7-r7.md。
+- 验证：scratch 10 组数值与独立手算逐位一致（300↔50、100−j50、60+j40 单支节 d/l、λ/4 38.8%、π Q 下限拒绝、非法输入文案）；两端 tsc + dist + asar 回读。
+- 遗留：εr(eff) 为输入近似；π 高通变体未输出；多节宽带匹配未做。
+
 ## 2026-10-11 · v1.2.7 第 6 轮（工具集扩展 4 个新速算）
 - 需求：电路计算工具集再扩展。主线按常见电子工程工具站（参考 mwstore 射频/电路计算目录方向）选四个不重叠缺口：电源整流滤波、555 定时、PCB 走线载流、波形有效值。
 - 拆分：4 子 agent 并行（各写 runner+diagram 两个新文件，写入集互不重叠）；第一批 2 个未落文件即失联，按原规格重派无双写。registry/index/文档/编译/打包全主线（AGENTS §7）。

@@ -14,6 +14,7 @@ import { rectCalcTool } from './runners/rect-calc.runner'
 import { timer555Tool } from './runners/timer-555.runner'
 import { traceCalcTool } from './runners/trace-calc.runner'
 import { waveRmsTool } from './runners/wave-rms.runner'
+import { matchCalcTool } from './runners/match-calc.runner'
 
 /** 工具注册表：加入此数组即出现在工具集市，表单由 manifest 自动渲染。 */
 const DEFINITIONS: ToolDefinition[] = [
@@ -31,7 +32,8 @@ const DEFINITIONS: ToolDefinition[] = [
   rectCalcTool,
   timer555Tool,
   traceCalcTool,
-  waveRmsTool
+  waveRmsTool,
+  matchCalcTool
 ]
 
 const INDEX = new Map<string, ToolDefinition>(DEFINITIONS.map((item) => [item.manifest.id, item]))

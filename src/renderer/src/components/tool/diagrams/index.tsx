@@ -11,6 +11,7 @@ import { RectCalcDiagram } from './rect-calc.diagram'
 import { Timer555Diagram } from './timer-555.diagram'
 import { TraceCalcDiagram } from './trace-calc.diagram'
 import { WaveRmsDiagram } from './wave-rms.diagram'
+import { MatchCalcDiagram } from './match-calc.diagram'
 
 const DIAGRAMS: Record<string, (props: DiagramProps) => JSX.Element | null> = {
   'unit-convert': UnitConvertDiagram,
@@ -21,7 +22,8 @@ const DIAGRAMS: Record<string, (props: DiagramProps) => JSX.Element | null> = {
   'rect-calc': RectCalcDiagram,
   'timer-555': Timer555Diagram,
   'trace-calc': TraceCalcDiagram,
-  'wave-rms': WaveRmsDiagram
+  'wave-rms': WaveRmsDiagram,
+  'match-calc': MatchCalcDiagram
 }
 
 export function ToolDiagram({ toolId, payload }: { toolId: string; payload: Record<string, unknown> }): JSX.Element | null {
