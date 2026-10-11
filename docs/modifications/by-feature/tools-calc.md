@@ -3,6 +3,13 @@
 > 功能线速查：`src/main/tools/`（registry + runners + engineering.ts + mna.ts）+ `pages/ToolsPage.tsx` + `components/tool/*`（diagrams/ = 计算工具电路配图）
 > 记录格式见 `docs/modifications/README.md`；新改动**追加在本行下方的最前面**。
 
+## 2026-10-11 · v1.2.7 第 4 轮（工具改为独立运行页）
+- 需求：所有工具运行时都进入新页面，不再用右侧抽屉。
+- 改法：新建 `pages/ToolRunPage.tsx`（路由 `/tools/:toolId`，套 AppLayout 外壳），内容自原 ToolDetailDrawer 整体移植：停用/依赖缺失提示、表单 + ToolDiagram、重置/执行、最近结果、该工具历史；列表未加载时先 load()，查无此工具给空态返回。ToolsPage 四处 select(tool.id) 与运行记录行改 navigate('/tools/' + id)；GlobalSearch 工具命中从 state 传参（此前无人消费的死路径）改为直跳 /tools/:id；toolStore 的 selectedId/select 退役删除；ToolDetailDrawer.tsx 删除。
+- 位置：ToolRunPage.tsx（新建）、ToolsPage.tsx、App.tsx、toolStore.ts、GlobalSearch.tsx；删 components/tool/ToolDetailDrawer.tsx。
+- 验证：两端 tsc 0 错 + build；dist 后 asar 回读新页面字符串。
+- 遗留：运行页表单值不随路由参数持久化（返回再进会重置，与抽屉原行为一致）；工具被移除时停留在本页会显示「没找到这个工具」空态。
+
 ## 2026-10-11 · v1.2.7 第 3 轮（计算工具电路配图）
 - 需求：unit-convert / circuit-calc / filter-calc / opamp-calc / filter-sim 五个计算工具都要图片交互；滤波类每种选择（mode / topo / topology）都要显示对应电路图。
 - 改法：新增 `components/tool/diagrams/` —— index.tsx#ToolDiagram 按 toolId 分发并套统一外框（「电路示意」卡），五个自包含模块 `<toolId>.diagram.tsx`（纯内联 SVG，按 payload 表单值联动切图）；ToolDetailDrawer 在表单后插一行渲染。符号按规范（电阻锯齿 / 电容双板 / 电感半圆 / 运放三角形 / 接地三横线），位号与表单字段一致，图下标结构名 + 核心公式；颜色只走 currentColor + 主题类，无 hex。

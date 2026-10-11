@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   Boxes,
   CheckCircle2,
@@ -24,7 +25,6 @@ import { ConfirmDialog, Modal } from '../components/ui/Overlay'
 import { PageGrid } from '../components/layout/PageGrid'
 import type { GridEntry } from '../components/layout/GridBoard'
 import { ToolIcon } from '../components/tool/ToolIcon'
-import { ToolDetailDrawer } from '../components/tool/ToolDetailDrawer'
 import { useToolStore } from '../stores/toolStore'
 import { useAppStore } from '../stores/appStore'
 import { formatDateTime, formatDurationMs, formatMinutes, todayKey } from '../lib/utils'
@@ -39,8 +39,7 @@ export function ToolsPage(): JSX.Element {
   const loading = useToolStore((state) => state.loading)
   const checking = useToolStore((state) => state.checking)
   const running = useToolStore((state) => state.running)
-  const selectedId = useToolStore((state) => state.selectedId)
-  const select = useToolStore((state) => state.select)
+  const navigate = useNavigate()
   const load = useToolStore((state) => state.load)
   const refreshDependencies = useToolStore((state) => state.refreshDependencies)
   const toggle = useToolStore((state) => state.toggle)
@@ -91,7 +90,6 @@ export function ToolsPage(): JSX.Element {
     }))
   ]
 
-  const selected = tools.find((tool) => tool.id === selectedId) ?? null
 
   const handleRefresh = async (): Promise<void> => {
     await refreshDependencies(true)
@@ -116,7 +114,7 @@ export function ToolsPage(): JSX.Element {
               type="button"
               onClick={() => {
                 setStatDetail(null)
-                select(tool.id)
+                navigate('/tools/' + tool.id)
               }}
               className="flex items-center gap-3 rounded-xl border border-border bg-muted/25 p-3 text-left transition-colors hover:border-primary/40 hover:bg-muted/40"
             >
@@ -405,9 +403,9 @@ export function ToolsPage(): JSX.Element {
                   className="glass-card-hover flex flex-col gap-2.5 p-3"
                   role="button"
                   tabIndex={0}
-                  onClick={() => select(tool.id)}
+                  onClick={() => navigate('/tools/' + tool.id)}
                   onKeyDown={(event) => {
-                    if (event.key === 'Enter') select(tool.id)
+                    if (event.key === 'Enter') navigate('/tools/' + tool.id)
                   }}
                 >
                   <div className="flex items-start justify-between gap-3">
@@ -449,7 +447,7 @@ export function ToolsPage(): JSX.Element {
                         disabled={!tool.enabled || missing.length > 0}
                         onClick={(event) => {
                           event.stopPropagation()
-                          select(tool.id)
+                          navigate('/tools/' + tool.id)
                         }}
                       >
                         {missing.length > 0 ? '依赖缺失' : '执行'}
@@ -530,7 +528,7 @@ export function ToolsPage(): JSX.Element {
                     <button
                       type="button"
                       className="shrink-0 text-[10px] text-muted-foreground hover:text-foreground"
-                      onClick={() => select(run.toolId)}
+                      onClick={() => navigate('/tools/' + run.toolId)}
                     >
                       详情
                     </button>
@@ -549,7 +547,6 @@ export function ToolsPage(): JSX.Element {
     <div className="grid gap-5">
       <PageGrid pageKey="tools" entries={entries} storageKey="workstation.grid.tools.v5" />
 
-      <ToolDetailDrawer manifest={selected} open={selected !== null} onClose={() => select(null)} />
 
       <Modal
         open={statDetail !== null}

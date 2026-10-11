@@ -9,6 +9,7 @@ import { PomodoroPage } from './pages/PomodoroPage'
 import { NotesPage } from './pages/NotesPage'
 import { ReaderPage } from './pages/ReaderPage'
 import { ToolsPage } from './pages/ToolsPage'
+import { ToolRunPage } from './pages/ToolRunPage'
 import { StatsPage } from './pages/StatsPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { APP_NAME } from '@shared/constants'
@@ -57,6 +58,7 @@ export default function App(): JSX.Element {
           <Route path="/pomodoro" element={<PomodoroPage />} />
           <Route path="/notes" element={<NotesPage />} />
           <Route path="/tools" element={<ToolsPage />} />
+          <Route path="/tools/:toolId" element={<ToolRunPage />} />
           <Route path="/stats" element={<StatsPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />

@@ -63,7 +63,7 @@ export function GlobalSearch(): JSX.Element {
     setKeyword('')
     if (hit.kind === 'task') navigate('/tasks', { state: { taskId: hit.refId } })
     else if (hit.kind === 'note') navigate('/notes', { state: { noteId: hit.refId } })
-    else if (hit.kind === 'tool') navigate('/tools', { state: { toolId: String(hit.refId) } })
+    else if (hit.kind === 'tool') navigate('/tools/' + String(hit.refId))
     else if (hit.kind === 'event') navigate('/tasks')
     else if (hit.kind === 'review') navigate('/notes', { state: { reviewId: hit.refId } })
     else navigate('/tasks')

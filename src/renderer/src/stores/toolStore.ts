@@ -9,11 +9,9 @@ interface ToolState {
   loading: boolean
   checking: boolean
   running: string | null
-  selectedId: string | null
   results: Record<string, ToolRunResult>
   load: () => Promise<void>
   refreshDependencies: (force?: boolean) => Promise<void>
-  select: (id: string | null) => void
   run: (id: string, payload: Record<string, unknown>) => Promise<ToolRunResult>
   toggle: (id: string, enabled: boolean) => Promise<void>
   remove: (id: string) => Promise<void>
@@ -31,7 +29,6 @@ export const useToolStore = create<ToolState>((set, get) => ({
   loading: false,
   checking: false,
   running: null,
-  selectedId: null,
   results: {},
 
   load: async () => {
@@ -50,8 +47,6 @@ export const useToolStore = create<ToolState>((set, get) => ({
     const tools = await api.tool.list()
     set({ dependencies, tools, checking: false })
   },
-
-  select: (id) => set({ selectedId: id }),
 
   run: async (id, payload) => {
     set({ running: id })
@@ -73,7 +68,6 @@ export const useToolStore = create<ToolState>((set, get) => ({
 
   remove: async (id) => {
     await api.tool.remove(id)
-    set((state) => (state.selectedId === id ? { selectedId: null } : {}))
     await get().load()
   },
 
