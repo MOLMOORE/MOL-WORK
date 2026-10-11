@@ -68,9 +68,9 @@
 
 ## 7. 工具集 / 任务 / 统计 / 番茄（速查）
 - 工具：`src/main/tools/registry.ts`（注册即生效）、`tools/runners/*.runner.ts`、`src/main/utils/{binaries,command,dependency-check}.ts`、页面 `ToolsPage.tsx`（看板 `workstation.grid.tools.v5`）+ `components/tool/*`
-- 工具运行页（v1.2.7，取代 ToolDetailDrawer 抽屉）：路由 `/tools/:toolId` → `pages/ToolRunPage.tsx`（表单 + 配图 + 结果 + 该工具历史；入口：工具卡片 / 执行键 / 运行记录行 / 已注册工具清单 / GlobalSearch 直跳）
+- 工具运行页（v1.2.7，取代 ToolDetailDrawer 抽屉）：路由 `/tools/:toolId` → `pages/ToolRunPage.tsx`（宽屏双栏：左 = 表单 + 最近结果，右 = 配图 + 该工具历史；页头一卡含返回键与工具信息；入口：工具卡片 / 执行键 / 运行记录行 / 已注册工具清单 / GlobalSearch 直跳）
 - 计算类共用件：`src/main/tools/engineering.ts`（`parseQty` 工程计数法 / `fmtQty` / `E24·E12·nearestSeries·standardText`）；多模式表单按 `ToolField.visibleWhen` 只显示当前模式的输入项（`ToolRunnerForm.tsx#visibleFields`）
-- 工具电路配图（v1.2.7）：`components/tool/diagrams/index.tsx#ToolDiagram`（按 toolId 分发 + 统一外框）+ 自包含模块 `<toolId>.diagram.tsx`（读表单 payload 联动切图）；接入点在 `ToolRunPage.tsx` 表单 Card 内
+- 工具电路配图（v1.2.7）：`components/tool/diagrams/index.tsx#ToolDiagram`（按 toolId 分发 + 统一外框）+ 自包含模块 `<toolId>.diagram.tsx`（读表单 payload 联动切图）；接入点在 `ToolRunPage.tsx` 右栏（字段两列排布见 `ToolRunnerForm` 的 md:grid-cols-2）
 - 滤波与电路：`filter-calc.runner.ts`（速算与反算）、`opamp-calc.runner.ts`、`filter-sim.runner.ts#buildNetlist`（九种结构搭网表）；求解用开源引擎 `analog-filter-designer`，本项目封装在 `src/main/tools/mna.ts`（`sweep / bandMetrics / polesAndZeros / stepResponse / toCsv`），类型声明 `analog-filter-designer.d.ts`
 - 任务：`pages/TasksPage.tsx`、`components/task/*`、`services/task.service.ts`、`repositories/task.repo.ts`
 - 统计：`pages/StatsPage.tsx`、`components/stats/*`、`services/stats.service.ts`、`overview.service.ts`

@@ -69,14 +69,14 @@ export function ToolRunnerForm({ fields, value, errors, disabled, onChange }: To
   }
 
   return (
-    <div className="grid gap-4">
+    <div className="grid grid-cols-1 items-start gap-4 md:grid-cols-2">
       {visibleFields(fields, value).map((field) => {
         const current = value[field.name]
         const error = errors[field.name]
 
         if (field.type === 'checkbox') {
           return (
-            <Field key={field.name} error={error} hint={field.hint}>
+            <Field key={field.name} error={error} hint={field.hint} className="md:col-span-2">
               <Checkbox
                 label={field.label}
                 checked={current === true}
@@ -107,7 +107,7 @@ export function ToolRunnerForm({ fields, value, errors, disabled, onChange }: To
 
         if (field.type === 'textarea') {
           return (
-            <Field key={field.name} label={field.label} required={field.required} hint={field.hint} error={error}>
+            <Field key={field.name} label={field.label} required={field.required} hint={field.hint} error={error} className="md:col-span-2">
               <Textarea
                 value={String(current ?? '')}
                 placeholder={field.placeholder}
@@ -120,7 +120,7 @@ export function ToolRunnerForm({ fields, value, errors, disabled, onChange }: To
 
         if (field.type === 'path') {
           return (
-            <Field key={field.name} label={field.label} required={field.required} hint={field.hint} error={error}>
+            <Field key={field.name} label={field.label} required={field.required} hint={field.hint} error={error} className="md:col-span-2">
               <div className="flex items-center gap-2">
                 <Input
                   value={String(current ?? '')}

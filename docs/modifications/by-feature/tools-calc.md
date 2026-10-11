@@ -3,6 +3,13 @@
 > 功能线速查：`src/main/tools/`（registry + runners + engineering.ts + mna.ts）+ `pages/ToolsPage.tsx` + `components/tool/*`（diagrams/ = 计算工具电路配图）
 > 记录格式见 `docs/modifications/README.md`；新改动**追加在本行下方的最前面**。
 
+## 2026-10-11 · v1.2.7 第 5 轮（运行页双栏版式，消除留白）
+- 需求：用户反馈运行界面留白过多。根因：第 4 轮新建的 ToolRunPage 沿用抽屉的 max-w-3xl 窄单列，外壳内容区上限 1500px，宽屏两侧各空 350px+。
+- 改法：容器用满宽度；页头合并返回键+工具信息+徽章为一张卡；xl 起 `xl:grid-cols-[minmax(0,1fr)_400px]` 双栏——左=提示+表单卡+最近结果，右=ToolDiagram+历史；ToolRunnerForm 字段改 `md:grid-cols-2`，textarea/path/checkbox `md:col-span-2` 整行；结果预览 max-h-56→80。纯渲染层，逻辑与 diagram 模块不动（SVG 本就 viewBox+w-full 自适应）。
+- 位置：ToolRunPage.tsx 渲染尾部整段替换；ToolRunnerForm.tsx 栅格与三处 col-span。
+- 验证：web tsc 0 错 + build + dist 后 asar 回读新布局类；补丁 work/patch/v127-r5-runpage.cjs（锚点唯一断言）。
+- 遗留：非计算工具右栏仅历史卡；右栏固定 400px 不随侧栏缩放。
+
 ## 2026-10-11 · v1.2.7 第 4 轮（工具改为独立运行页）
 - 需求：所有工具运行时都进入新页面，不再用右侧抽屉。
 - 改法：新建 `pages/ToolRunPage.tsx`（路由 `/tools/:toolId`，套 AppLayout 外壳），内容自原 ToolDetailDrawer 整体移植：停用/依赖缺失提示、表单 + ToolDiagram、重置/执行、最近结果、该工具历史；列表未加载时先 load()，查无此工具给空态返回。ToolsPage 四处 select(tool.id) 与运行记录行改 navigate('/tools/' + id)；GlobalSearch 工具命中从 state 传参（此前无人消费的死路径）改为直跳 /tools/:id；toolStore 的 selectedId/select 退役删除；ToolDetailDrawer.tsx 删除。
