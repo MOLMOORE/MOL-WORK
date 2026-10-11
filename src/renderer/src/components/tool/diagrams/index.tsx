@@ -7,13 +7,21 @@ import { CircuitCalcDiagram } from './circuit-calc.diagram'
 import { OpampCalcDiagram } from './opamp-calc.diagram'
 import { FilterCalcDiagram } from './filter-calc.diagram'
 import { FilterSimDiagram } from './filter-sim.diagram'
+import { RectCalcDiagram } from './rect-calc.diagram'
+import { Timer555Diagram } from './timer-555.diagram'
+import { TraceCalcDiagram } from './trace-calc.diagram'
+import { WaveRmsDiagram } from './wave-rms.diagram'
 
 const DIAGRAMS: Record<string, (props: DiagramProps) => JSX.Element | null> = {
   'unit-convert': UnitConvertDiagram,
   'circuit-calc': CircuitCalcDiagram,
   'opamp-calc': OpampCalcDiagram,
   'filter-calc': FilterCalcDiagram,
-  'filter-sim': FilterSimDiagram
+  'filter-sim': FilterSimDiagram,
+  'rect-calc': RectCalcDiagram,
+  'timer-555': Timer555Diagram,
+  'trace-calc': TraceCalcDiagram,
+  'wave-rms': WaveRmsDiagram
 }
 
 export function ToolDiagram({ toolId, payload }: { toolId: string; payload: Record<string, unknown> }): JSX.Element | null {

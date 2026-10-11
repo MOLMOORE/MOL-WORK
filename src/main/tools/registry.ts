@@ -10,6 +10,10 @@ import { circuitCalcTool } from './runners/circuit-calc.runner'
 import { filterCalcTool } from './runners/filter-calc.runner'
 import { opampCalcTool } from './runners/opamp-calc.runner'
 import { filterSimTool } from './runners/filter-sim.runner'
+import { rectCalcTool } from './runners/rect-calc.runner'
+import { timer555Tool } from './runners/timer-555.runner'
+import { traceCalcTool } from './runners/trace-calc.runner'
+import { waveRmsTool } from './runners/wave-rms.runner'
 
 /** 工具注册表：加入此数组即出现在工具集市，表单由 manifest 自动渲染。 */
 const DEFINITIONS: ToolDefinition[] = [
@@ -23,7 +27,11 @@ const DEFINITIONS: ToolDefinition[] = [
   circuitCalcTool,
   filterCalcTool,
   opampCalcTool,
-  filterSimTool
+  filterSimTool,
+  rectCalcTool,
+  timer555Tool,
+  traceCalcTool,
+  waveRmsTool
 ]
 
 const INDEX = new Map<string, ToolDefinition>(DEFINITIONS.map((item) => [item.manifest.id, item]))

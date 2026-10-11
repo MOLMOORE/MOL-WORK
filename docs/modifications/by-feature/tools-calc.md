@@ -3,6 +3,14 @@
 > 功能线速查：`src/main/tools/`（registry + runners + engineering.ts + mna.ts）+ `pages/ToolsPage.tsx` + `components/tool/*`（diagrams/ = 计算工具电路配图）
 > 记录格式见 `docs/modifications/README.md`；新改动**追加在本行下方的最前面**。
 
+## 2026-10-11 · v1.2.7 第 6 轮（工具集扩展 4 个新速算）
+- 需求：电路计算工具集再扩展。主线按常见电子工程工具站（参考 mwstore 射频/电路计算目录方向）选四个不重叠缺口：电源整流滤波、555 定时、PCB 走线载流、波形有效值。
+- 拆分：4 子 agent 并行（各写 runner+diagram 两个新文件，写入集互不重叠）；第一批 2 个未落文件即失联，按原规格重派无双写。registry/index/文档/编译/打包全主线（AGENTS §7）。
+- 新增：`runners/{rect-calc,timer-555,trace-calc,wave-rms}.runner.ts` + `diagrams/{同名}.diagram.tsx`；`registry.ts` 与 `diagrams/index.tsx` 各加 4 项接线。公式口径：整流=教材标准近似（三角纹波），555=NE555 数据手册式（D>50% 基本接法），trace=IPC-2221 I=k·ΔT^0.44·A^0.725（外 0.048 / 内 0.024），wave=四种波形标准系数表；notes 均写适用边界。
+- 位置：ToolRunPage 双栏与 ToolDiagram 分发自动生效，路由与页面零改动；555 runner 交付名 `555-timer.runner.ts` 已主线改名 `timer-555.runner.ts`。
+- 验证：esbuild scratch 真实 run() 9 组用例与解析值全对（311→219.9V、桥式 2200u 纹波 2.27V、半波反算 47mF、555 685.7Hz/52.4%、反算 RA27k/RB56k、0.5A 外层 0.12mm 与 Saturn 一致）；两端 tsc 0 错 + build + dist，asar 回读新工具名与图注在产物内。
+- 遗留：轻载断续模式纹波会大于估算；555 D<50% 并二极管变式未建模；平均值刻度万用表测非正弦需按 notes 换算。
+
 ## 2026-10-11 · v1.2.7 第 5 轮（运行页双栏版式，消除留白）
 - 需求：用户反馈运行界面留白过多。根因：第 4 轮新建的 ToolRunPage 沿用抽屉的 max-w-3xl 窄单列，外壳内容区上限 1500px，宽屏两侧各空 350px+。
 - 改法：容器用满宽度；页头合并返回键+工具信息+徽章为一张卡；xl 起 `xl:grid-cols-[minmax(0,1fr)_400px]` 双栏——左=提示+表单卡+最近结果，右=ToolDiagram+历史；ToolRunnerForm 字段改 `md:grid-cols-2`，textarea/path/checkbox `md:col-span-2` 整行；结果预览 max-h-56→80。纯渲染层，逻辑与 diagram 模块不动（SVG 本就 viewBox+w-full 自适应）。
