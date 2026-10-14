@@ -57,6 +57,7 @@
 ## 5. 窗口与外壳
 - 自绘标题栏（无图标、无下边线；最小化/最大化/关闭、全屏 F11/Esc）：`components/layout/TitleBar.tsx` 的 `.titlebar-rail` 续侧栏分隔线，宽度由 `Sidebar.tsx` 的 ResizeObserver 写进 `--sidebar-w`；主进程 `src/main/index.ts`
 - 应用外壳 / 侧栏 / 皮肤装饰：`AppLayout.tsx`、`Sidebar.tsx`、`SkinChrome.tsx`、`PageGrid.tsx`、`GridBoard.tsx`
+- 浮层锚定层（v1.2.7 r8）：`App.tsx` 包 Routes 的 `transform-gpu` 容器 —— 全站 fixed 浮层（Modal/Drawer/对比台）以标题栏以下为视口，勿在该层内放需要盖标题栏的系统级浮窗
 - 全局状态：`src/renderer/src/stores/appStore.ts`（主题、皮肤、设置）
 
 ## 6. 主题与皮肤（`src/renderer/src/styles/index.css`）

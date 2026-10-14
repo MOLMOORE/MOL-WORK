@@ -49,7 +49,10 @@ export default function App(): JSX.Element {
     /* 顶部一行是自绘标题栏：所有路由（含阅读界面）都在它下面，主题换色时它一起变 */
     <div className="flex h-full w-full flex-col overflow-hidden">
       <TitleBar />
-      <div className="min-h-0 flex-1">
+      {/* 浮层锚定层：给这层加 transform 后，其内所有 fixed 浮层（Modal / Drawer / 对比工作台）
+          都以「标题栏以下」为视口定位，不会再被 z-60 的自绘标题栏压住顶部一行（v1.2.7 第八轮）。
+          全屏时标题栏本身不渲染，此层即整窗，浮层依旧铺满。 */}
+      <div className="transform-gpu min-h-0 flex-1">
       <Routes>
         <Route element={<AppLayout />}>
           <Route path="/" element={<DashboardPage />} />
@@ -66,9 +69,9 @@ export default function App(): JSX.Element {
         {/* 阅读界面：像一本书一样全屏打开，不套应用外壳 */}
         <Route path="/reader/:noteId" element={<ReaderPage />} />
       </Routes>
+        {/* 点击窗口 X 后的进入后台/真正关闭选择弹窗 —— 必须放进上面的浮层锚定层，否则弹窗顶部会被标题栏挡住 */}
+        <CloseBehaviorDialog />
       </div>
-      {/* 点击窗口 X 后的进入后台/真正关闭选择弹窗 */}
-      <CloseBehaviorDialog />
     </div>
   )
 }
