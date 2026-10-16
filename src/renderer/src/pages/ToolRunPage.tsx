@@ -7,14 +7,16 @@ import {
   Circle,
   FolderSearch,
   History,
+  Inbox,
   Play,
   RotateCcw,
   Sparkles,
+  X,
   XCircle
 } from 'lucide-react'
 import { TOOL_CATEGORY_META } from '@shared/constants'
 import { Card } from '../components/ui/Card'
-import { Badge, EmptyState, Spinner } from '../components/ui/Feedback'
+import { Badge, EmptyState, Progress, Spinner } from '../components/ui/Feedback'
 import { Button, IconButton } from '../components/ui/Button'
 import { ToolIcon } from '../components/tool/ToolIcon'
 import {
@@ -29,6 +31,35 @@ import { useToolStore } from '../stores/toolStore'
 import { useAppStore } from '../stores/appStore'
 import { cn, formatDateTime, formatDurationMs } from '../lib/utils'
 import { api } from '../lib/ipc'
+
+/** 转换队列的一行：一个文件 + 它在批量转换里的状态（v1.2.7 第十一轮） */
+type BatchRow = {
+  file: string
+  state: 'pending' | 'running' | 'ok' | 'fail'
+  error?: string
+  out?: string
+}
+
+const BATCH_STATE_LABELS: Record<BatchRow['state'], string> = {
+  pending: '排队中',
+  running: '转换中',
+  ok: '成功',
+  fail: '失败'
+}
+
+const BATCH_STATE_TONES: Record<BatchRow['state'], 'default' | 'info' | 'success' | 'danger'> = {
+  pending: 'default',
+  running: 'info',
+  ok: 'success',
+  fail: 'danger'
+}
+
+/** 完整路径 → 文档名 / 所在目录（列表按名称成列显示） */
+const fileNameOf = (path: string): string => path.split(/[\\/]/).pop() || path
+const dirNameOf = (path: string): string => {
+  const dir = path.slice(0, path.length - fileNameOf(path).length).replace(/[\\/]+$/, '')
+  return dir || '（未知位置）'
+}
 
 /** 工具运行页（v1.2.7）：工具集里点开任何工具都进入本页运行，取代原右侧抽屉 */
 export function ToolRunPage(): JSX.Element {
@@ -51,8 +82,8 @@ export function ToolRunPage(): JSX.Element {
   const [payload, setPayload] = useState<ToolPayload>({})
   const [errors, setErrors] = useState<Record<string, string>>({})
 
-  /** 批量转换队列（v1.2.7 第十轮）：拖入 / 多选多个文件后逐个用同一组参数执行 */
-  const [batch, setBatch] = useState<{ file: string; state: 'pending' | 'running' | 'ok' | 'fail'; error?: string; out?: string }[]>([])
+  /** 转换文件队列（v1.2.7 第十一轮）：拖入 / 多选的文件按文档名逐行列出，按同一组参数批量执行 */
+  const [batch, setBatch] = useState<BatchRow[]>([])
   const [batchRunning, setBatchRunning] = useState(false)
   const [dragIn, setDragIn] = useState(false)
 
@@ -87,6 +118,11 @@ export function ToolRunPage(): JSX.Element {
     })
   }
 
+  // 批量源字段 = 第一个文件类 path 字段（四个转换工具均为 sourcePath）
+  const batchField = manifest?.supportsBatch
+    ? manifest.fields.find((field) => field.type === 'path' && (field.pathKind ?? 'file') === 'file')?.name
+    : undefined
+
   const handleRun = async (): Promise<void> => {
     if (!manifest) return
     const validation = validatePayload(visibleFields(fields, payload), payload)
@@ -97,6 +133,24 @@ export function ToolRunPage(): JSX.Element {
     }
     try {
       const outcome = await run(manifest.id, payload)
+      // 队列里若正好有同一个文件，把这行的状态同步成这次结果
+      const sourcePath = batchField ? String(payload[batchField] ?? '') : ''
+      if (sourcePath && batch.some((row) => row.file === sourcePath)) {
+        setBatch((cur) =>
+          cur.map((row) => {
+            if (row.file !== sourcePath) return row
+            if (outcome.ok) {
+              return {
+                ...row,
+                state: 'ok' as const,
+                error: undefined,
+                out: (outcome.run.resultPath as string | undefined) ?? undefined
+              }
+            }
+            return { ...row, state: 'fail' as const, error: outcome.run.error ?? '执行失败' }
+          })
+        )
+      }
       pushToast({
         title: outcome.ok ? '工具执行完成' : '工具执行失败',
         description: outcome.run.resultSummary ?? outcome.run.error ?? undefined,
@@ -107,14 +161,21 @@ export function ToolRunPage(): JSX.Element {
     }
   }
 
-  // 批量源字段 = 第一个文件类 path 字段（四个转换工具均为 sourcePath）
-  const batchField = manifest?.supportsBatch
-    ? manifest.fields.find((field) => field.type === 'path' && (field.pathKind ?? 'file') === 'file')?.name
-    : undefined
-
   const addBatchFiles = (paths: string[]): void => {
+    if (!batchField) return
     const fresh = paths.filter((item) => item && !batch.some((row) => row.file === item))
-    if (fresh.length > 0) setBatch((cur) => [...cur, ...fresh.map((file) => ({ file, state: 'pending' as const }))])
+    if (fresh.length === 0) return
+    setBatch((cur) => [...cur, ...fresh.map((file): BatchRow => ({ file, state: 'pending' }))])
+    // 队列原本为空、或源文件还没填时，把第一个新文件填进源文件框，单张「执行工具」照常可用
+    const currentSource = String(payload[batchField] ?? '')
+    if (batch.length === 0 || currentSource === '') handleChange(batchField, fresh[0])
+  }
+
+  const removeBatchFile = (path: string): void => {
+    if (!batchField) return
+    const next = batch.filter((row) => row.file !== path)
+    setBatch(next)
+    if (String(payload[batchField] ?? '') === path) handleChange(batchField, next[0]?.file ?? '')
   }
 
   const handleFormDrop = (event: DragEvent<HTMLElement>): void => {
@@ -125,11 +186,16 @@ export function ToolRunPage(): JSX.Element {
       .map((file) => window.nativeFiles?.pathForFile(file) ?? '')
       .filter((item) => item !== '')
     if (paths.length === 0) return
-    if (paths.length === 1 && batch.length === 0) {
-      handleChange(batchField, paths[0])
-      return
+    // 没有扩展名的拖入项按文件夹处理：明确提示，不让它静默进队列后报一句看不懂的错误
+    const files = paths.filter((item) => /\.[^.\\/]+$/.test(item))
+    if (files.length < paths.length) {
+      pushToast({
+        title: `已忽略 ${paths.length - files.length} 个文件夹`,
+        description: '请进入文件夹后选中里面的文件再拖进来',
+        tone: 'warning'
+      })
     }
-    addBatchFiles(paths)
+    if (files.length > 0) addBatchFiles(files)
   }
 
   const startBatch = async (): Promise<void> => {
@@ -193,6 +259,11 @@ export function ToolRunPage(): JSX.Element {
   const meta = TOOL_CATEGORY_META[manifest.category]
   const missing = (manifest.dependencyStatus ?? []).filter((item) => !item.available)
   const isRunning = running === manifest.id
+  const sourceField = batchField ?? ''
+  const okCount = batch.filter((row) => row.state === 'ok').length
+  const failCount = batch.filter((row) => row.state === 'fail').length
+  const todoCount = batch.filter((row) => row.state === 'pending' || row.state === 'fail').length
+  const runningIndex = batch.findIndex((row) => row.state === 'running')
 
   return (
     <div className="mx-auto flex w-full flex-col gap-4 pb-10">
@@ -250,7 +321,7 @@ export function ToolRunPage(): JSX.Element {
             </div>
           ) : null}
 
-          {/* 拖放区：转换类工具把文件拖进来即可（单个填表单，多个进队列） */}
+          {/* 拖放层：整列都能接住拖入，虚线只在高亮时可见；文件列表见下方「转换文件」卡 */}
           <div
             className={cn(
               'flex flex-col gap-4 rounded-2xl outline-dashed outline-2 outline-offset-4 transition-[outline-color]',
@@ -265,6 +336,160 @@ export function ToolRunPage(): JSX.Element {
             onDragLeave={() => setDragIn(false)}
             onDrop={handleFormDrop}
           >
+          {/* 转换文件：拖进来就按文档名一行一个排好，批量转换直接看这一列 */}
+          {batchField ? (
+            <Card className="flex flex-col gap-2.5">
+              <div className="flex items-center justify-between gap-2">
+                <p className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
+                  <Inbox className="h-3.5 w-3.5 text-muted-foreground" />
+                  转换文件
+                  {batch.length > 0 ? (
+                    <span className="font-normal text-muted-foreground">
+                      · 共 {batch.length} 个 · 成功 {okCount} · 失败 {failCount}
+                    </span>
+                  ) : null}
+                </p>
+                <Button
+                  size="xs"
+                  variant="ghost"
+                  icon={<RotateCcw className="h-3 w-3" />}
+                  disabled={batchRunning || batch.length === 0}
+                  onClick={() => {
+                    setBatch([])
+                    if (payload[sourceField]) handleChange(sourceField, '')
+                  }}
+                >
+                  清空
+                </Button>
+              </div>
+
+              <button
+                type="button"
+                disabled={batchRunning}
+                onClick={() =>
+                  void api.app.pickFileList().then((paths) => {
+                    if (paths.length > 0) addBatchFiles(paths)
+                  })
+                }
+                className={cn(
+                  'flex w-full flex-col items-center justify-center gap-1 rounded-xl border border-dashed px-3 py-5 text-center transition-colors',
+                  batchRunning
+                    ? 'cursor-not-allowed border-border bg-muted/20'
+                    : dragIn
+                      ? 'border-primary bg-primary/10'
+                      : 'border-border bg-muted/20 hover:border-primary/60 hover:bg-primary/5'
+                )}
+              >
+                <Inbox className={cn('h-5 w-5', dragIn ? 'text-primary' : 'text-muted-foreground')} />
+                <span className="text-[11px] font-medium text-foreground">
+                  {dragIn ? '松开鼠标，文件会排成一列' : '把文件拖到这里，或点击多选'}
+                </span>
+                <span className="text-[10px] leading-relaxed text-muted-foreground">
+                  点任意一行可把它设为「执行工具」的源文件；批量转换按这一列的顺序逐个执行
+                </span>
+              </button>
+
+              {batch.length > 0 ? (
+                <div className="flex flex-col gap-1.5">
+                  {batch.map((item, index) => {
+                    const isSource = item.file === String(payload[sourceField] ?? '')
+                    return (
+                      <div
+                        key={item.file}
+                        className={cn(
+                          'flex items-center gap-2 rounded-lg border px-2.5 py-1.5 transition-colors',
+                          isSource ? 'border-primary/60 bg-primary/10' : 'border-border bg-muted/20'
+                        )}
+                      >
+                        {item.state === 'ok' ? (
+                          <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-success" />
+                        ) : item.state === 'fail' ? (
+                          <XCircle className="h-3.5 w-3.5 shrink-0 text-danger" />
+                        ) : item.state === 'running' ? (
+                          <Spinner className="h-3.5 w-3.5 shrink-0" />
+                        ) : (
+                          <Circle className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" />
+                        )}
+                        <span className="w-4 shrink-0 text-[10px] tabular-nums text-muted-foreground">{index + 1}</span>
+                        <button
+                          type="button"
+                          disabled={batchRunning}
+                          onClick={() => handleChange(sourceField, item.file)}
+                          className="min-w-0 flex-1 text-left"
+                          title={item.file}
+                        >
+                          <p className="truncate text-[11px] font-medium text-foreground">{fileNameOf(item.file)}</p>
+                          <p className="truncate text-[10px] text-muted-foreground">{dirNameOf(item.file)}</p>
+                          {item.error ? (
+                            <p className="truncate text-[10px] text-tint-danger" title={item.error}>
+                              {item.error.split('\n')[0]}
+                            </p>
+                          ) : null}
+                          {item.out ? (
+                            <p className="flex items-center gap-1 truncate text-[10px] text-success" title={item.out}>
+                              <Sparkles className="h-3 w-3 shrink-0" />
+                              <span className="truncate">{fileNameOf(item.out)}</span>
+                            </p>
+                          ) : null}
+                        </button>
+                        <div className="flex shrink-0 items-center gap-1.5">
+                          {isSource ? <Badge tone="primary">源文件</Badge> : null}
+                          <Badge tone={BATCH_STATE_TONES[item.state]}>{BATCH_STATE_LABELS[item.state]}</Badge>
+                          {item.state === 'ok' && item.out ? (
+                            <>
+                              <IconButton label="打开文件" onClick={() => void api.app.openPath(item.out as string)}>
+                                <Sparkles className="h-3.5 w-3.5" />
+                              </IconButton>
+                              <IconButton
+                                label="在文件夹中显示"
+                                onClick={() => void api.app.showItemInFolder(item.out as string)}
+                              >
+                                <FolderSearch className="h-3.5 w-3.5" />
+                              </IconButton>
+                            </>
+                          ) : null}
+                          {!batchRunning ? (
+                            <IconButton label="移出列表" onClick={() => removeBatchFile(item.file)}>
+                              <X className="h-3.5 w-3.5" />
+                            </IconButton>
+                          ) : null}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              ) : null}
+
+              {batch.length > 0 ? (
+                <>
+                  <Progress
+                    value={Math.round(((okCount + failCount) / batch.length) * 100)}
+                    tone={failCount > 0 ? 'warning' : 'primary'}
+                  />
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-[10px] text-muted-foreground">
+                      {batchRunning && runningIndex >= 0
+                        ? `正在转换第 ${runningIndex + 1} / ${batch.length} 个…`
+                        : todoCount > 0
+                          ? `${todoCount} 个待转换`
+                          : '这一列已全部执行完'}
+                    </p>
+                    <Button
+                      size="xs"
+                      variant="primary"
+                      icon={<Play className="h-3 w-3" />}
+                      loading={batchRunning}
+                      disabled={batchRunning || todoCount === 0}
+                      onClick={() => void startBatch()}
+                    >
+                      开始批量转换
+                    </Button>
+                  </div>
+                </>
+              ) : null}
+            </Card>
+          ) : null}
+
           <Card className="flex flex-col gap-4">
             <ToolRunnerForm
               fields={fields}
@@ -284,6 +509,8 @@ export function ToolRunPage(): JSX.Element {
                 onClick={() => {
                   setPayload(initialPayload(fields))
                   setErrors({})
+                  // 队列还在时把源文件补回第一个，重置参数不该把已拖入的一列清掉
+                  if (batchField && batch[0]) handleChange(batchField, batch[0].file)
                   clearResult(manifest.id)
                 }}
               >
@@ -302,69 +529,6 @@ export function ToolRunPage(): JSX.Element {
             </div>
           </Card>
           </div>
-
-          {batchField ? (
-            <Card className="flex flex-col gap-2.5">
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-xs font-semibold text-foreground">
-                  批量转换队列
-                  {batch.length > 0 ? ` · ${batch.filter((row) => row.state === 'ok' || row.state === 'fail').length}/${batch.length}` : ''}
-                </p>
-                <div className="flex items-center gap-2">
-                  <Button size="xs" variant="ghost" icon={<RotateCcw className="h-3 w-3" />} disabled={batchRunning || batch.length === 0} onClick={() => setBatch([])}>
-                    清空
-                  </Button>
-                  <Button
-                    size="xs"
-                    variant="primary"
-                    icon={<Play className="h-3 w-3" />}
-                    loading={batchRunning}
-                    disabled={batchRunning || !batch.some((row) => row.state === 'pending' || row.state === 'fail')}
-                    onClick={() => void startBatch()}
-                  >
-                    开始批量转换
-                  </Button>
-                </div>
-              </div>
-              {batch.length === 0 ? (
-                <p className="text-[11px] leading-relaxed text-muted-foreground">
-                  把多个文件拖到上方表单，或点源文件旁的多选键加入队列；队列按上方参数逐个转换，单张照常点「执行工具」
-                </p>
-              ) : (
-                <div className="flex flex-col gap-1.5">
-                  {batch.map((item) => (
-                    <div key={item.file} className="flex items-center gap-2 rounded-lg border border-border bg-muted/20 px-2.5 py-1.5">
-                      {item.state === 'ok' ? (
-                        <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-success" />
-                      ) : item.state === 'fail' ? (
-                        <XCircle className="h-3.5 w-3.5 shrink-0 text-danger" />
-                      ) : item.state === 'running' ? (
-                        <Spinner className="h-3.5 w-3.5 shrink-0" />
-                      ) : (
-                        <Circle className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" />
-                      )}
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-[11px] text-foreground" title={item.file}>
-                          {item.file.split(/[\\/]/).pop()}
-                        </p>
-                        {item.error ? (
-                          <p className="truncate text-[10px] text-tint-danger" title={item.error}>{item.error.split('\n')[0]}</p>
-                        ) : null}
-                        {item.out ? (
-                          <p className="truncate text-[10px] text-muted-foreground" title={item.out}>{item.out}</p>
-                        ) : null}
-                      </div>
-                      {item.state === 'ok' && item.out ? (
-                        <IconButton label="打开文件" onClick={() => void api.app.openPath(item.out as string)}>
-                          <Sparkles className="h-3.5 w-3.5" />
-                        </IconButton>
-                      ) : null}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </Card>
-          ) : null}
 
           {result ? (
             <Card>

@@ -4,6 +4,13 @@
 > 记录格式见 `docs/modifications/README.md`；新改动**追加在本行下方的最前面**。
 
 ## 2026-10-16 · v1.2.7 第 9 轮（doc ↔ PDF 互转）
+## 2026-10-16 · v1.2.7 第 11 轮（拖入文件按文档名成列显示）
+- 需求：拖进来的文件要一列一列显示文档名，批量转换的进度也靠这一列看（第十轮的队列卡藏在表单下方、单个文件还不进队列，看不出拖了些什么）。
+- 改法：左栏表单之上新增「转换文件」卡 —— 顶部是虚线拖放条（拖入即高亮，点一下走 `app:pick-files` 多选），下面按文件一行一个列出（序号 + 文档名 + 所在目录 + 状态徽章 + 失败原因 + 产物名），底部 `Progress` 与「开始批量转换」。单个文件也进这一列并在队列为空 / 源文件未填时自动填进源文件框（`addBatchFiles`）；点行 = 设为源文件（`Badge tone="primary"` 标记当前行），行尾可移出（`removeBatchFile`，若移出的是源文件则回填下一行）；「执行工具」跑完把同一文件那行的状态同步成结果；「重置」保留队列并回填源文件；无扩展名的拖入项按文件夹处理并 toast，不再静默失败。旧的「批量转换队列」卡删除，符号与状态常量提到模块级（`BatchRow` / `BATCH_STATE_LABELS` / `BATCH_STATE_TONES` / `fileNameOf` / `dirNameOf`）。
+- 位置：`ToolRunPage.tsx`（详见 `by-version/v1.2.7-r11.md`）；`ToolRunnerForm` 源文件旁的多选键保留，走的仍是同一个 `addBatchFiles`。
+- 验证：两端 tsc 0 错 + `npm run build` 三端通过 + `npm run dist` 后 asar 回读；拖拽目检留给用户。
+- 遗留：中途改参数只影响未跑项；批量运行中不接受新拖入；整窗（左栏以外）拖入仍由外壳决定，不进队列。
+
 ## 2026-10-16 · v1.2.7 第 10 轮（拖入 + 多文件批量转换）
 - 需求：四个转换工具支持文件拖入与多文件批量转换。
 - 改法：manifest 加 `supportsBatch`；ToolRunPage 表单外套拖放层 + 「批量转换队列」卡（单文件填源框、多文件入队去重，startBatch 按当前参数逐文件调 toolStore.run，pending/fail 均重试）；ToolRunnerForm 源文件旁 Layers 多选键；新 IPC `app:pick-files` 三处同步。拖入取路径复用 `window.nativeFiles.pathForFile`（webUtils，Electron 32+ 无 File.path）。
