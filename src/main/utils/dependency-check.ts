@@ -2,7 +2,7 @@ import { DEPENDENCY_META } from '@shared/constants'
 import type { DependencyId, DependencyStatus } from '@shared/types/domain'
 import { existsSync, readdirSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { logger } from './logger'
 import { runCommand } from './command'
 import { invalidateBinaryCache, resolveBinary, type ToolBinaryId } from './binaries'
@@ -37,7 +37,13 @@ async function probeBinary(id: Exclude<DependencyId, 'playwright'>): Promise<Dep
   if (!binary) {
     return { id, label: meta.label, available: false, version: null, installHint: meta.installHint, resolvedPath: null }
   }
-  const probe = await runCommand(binary.path, PROBE_ARGS[id as ToolBinaryId], { timeoutMs: 10000 })
+  // Windows 的 soffice.exe 是 GUI 启动器，管道下不吐版本行；同目录 soffice.com 才有控制台输出
+  let probeTarget = binary.path
+  if (id === 'soffice' && process.platform === 'win32') {
+    const com = join(dirname(binary.path), 'soffice.com')
+    if (existsSync(com)) probeTarget = com
+  }
+  const probe = await runCommand(probeTarget, PROBE_ARGS[id as ToolBinaryId], { timeoutMs: 10000 })
   const firstLine = (probe.stdout || probe.stderr)
     .split(/\r?\n/)
     .map((line) => line.trim())

@@ -174,7 +174,12 @@ async function probe(command, args) {
 const rows = []
 
 for (const item of PROBES) {
-  const binary = await resolveBinary(item.id)
+  let binary = await resolveBinary(item.id)
+  // soffice.exe 是 GUI 启动器无控制台输出，版本探测改用同目录 soffice.com
+  if (binary && item.id === 'soffice' && IS_WINDOWS) {
+    const com = join(dirname(binary), 'soffice.com')
+    if (existsSync(com)) binary = com
+  }
   const version = binary ? await probe(binary, item.args) : null
   rows.push({ name: item.id, status: version ? '可用' : '未安装', detail: version ?? item.hint, path: binary })
 }

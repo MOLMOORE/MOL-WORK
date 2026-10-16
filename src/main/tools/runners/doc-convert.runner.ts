@@ -157,7 +157,8 @@ export const docConvertTool: ToolDefinition = {
       }
       return runConversion({
         engine: 'pdf2docx',
-        args: [sourcePath, outputPath],
+        // 0.5.13 起 CLI 为子命令式：pdf2docx convert <in> <out>
+        args: ['convert', sourcePath, outputPath],
         sourcePath,
         outputPath,
         outputs: [
