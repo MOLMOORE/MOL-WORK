@@ -1,4 +1,4 @@
-import { FolderOpen } from 'lucide-react'
+import { FolderOpen, Layers } from 'lucide-react'
 import type { ToolField } from '@shared/types/domain'
 import { Checkbox, Field, Input, Select, Textarea } from '../ui/Field'
 import { IconButton } from '../ui/Button'
@@ -60,9 +60,12 @@ export interface ToolRunnerFormProps {
   errors: Record<string, string>
   disabled?: boolean
   onChange: (name: string, value: unknown) => void
+  /** 批量源字段：该 path 字段旁会出现「批量选择」键，拖入多个文件也走 onBatchFiles */
+  batchField?: string
+  onBatchFiles?: (paths: string[]) => void
 }
 
-export function ToolRunnerForm({ fields, value, errors, disabled, onChange }: ToolRunnerFormProps): JSX.Element {
+export function ToolRunnerForm({ fields, value, errors, disabled, onChange, batchField, onBatchFiles }: ToolRunnerFormProps): JSX.Element {
   const pick = async (field: ToolField): Promise<void> => {
     const picked = await api.app.pickPath(field.pathKind ?? 'file')
     if (picked) onChange(field.name, picked)
@@ -135,6 +138,19 @@ export function ToolRunnerForm({ fields, value, errors, disabled, onChange }: To
                 >
                   <FolderOpen className="h-4 w-4" />
                 </IconButton>
+                {field.name === batchField && onBatchFiles ? (
+                  <IconButton
+                    label="批量选择文件"
+                    disabled={disabled}
+                    onClick={() =>
+                      void api.app.pickFileList().then((paths) => {
+                        if (paths.length > 0) onBatchFiles(paths)
+                      })
+                    }
+                  >
+                    <Layers className="h-4 w-4" />
+                  </IconButton>
+                ) : null}
               </div>
             </Field>
           )

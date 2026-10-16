@@ -21,6 +21,7 @@ export const audioConvertTool: ToolDefinition = {
     icon: 'AudioLines',
     requires: ['ffmpeg'],
     builtin: true,
+    supportsBatch: true,
     fields: [
       {
         name: 'sourcePath',

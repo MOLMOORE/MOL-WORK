@@ -74,6 +74,7 @@ export interface WorkstationApi {
     openPath(target: string): Promise<boolean>
     showItemInFolder(target: string): Promise<boolean>
     pickPath(mode: 'file' | 'directory'): Promise<string | null>
+    pickFileList(): Promise<string[]>
     checkDependencies(force?: boolean): Promise<DependencyStatus[]>
     exportReport(date: string): Promise<{ path: string; content: string }>
     seedDemo(): Promise<{ created: boolean }>

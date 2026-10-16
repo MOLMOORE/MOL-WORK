@@ -76,6 +76,7 @@ const api: WorkstationApi = {
     openPath: (target) => invoke<boolean>('app:open-path', target),
     showItemInFolder: (target) => invoke<boolean>('app:show-item', target),
     pickPath: (mode) => invoke<string | null>('app:pick-path', mode),
+    pickFileList: () => invoke<string[]>('app:pick-files'),
     checkDependencies: (force?: boolean) => invoke<DependencyStatus[]>('app:check-deps', force),
     exportReport: (date) => invoke<{ path: string; content: string }>('app:export-report', date),
     seedDemo: () => invoke<{ created: boolean }>('app:seed-demo'),

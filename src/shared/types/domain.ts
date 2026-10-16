@@ -443,6 +443,8 @@ export interface ToolManifest {
   icon: string
   fields: ToolField[]
   requires: DependencyId[]
+  /** 支持把多个文件拖入 / 多选加入队列逐个转换（转换类工具） */
+  supportsBatch?: boolean
   builtin: boolean
   enabled: boolean
   /** 是否仍被安装（false 表示用户已移除） */

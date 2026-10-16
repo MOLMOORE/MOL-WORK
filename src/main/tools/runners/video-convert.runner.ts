@@ -20,6 +20,7 @@ export const videoConvertTool: ToolDefinition = {
     icon: 'Video',
     requires: ['ffmpeg'],
     builtin: true,
+    supportsBatch: true,
     fields: [
       {
         name: 'sourcePath',

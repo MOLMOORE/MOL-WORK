@@ -58,6 +58,16 @@ export function registerAppIpc(): void {
     return result.filePaths[0]
   })
 
+  /** 工具批量转换用：一次多选文件，返回绝对路径数组 */
+  handle<string[]>('app:pick-files', async () => {
+    const result = await dialog.showOpenDialog({
+      title: '选择要批量处理的文件',
+      buttonLabel: '加入队列',
+      properties: ['openFile', 'multiSelections']
+    })
+    return result.canceled ? [] : result.filePaths
+  })
+
   handle<DependencyStatus[]>('app:check-deps', (force?: boolean) => {
     if (force) invalidateDependencyCache()
     return checkDependencies(Boolean(force))

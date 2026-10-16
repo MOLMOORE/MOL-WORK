@@ -110,6 +110,7 @@ export const docConvertTool: ToolDefinition = {
     icon: 'FileText',
     requires: ['pandoc', 'soffice', 'pdf2docx'],
     builtin: true,
+    supportsBatch: true,
     fields: [
       {
         name: 'sourcePath',

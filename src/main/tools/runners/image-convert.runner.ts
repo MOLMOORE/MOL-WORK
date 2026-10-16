@@ -20,6 +20,7 @@ export const imageConvertTool: ToolDefinition = {
     icon: 'Image',
     requires: ['ffmpeg'],
     builtin: true,
+    supportsBatch: true,
     fields: [
       {
         name: 'sourcePath',

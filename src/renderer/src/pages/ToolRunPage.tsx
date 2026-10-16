@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type DragEvent } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
   AlertTriangle,
   ArrowLeft,
   CheckCircle2,
+  Circle,
   FolderSearch,
   History,
   Play,
@@ -26,7 +27,7 @@ import {
 import { ToolDiagram } from '../components/tool/diagrams'
 import { useToolStore } from '../stores/toolStore'
 import { useAppStore } from '../stores/appStore'
-import { formatDateTime, formatDurationMs } from '../lib/utils'
+import { cn, formatDateTime, formatDurationMs } from '../lib/utils'
 import { api } from '../lib/ipc'
 
 /** 工具运行页（v1.2.7）：工具集里点开任何工具都进入本页运行，取代原右侧抽屉 */
@@ -50,6 +51,11 @@ export function ToolRunPage(): JSX.Element {
   const [payload, setPayload] = useState<ToolPayload>({})
   const [errors, setErrors] = useState<Record<string, string>>({})
 
+  /** 批量转换队列（v1.2.7 第十轮）：拖入 / 多选多个文件后逐个用同一组参数执行 */
+  const [batch, setBatch] = useState<{ file: string; state: 'pending' | 'running' | 'ok' | 'fail'; error?: string; out?: string }[]>([])
+  const [batchRunning, setBatchRunning] = useState(false)
+  const [dragIn, setDragIn] = useState(false)
+
   // 从全局搜索 / 运行记录直接进本页时，工具列表可能还没加载
   useEffect(() => {
     if (tools.length === 0) void load()
@@ -60,6 +66,9 @@ export function ToolRunPage(): JSX.Element {
     if (!manifest) return
     setPayload(initialPayload(manifest.fields))
     setErrors({})
+    setBatch([])
+    setBatchRunning(false)
+    setDragIn(false)
   }, [manifestId])
 
   const result = manifest ? results[manifest.id] : undefined
@@ -96,6 +105,64 @@ export function ToolRunPage(): JSX.Element {
     } catch (error) {
       pushToast({ title: '工具执行失败', description: (error as Error).message, tone: 'danger' })
     }
+  }
+
+  // 批量源字段 = 第一个文件类 path 字段（四个转换工具均为 sourcePath）
+  const batchField = manifest?.supportsBatch
+    ? manifest.fields.find((field) => field.type === 'path' && (field.pathKind ?? 'file') === 'file')?.name
+    : undefined
+
+  const addBatchFiles = (paths: string[]): void => {
+    const fresh = paths.filter((item) => item && !batch.some((row) => row.file === item))
+    if (fresh.length > 0) setBatch((cur) => [...cur, ...fresh.map((file) => ({ file, state: 'pending' as const }))])
+  }
+
+  const handleFormDrop = (event: DragEvent<HTMLElement>): void => {
+    event.preventDefault()
+    setDragIn(false)
+    if (!batchField || batchRunning) return
+    const paths = Array.from(event.dataTransfer.files)
+      .map((file) => window.nativeFiles?.pathForFile(file) ?? '')
+      .filter((item) => item !== '')
+    if (paths.length === 0) return
+    if (paths.length === 1 && batch.length === 0) {
+      handleChange(batchField, paths[0])
+      return
+    }
+    addBatchFiles(paths)
+  }
+
+  const startBatch = async (): Promise<void> => {
+    if (!manifest || !batchField || batchRunning) return
+    const queue = batch.filter((item) => item.state === 'pending' || item.state === 'fail')
+    if (queue.length === 0) return
+    const validation = validatePayload(visibleFields(fields.filter((field) => field.name !== batchField), payload), payload)
+    setErrors(validation)
+    if (Object.keys(validation).length > 0) {
+      pushToast({ title: '请先补全必填项', tone: 'warning' })
+      return
+    }
+    setBatchRunning(true)
+    let okCount = 0
+    for (const item of queue) {
+      setBatch((cur) => cur.map((row) => (row.file === item.file ? { ...row, state: 'running', error: undefined } : row)))
+      try {
+        const outcome = await run(manifest.id, { ...payload, [batchField]: item.file })
+        if (outcome.ok) {
+          okCount += 1
+          setBatch((cur) => cur.map((row) => (row.file === item.file ? { ...row, state: 'ok', out: (outcome.run.resultPath as string | undefined) ?? undefined } : row)))
+        } else {
+          setBatch((cur) => cur.map((row) => (row.file === item.file ? { ...row, state: 'fail', error: outcome.run.error ?? '执行失败' } : row)))
+        }
+      } catch (error) {
+        setBatch((cur) => cur.map((row) => (row.file === item.file ? { ...row, state: 'fail', error: (error as Error).message } : row)))
+      }
+    }
+    setBatchRunning(false)
+    pushToast({
+      title: `批量转换完成：${okCount} 成功 / ${queue.length - okCount} 失败`,
+      tone: okCount === queue.length ? 'success' : 'warning'
+    })
   }
 
   if (!manifest) {
@@ -183,8 +250,31 @@ export function ToolRunPage(): JSX.Element {
             </div>
           ) : null}
 
+          {/* 拖放区：转换类工具把文件拖进来即可（单个填表单，多个进队列） */}
+          <div
+            className={cn(
+              'flex flex-col gap-4 rounded-2xl outline-dashed outline-2 outline-offset-4 transition-[outline-color]',
+              batchField && !batchRunning ? (dragIn ? 'outline-primary/80' : 'outline-transparent') : 'outline-transparent'
+            )}
+            onDragOver={(event) => {
+              if (!batchField || batchRunning) return
+              event.preventDefault()
+              event.dataTransfer.dropEffect = 'copy'
+              setDragIn(true)
+            }}
+            onDragLeave={() => setDragIn(false)}
+            onDrop={handleFormDrop}
+          >
           <Card className="flex flex-col gap-4">
-            <ToolRunnerForm fields={fields} value={payload} errors={errors} disabled={isRunning} onChange={handleChange} />
+            <ToolRunnerForm
+              fields={fields}
+              value={payload}
+              errors={errors}
+              disabled={isRunning || batchRunning}
+              onChange={handleChange}
+              batchField={batchField}
+              onBatchFiles={addBatchFiles}
+            />
             <div className="flex items-center justify-between gap-2 border-t border-border pt-3">
               <Button
                 variant="ghost"
@@ -204,13 +294,77 @@ export function ToolRunPage(): JSX.Element {
                 size="sm"
                 loading={isRunning}
                 icon={<Play className="h-3.5 w-3.5" />}
-                disabled={!manifest.enabled}
+                disabled={!manifest.enabled || batchRunning}
                 onClick={() => void handleRun()}
               >
                 {isRunning ? '执行中…' : '执行工具'}
               </Button>
             </div>
           </Card>
+          </div>
+
+          {batchField ? (
+            <Card className="flex flex-col gap-2.5">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs font-semibold text-foreground">
+                  批量转换队列
+                  {batch.length > 0 ? ` · ${batch.filter((row) => row.state === 'ok' || row.state === 'fail').length}/${batch.length}` : ''}
+                </p>
+                <div className="flex items-center gap-2">
+                  <Button size="xs" variant="ghost" icon={<RotateCcw className="h-3 w-3" />} disabled={batchRunning || batch.length === 0} onClick={() => setBatch([])}>
+                    清空
+                  </Button>
+                  <Button
+                    size="xs"
+                    variant="primary"
+                    icon={<Play className="h-3 w-3" />}
+                    loading={batchRunning}
+                    disabled={batchRunning || !batch.some((row) => row.state === 'pending' || row.state === 'fail')}
+                    onClick={() => void startBatch()}
+                  >
+                    开始批量转换
+                  </Button>
+                </div>
+              </div>
+              {batch.length === 0 ? (
+                <p className="text-[11px] leading-relaxed text-muted-foreground">
+                  把多个文件拖到上方表单，或点源文件旁的多选键加入队列；队列按上方参数逐个转换，单张照常点「执行工具」
+                </p>
+              ) : (
+                <div className="flex flex-col gap-1.5">
+                  {batch.map((item) => (
+                    <div key={item.file} className="flex items-center gap-2 rounded-lg border border-border bg-muted/20 px-2.5 py-1.5">
+                      {item.state === 'ok' ? (
+                        <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-success" />
+                      ) : item.state === 'fail' ? (
+                        <XCircle className="h-3.5 w-3.5 shrink-0 text-danger" />
+                      ) : item.state === 'running' ? (
+                        <Spinner className="h-3.5 w-3.5 shrink-0" />
+                      ) : (
+                        <Circle className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" />
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-[11px] text-foreground" title={item.file}>
+                          {item.file.split(/[\\/]/).pop()}
+                        </p>
+                        {item.error ? (
+                          <p className="truncate text-[10px] text-tint-danger" title={item.error}>{item.error.split('\n')[0]}</p>
+                        ) : null}
+                        {item.out ? (
+                          <p className="truncate text-[10px] text-muted-foreground" title={item.out}>{item.out}</p>
+                        ) : null}
+                      </div>
+                      {item.state === 'ok' && item.out ? (
+                        <IconButton label="打开文件" onClick={() => void api.app.openPath(item.out as string)}>
+                          <Sparkles className="h-3.5 w-3.5" />
+                        </IconButton>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Card>
+          ) : null}
 
           {result ? (
             <Card>
