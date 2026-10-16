@@ -6,7 +6,7 @@ import { runCommand, whichCommand, type CommandOptions, type CommandResult } fro
 import { logger } from './logger'
 
 /** 工具集实际调用的外部可执行文件 */
-export type ToolBinaryId = 'pandoc' | 'ffmpeg' | 'ffprobe' | 'yt-dlp'
+export type ToolBinaryId = 'pandoc' | 'ffmpeg' | 'ffprobe' | 'yt-dlp' | 'soffice' | 'pdf2docx'
 
 export type BinarySource = 'managed' | 'path' | 'pip' | 'winget'
 
@@ -24,7 +24,11 @@ const PACKAGE_PATTERNS: Record<ToolBinaryId, string[]> = {
   pandoc: ['pypandoc/files/pandoc.exe', 'pypandoc/files/pandoc'],
   ffmpeg: ['imageio_ffmpeg/binaries/ffmpeg-*.exe', 'imageio_ffmpeg/binaries/ffmpeg'],
   ffprobe: ['imageio_ffmpeg/binaries/ffprobe-*.exe', 'imageio_ffmpeg/binaries/ffprobe'],
-  'yt-dlp': ['yt_dlp/yt-dlp.exe']
+  'yt-dlp': ['yt_dlp/yt-dlp.exe'],
+  // soffice / pdf2docx 不随 Python 包自带二进制：
+  // LibreOffice 走专用安装目录探测（probeLibreOffice），pdf2docx 是 pip Scripts 里的控制台入口
+  soffice: [],
+  pdf2docx: []
 }
 
 const CACHE_TTL_MS = 60 * 1000
@@ -146,9 +150,33 @@ function probePythonPackages(id: ToolBinaryId): ResolvedBinary | null {
   return null
 }
 
+/** LibreOffice 常规安装位置探测（Windows 默认不写 PATH，winget / 官方安装包同此布局） */
+function probeLibreOffice(): ResolvedBinary | null {
+  const exe = IS_WINDOWS ? 'soffice.exe' : 'soffice'
+  const dirs: string[] = []
+  if (IS_WINDOWS) {
+    const pf = process.env.ProgramFiles ?? 'C:\\Program Files'
+    const pf86 = process.env['ProgramFiles(x86)'] ?? 'C:\\Program Files (x86)'
+    dirs.push(join(pf, 'LibreOffice', 'program'), join(pf86, 'LibreOffice', 'program'), join(localAppDataDir(), 'Programs', 'LibreOffice', 'program'))
+  } else if (process.platform === 'darwin') {
+    dirs.push(
+      '/Applications/LibreOffice.app/Contents/MacOS',
+      join(homedir(), 'Applications', 'LibreOffice.app', 'Contents', 'MacOS')
+    )
+  } else {
+    dirs.push('/usr/lib/libreoffice/program', '/usr/local/lib/libreoffice/program')
+  }
+  for (const dir of dirs) {
+    const hit = join(dir, exe)
+    if (existsSync(hit)) return { id: 'soffice', path: hit, source: 'path' }
+  }
+  return null
+}
+
 /**
  * 解析外部可执行文件的真实路径。
- * 顺序：托管 bin 目录 → 系统 PATH → winget 软链 → pip 脚本目录 → Python 包自带二进制。
+ * 顺序：托管 bin 目录 → 系统 PATH → winget 软链 → pip 脚本目录 → Python 包自带二进制；
+ * soffice 额外回退：PATH 的 libreoffice 别名 → LibreOffice 常规安装目录。
  */
 export async function resolveBinary(id: ToolBinaryId, force = false): Promise<ResolvedBinary | null> {
   const cached = cache.get(id)
@@ -168,6 +196,11 @@ export async function resolveBinary(id: ToolBinaryId, force = false): Promise<Re
 
   if (!resolved) resolved = probeCandidateDirs(id)
   if (!resolved) resolved = probePythonPackages(id)
+  if (!resolved && id === 'soffice') {
+    const alt = await whichCommand('libreoffice')
+    if (alt) resolved = { id, path: alt, source: 'path' }
+    else resolved = probeLibreOffice()
+  }
 
   if (resolved) logger.info(`外部依赖已解析：${id} -> ${resolved.path} (${resolved.source})`)
   cache.set(id, { resolved, at: Date.now() })

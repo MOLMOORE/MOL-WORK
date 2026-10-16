@@ -68,7 +68,8 @@
 - 阅读与批注相关组件层：`.mw-*`（书页、圈画、旁注）、`.cmp-*`（对比工作台）、`.reader-*`
 
 ## 7. 工具集 / 任务 / 统计 / 番茄（速查）
-- 工具：`src/main/tools/registry.ts`（注册即生效）、`tools/runners/*.runner.ts`（计算类 10 个：unit-convert / circuit-calc / filter-calc / opamp-calc / filter-sim / rect-calc / timer-555 / trace-calc / wave-rms / match-calc）、`src/main/utils/{binaries,command,dependency-check}.ts`、页面 `ToolsPage.tsx`（看板 `workstation.grid.tools.v5`）+ `components/tool/*`
+- 工具：`src/main/tools/registry.ts`（注册即生效）、`tools/runners/*.runner.ts`（计算类 10 个：unit-convert / circuit-calc / filter-calc / opamp-calc / filter-sim / rect-calc / timer-555 / trace-calc / wave-rms / match-calc）
+- 文档转换引擎路由（v1.2.7 r9）：`doc-convert.runner.ts#sofficeConvert`（LibreOffice 无头，独立 lo-profile 防实例转交）+ `convert-shared.ts#runConversion`（engine 含 pdf2docx）；新依赖探测三处同步：`utils/binaries.ts#probeLibreOffice`、`utils/dependency-check.ts#PROBE_ARGS`、`scripts/check-tools.mjs`、`src/main/utils/{binaries,command,dependency-check}.ts`、页面 `ToolsPage.tsx`（看板 `workstation.grid.tools.v5`）+ `components/tool/*`
 - 工具运行页（v1.2.7，取代 ToolDetailDrawer 抽屉）：路由 `/tools/:toolId` → `pages/ToolRunPage.tsx`（宽屏双栏：左 = 表单 + 最近结果，右 = 配图 + 该工具历史；页头一卡含返回键与工具信息；入口：工具卡片 / 执行键 / 运行记录行 / 已注册工具清单 / GlobalSearch 直跳）
 - 计算类共用件：`src/main/tools/engineering.ts`（`parseQty` 工程计数法 / `fmtQty` / `E24·E12·nearestSeries·standardText`）；多模式表单按 `ToolField.visibleWhen` 只显示当前模式的输入项（`ToolRunnerForm.tsx#visibleFields`）
 - 工具电路配图（v1.2.7）：`components/tool/diagrams/index.tsx#ToolDiagram`（按 toolId 分发 + 统一外框）+ 自包含模块 `<toolId>.diagram.tsx`（读表单 payload 联动切图，共 10 个：上述 5 个计算工具 + rect-calc / timer-555 / trace-calc / wave-rms / match-calc）；接入点在 `ToolRunPage.tsx` 右栏（字段两列排布见 `ToolRunnerForm` 的 md:grid-cols-2）

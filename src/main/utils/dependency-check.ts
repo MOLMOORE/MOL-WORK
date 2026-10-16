@@ -19,7 +19,9 @@ const PROBE_ARGS: Record<ToolBinaryId, string[]> = {
   pandoc: ['--version'],
   ffmpeg: ['-version'],
   ffprobe: ['-version'],
-  'yt-dlp': ['--version']
+  'yt-dlp': ['--version'],
+  soffice: ['--version'],
+  pdf2docx: ['-h']
 }
 
 export function playwrightBrowsersPath(): string {
@@ -122,7 +124,7 @@ async function probePlaywright(): Promise<DependencyStatus> {
 }
 
 export async function checkDependencies(force = false): Promise<DependencyStatus[]> {
-  const ids: DependencyId[] = ['pandoc', 'ffmpeg', 'yt-dlp', 'playwright']
+  const ids: DependencyId[] = ['pandoc', 'ffmpeg', 'yt-dlp', 'playwright', 'soffice', 'pdf2docx']
   const results: DependencyStatus[] = []
   for (const id of ids) {
     const cached = cache.get(id)

@@ -22,6 +22,8 @@ export const AUDIO_EXTS = new Set(['.mp3', '.wav', '.flac', '.aac', '.m4a', '.og
 export const VIDEO_EXTS = new Set(['.mp4', '.mkv', '.avi', '.mov', '.webm', '.flv', '.wmv', '.ts', '.m4v'])
 
 export const DOC_EXTS = new Set([
+  '.pdf',
+  '.doc',
   '.md',
   '.markdown',
   '.docx',
@@ -75,7 +77,7 @@ export function ensureTargetExt(targetExt: string, allowed: Set<string>, label: 
 }
 
 export interface ExternalRun {
-  engine: 'ffmpeg' | 'pandoc'
+  engine: 'ffmpeg' | 'pandoc' | 'pdf2docx'
   args: string[]
   sourcePath: string
   outputPath: string

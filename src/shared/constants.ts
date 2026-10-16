@@ -223,6 +223,14 @@ export const DEPENDENCY_META: Record<DependencyId, { label: string; installHint:
   playwright: {
     label: 'Playwright',
     installHint: '网页渲染与截图引擎。安装后需执行：npx playwright install chromium'
+  },
+  soffice: {
+    label: 'LibreOffice',
+    installHint: 'Word / 文档转 PDF 排版引擎。Windows 可执行：winget install --id TheDocumentFoundation.LibreOffice'
+  },
+  pdf2docx: {
+    label: 'pdf2docx',
+    installHint: 'PDF 转 Word 引擎（需 Python 3.10+）。可执行：pip install pdf2docx'
   }
 }
 

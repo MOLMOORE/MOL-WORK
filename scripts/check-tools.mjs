@@ -16,7 +16,9 @@ const IS_WINDOWS = process.platform === 'win32'
 const PROBES = [
   { id: 'pandoc', args: ['--version'], hint: 'winget install --id JohnMacFarlane.Pandoc' },
   { id: 'ffmpeg', args: ['-version'], hint: 'winget install --id Gyan.FFmpeg' },
-  { id: 'yt-dlp', args: ['--version'], hint: 'winget install --id yt-dlp.yt-dlp' }
+  { id: 'yt-dlp', args: ['--version'], hint: 'winget install --id yt-dlp.yt-dlp' },
+  { id: 'soffice', args: ['--version'], hint: 'winget install --id TheDocumentFoundation.LibreOffice' },
+  { id: 'pdf2docx', args: ['-h'], hint: 'pip install pdf2docx（需 Python 3.10+）' }
 ]
 
 /** site-packages 内的已知相对路径，支持最后一段使用 * 通配 */
@@ -118,6 +120,19 @@ async function resolveBinary(id) {
     for (const pattern of PACKAGE_PATTERNS[id] ?? []) {
       const hit = findInSegment(dir, pattern)
       if (hit) return hit
+    }
+  }
+  if (id === 'soffice') {
+    const alt = await which('libreoffice')
+    if (alt) return alt
+    const pf = process.env.ProgramFiles ?? 'C:\Program Files'
+    const pf86 = process.env['ProgramFiles(x86)'] ?? 'C:\Program Files (x86)'
+    const loDirs = IS_WINDOWS
+      ? [join(pf, 'LibreOffice', 'program'), join(pf86, 'LibreOffice', 'program'), join(localAppDataDir, 'Programs', 'LibreOffice', 'program')]
+      : ['/Applications/LibreOffice.app/Contents/MacOS', '/usr/lib/libreoffice/program', '/usr/local/lib/libreoffice/program']
+    for (const dir of loDirs) {
+      const hit = join(dir, IS_WINDOWS ? 'soffice.exe' : 'soffice')
+      if (existsSync(hit)) return hit
     }
   }
   return null

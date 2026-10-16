@@ -19,7 +19,7 @@ export type ReviewStatus = 'active' | 'suspended' | 'mastered'
 /** 0=重来 1=困难 2=一般 3=简单 */
 export type ReviewRating = 0 | 1 | 2 | 3
 export type ToolCategory = 'image' | 'audio' | 'video' | 'doc' | 'download' | 'extract' | 'calc'
-export type DependencyId = 'pandoc' | 'ffmpeg' | 'yt-dlp' | 'playwright'
+export type DependencyId = 'pandoc' | 'ffmpeg' | 'yt-dlp' | 'playwright' | 'soffice' | 'pdf2docx'
 export type ThemeMode = 'dark' | 'light' | 'system'
 /**
  * 「默认主题」下的 5 种配色，选中「默认主题」后才能挑；只改颜色，不改界面结构。
