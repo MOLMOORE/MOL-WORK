@@ -3,6 +3,14 @@
 > 功能线速查：CHANGELOG.md + SettingsPage.tsx 的 CHANGELOG 常量 + package.json version
 > 记录格式见 `docs/modifications/README.md`；新改动**追加在本行下方的最前面**。
 
+## 2026-11-11 · v1.2.7 发布（十一轮合并收尾）
+- 版本构成：v1.2.7 共十一轮，最终源码提交 `926688a`；develop、main、v1.2.7 标签全部对齐到该提交。
+- 发布：代码冻结后重跑 dist，上传 Setup exe 与 blockmap；先建草稿并核对 GitHub Asset API 的 size / sha256，再转为公开并设为 Latest。
+- 核验：exe 101,825,883 B / sha256 `2db35c6a…b2ca15`，blockmap 107,939 B / sha256 `69c7e0b3…c466`；asar version 与三轮关键文案回读通过。
+- 环境：系统 TEMP 下 esbuild 临时文件两次清理失败，改用 `work/build-temp` 作为进程级 TEMP / TMP 后打包成功，不改业务源码。
+- 清理：v1.2.6 exe 与 blockmap 已移入回收站；本地 release 只保留当前 v1.2.7。
+- 详见 `by-version/v1.2.7-release.md`。
+
 ## 2026-10-10 · v1.2.6 发布（三轮合并收尾）
 - 版本构成：v1.2.6 内三轮提交（`ffe3a95` / `3ac6da2` / `d6efc4d`），标签 `v1.2.6` 每轮移动，最终停在第三轮；一个版本号一篇 `by-version/v1.2.6-rN.md`，收尾另写 `v1.2.6-release.md`。
 - 双写点：CHANGELOG.md 的 v1.2.6 段按「笔记与资料 / 番茄钟 / 工具集 / 主题与提示 / 窗口外壳」五个小标题逐轮追加；SettingsPage.tsx 的 items 同步加组前缀条目，date 统一 2026-10-10。
