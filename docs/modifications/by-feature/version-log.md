@@ -3,6 +3,12 @@
 > 功能线速查：CHANGELOG.md + SettingsPage.tsx 的 CHANGELOG 常量 + package.json version
 > 记录格式见 `docs/modifications/README.md`；新改动**追加在本行下方的最前面**。
 
+## 2026-11-11 · v1.2.8 发布（GitHub API 自动更新）
+- 版本升到 v1.2.8，发布提交为 `5338ea5`；标签与安装包源码对齐，发布记录随后推进 develop / main。
+- GitHub Release 同时上传 exe、blockmap 与 `latest.yml`，设为 Latest；远端 SHA-256 与本地一致。
+- 默认 Atom provider 在当前网络被重置，改为 `api.github.com` custom provider；真实 API 烟测通过。
+- 详见 `by-version/v1.2.8-release.md`。
+
 ## 2026-11-11 · v1.2.8 第 1 轮（自动更新发布链路）
 - 版本升到 v1.2.8，CHANGELOG 与应用内版本日志同步加入“启动自动检查、一键下载、重启安装”。
 - `electron-builder.yml` 增加 GitHub publish；从本版开始，Release 除 exe 与 blockmap 外还必须上传 `latest.yml`。
