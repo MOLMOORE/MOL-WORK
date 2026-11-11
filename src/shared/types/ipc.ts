@@ -44,7 +44,8 @@ export const IPC_EVENTS = {
   reviewAutoScheduled: 'event:review-auto-scheduled',
   closeRequest: 'event:close-request',
   noteImport: 'event:note-import-progress',
-  windowState: 'event:window-state'
+  windowState: 'event:window-state',
+  updateStatus: 'event:update-status'
 } as const
 
 export interface ReminderPayload {
@@ -63,6 +64,31 @@ export interface CloseRequestPayload {
 export interface WindowStatePayload {
   maximized: boolean
   fullscreen: boolean
+}
+
+export type UpdatePhase =
+  | 'unsupported'
+  | 'idle'
+  | 'checking'
+  | 'available'
+  | 'not-available'
+  | 'downloading'
+  | 'downloaded'
+  | 'error'
+
+/** 主进程自动更新状态：渲染层不直接接触 electron-updater */
+export interface UpdateStatus {
+  supported: boolean
+  phase: UpdatePhase
+  currentVersion: string
+  latestVersion: string | null
+  releaseDate: string | null
+  releaseName: string | null
+  percent: number
+  transferred: number
+  total: number
+  bytesPerSecond: number
+  message: string | null
 }
 
 export interface WorkstationApi {
@@ -86,6 +112,11 @@ export interface WorkstationApi {
     quitApp(): Promise<void>
     /** 运行诊断信息（含应用版本号，用于版本检查） */
     diagnostics(): Promise<Record<string, string>>
+    getUpdateStatus(): Promise<UpdateStatus>
+    checkForUpdates(): Promise<UpdateStatus>
+    downloadUpdate(): Promise<UpdateStatus>
+    installUpdate(): Promise<UpdateStatus>
+    openUpdatePage(): Promise<boolean>
   }
   project: {
     list(): Promise<Project[]>
@@ -234,4 +265,6 @@ export interface WorkstationApi {
   onNoteImportProgress(callback: (payload: NoteImportProgress) => void): () => void
   /** 窗口状态变化（最大化 / 全屏），自绘标题栏据此更新图标与高度 */
   onWindowState(callback: (payload: WindowStatePayload) => void): () => void
+  /** 自动更新状态变化 */
+  onUpdateStatus(callback: (payload: UpdateStatus) => void): () => void
 }

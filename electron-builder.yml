@@ -6,6 +6,11 @@ directories:
   buildResources: build
   output: release
 
+publish:
+  provider: github
+  owner: MOLMOORE
+  repo: MOL-WORK
+
 # 本应用无原生模块（数据库使用 Electron 内置 node:sqlite），跳过依赖重建可显著加快打包
 npmRebuild: false
 

@@ -3,6 +3,7 @@
 > 规则见 `AGENTS.md` 第 0 / 6 节。**改动前先在这里定位文件，改动后立刻回来校准。**
 > 本文件只回答「去哪儿找」，实现细节与历史看 `docs/modifications/by-feature/`。
 > 维护要求：不写散文、不写历史；条目 = 功能 → 文件 → 符号（函数 / 常量 / CSS 类名）。
+> 文档入口与维护顺序见 `docs/README.md`。
 
 ## 0. 技术栈与硬约束
 - Electron + React 18 + Vite（electron-vite 三端）+ TypeScript；Tailwind 3.4；图标 lucide-react
@@ -27,7 +28,8 @@
 | 侧栏（页面·文字页/目录/注释/查找/本页） | `PANEL_TABS`、`ReaderPanel()`、`thumbOnly`、`thumbTotal`、`PageThumbPicker()`；**文字模式的页面栏** = `tx`（几何由 `TextBook.onLayout` → `txGeom`）+ `TextPageThumb` + `LazyMount`（IntersectionObserver 到眼前才排版），标签在文字模式下叫「文字页」；缩略图画的是**整张纸**的等比小版（`.tx-sheet.txp-sheet` + 与纸上同一套 `.tx-zoom`/`.tx-flow` 偏移，只在外层那一步裁切） |
 | 页面对比工作台（顶栏按钮要点得着：`.cmp-shell` 声明 no-drag） | `CompareOverlay()`、`CompareCard`（panX/panY = 纸框滚动位置）、`compareSlots()`、`clampCard()`、`contentSize()`、`clampScroll()`、`scrollMax`+`cmpKey()`（能滚多远以 DOM 量到的为准）、`frameRefs`/`onFrameScroll`、层级：`normalizeZ()`/`zCollides()`/`stackOrder`/`layerNo()`/`shiftZ()`/`raise()`/`stack()`（叠放）、画质：`ladder()`/`budgetScale()`；CSS `.cmp-*`（`.cmp-frame` 是滚动容器，`.cmp-page` 用 CSS zoom） |
 | 页面提取 | `ExtractDialog()`、`parsePageSpec()`；主进程 `src/main/services/note-extract.service.ts`（IPC `note:extract-pages`） |
-| 查找（全文检索） | `ReaderPage` 的 `runFind` / `gotoHit` / `jumpToHit` / `findHits`·`findIndex`·`findTerm`·`findRings` / `handleFindSpots`；正文涂色 `applyTextFind` + `wrapFindRange`（CSS `mark.tx-find`），书页圈出 `pdf.ts#pageFindHits` + `InkStrokes variant=find`（CSS `.mw-ink.is-find`）；排版模式仍走 iframe 自带查找 |\n| 整页浮层与标题栏 drag 区 | CSS `.cmp-shell`、`.mw-overlay`（`-webkit-app-region: no-drag`，否则顶栏那 34px 会把点击吃掉）；`ReaderOverlay()` |
+| 查找（全文检索） | `ReaderPage` 的 `runFind` / `gotoHit` / `jumpToHit` / `findHits`·`findIndex`·`findTerm`·`findRings` / `handleFindSpots`；正文涂色 `applyTextFind` + `wrapFindRange`（CSS `mark.tx-find`），书页圈出 `pdf.ts#pageFindHits` + `InkStrokes variant=find`（CSS `.mw-ink.is-find`）；排版模式仍走 iframe 自带查找 |
+| 整页浮层与标题栏 drag 区 | CSS `.cmp-shell`、`.mw-overlay`（`-webkit-app-region: no-drag`，否则顶栏那 34px 会把点击吃掉）；`ReaderOverlay()` |
 | Esc 归属（先关浮层再退全屏） | `src/renderer/src/lib/escape.ts`、`blockEscapeFullscreen()`；兜底在 `components/layout/TitleBar.tsx` |
 | 快捷键与状态条 | `ReaderPage` 内 `onKey`（← → 空格 +/- 0 r b s e f l 1 2 3 Esc；Ctrl+Shift+H = `shortcutHighlight()` 涂亮 / 删高亮，`addHighlight` 必须声明在这个 effect 之前）；底部提示条 `reader-foot`（只留一行短按键，解释进 `title`，窄时自动换行） |
 
@@ -56,6 +58,7 @@
 
 ## 5. 窗口与外壳
 - 自绘标题栏（无图标、无下边线；最小化/最大化/关闭、全屏 F11/Esc）：`components/layout/TitleBar.tsx` 的 `.titlebar-rail` 续侧栏分隔线，宽度由 `Sidebar.tsx` 的 ResizeObserver 写进 `--sidebar-w`；主进程 `src/main/index.ts`
+- 自动更新：主进程 `services/update.service.ts`（`initUpdateService` / `checkForUpdates` / `downloadUpdate` / `installDownloadedUpdate`）+ `services/github-api-update.provider.ts`（API provider）+ `ipc/app.ipc.ts` 的 `app:update-*` + preload `onUpdateStatus` + 设置页 `AboutSection`
 - 应用外壳 / 侧栏 / 皮肤装饰：`AppLayout.tsx`、`Sidebar.tsx`、`SkinChrome.tsx`、`PageGrid.tsx`、`GridBoard.tsx`
 - 浮层锚定层（v1.2.7 r8）：`App.tsx` 包 Routes 的 `transform-gpu` 容器 —— 全站 fixed 浮层（Modal/Drawer/对比台）以标题栏以下为视口，勿在该层内放需要盖标题栏的系统级浮窗
 - 全局状态：`src/renderer/src/stores/appStore.ts`（主题、皮肤、设置）
@@ -68,7 +71,7 @@
 - 阅读与批注相关组件层：`.mw-*`（书页、圈画、旁注）、`.cmp-*`（对比工作台）、`.reader-*`
 
 ## 7. 工具集 / 任务 / 统计 / 番茄（速查）
-- 工具：`src/main/tools/registry.ts`（注册即生效）、`tools/runners/*.runner.ts`（计算类 10 个：unit-convert / circuit-calc / filter-calc / opamp-calc / filter-sim / rect-calc / timer-555 / trace-calc / wave-rms / match-calc）
+- 工具：`src/main/tools/registry.ts`（注册即生效）、`tools/runners/*.runner.ts`（内置 16 个；计算类 10 个：unit-convert / circuit-calc / filter-calc / opamp-calc / filter-sim / rect-calc / timer-555 / trace-calc / wave-rms / match-calc）
 - 文档转换引擎路由（v1.2.7 r9）：`doc-convert.runner.ts#sofficeConvert`（LibreOffice 无头，独立 lo-profile 防实例转交）+ `convert-shared.ts#runConversion`（engine 含 pdf2docx）；新依赖探测三处同步：`utils/binaries.ts#probeLibreOffice`、`utils/dependency-check.ts#PROBE_ARGS`、`scripts/check-tools.mjs`、`src/main/utils/{binaries,command,dependency-check}.ts`、页面 `ToolsPage.tsx`（看板 `workstation.grid.tools.v5`）+ `components/tool/*`
 - 工具批量转换（v1.2.7 r10 / r11）：manifest `supportsBatch`（四个转换工具）→ `ToolRunPage.tsx`「转换文件」卡：拖放条（`handleFormDrop` / `dragIn`）+ 一列文档名（`BatchRow`、`BATCH_STATE_LABELS`/`BATCH_STATE_TONES`、`fileNameOf`/`dirNameOf`）+ `addBatchFiles`/`removeBatchFile`/`startBatch` + `Progress`；拖入取路径走 `window.nativeFiles.pathForFile`（无扩展名按文件夹忽略并 toast）；多选对话框 IPC `app:pick-files`（三处同步：ipc.ts#pickFileList / preload / app.ipc.ts）；表单多选键 `ToolRunnerForm` batchField/onBatchFiles
 - 工具运行页（v1.2.7，取代 ToolDetailDrawer 抽屉）：路由 `/tools/:toolId` → `pages/ToolRunPage.tsx`（宽屏双栏：左 = 表单 + 最近结果，右 = 配图 + 该工具历史；页头一卡含返回键与工具信息；入口：工具卡片 / 执行键 / 运行记录行 / 已注册工具清单 / GlobalSearch 直跳）
@@ -83,7 +86,9 @@
 
 ## 8. 版本信息双写点（发版必改）
 - `CHANGELOG.md`（顶部追加）与 `src/renderer/src/pages/SettingsPage.tsx` 的 `CHANGELOG` 常量（顶部追加同一条）
-- `package.json` 的 `version`；打包配置 `electron-builder.yml`；产物目录 `release/`（历史包进 `release/archive/`）
+- `package.json` 的 `version`；发布配置 `electron-builder.yml#publish`
+- 发布资产：`PersonalWorkstation-Setup-{version}.exe`、`.exe.blockmap`、`latest.yml`
+- 本地只保留当前版 `release/` 资产与 `win-unpacked/`；历史版本以 GitHub Releases 为唯一权威副本
 
 ## 9. 修改记录
 - 按版本：`docs/modifications/by-version/`（一次提交一篇）

@@ -14,9 +14,17 @@ import { notifyDataChanged } from '../services/bus'
 import { getDbFilePath } from '../db/connection'
 import { schedulerStatus } from '../services/scheduler.service'
 import {
+  checkForUpdates,
+  downloadUpdate,
+  getUpdateStatus,
+  installDownloadedUpdate,
+  openUpdatePage
+} from '../services/update.service'
+import {
   closeMainWindow,
   getMainWindowState,
   hideMainWindow,
+  installUpdateAndRestart,
   minimizeMainWindow,
   quitApplication,
   setMainWindowFullscreen,
@@ -102,6 +110,16 @@ export function registerAppIpc(): void {
       scheduler: JSON.stringify(schedulerStatus())
     }
   })
+
+  handle('app:update-status', () => getUpdateStatus())
+
+  handle('app:update-check', () => checkForUpdates())
+
+  handle('app:update-download', () => downloadUpdate())
+
+  handle('app:update-install', () => installDownloadedUpdate(installUpdateAndRestart))
+
+  handle('app:update-open-release', () => openUpdatePage())
 
   /** 系统级弹窗提醒：软件在后台时也可见，点击可回到主窗口 */
   handle<void>('app:notify', (title: string, body: string) => {

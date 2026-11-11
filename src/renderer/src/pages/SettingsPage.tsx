@@ -31,12 +31,13 @@ import {
   resolveClockSettings
 } from '@shared/constants'
 import { Card, SectionHeader } from '../components/ui/Card'
-import { Badge, Spinner } from '../components/ui/Feedback'
+import { Badge, Progress, Spinner } from '../components/ui/Feedback'
 import { Button } from '../components/ui/Button'
 import { Field, Input, Select, Switch } from '../components/ui/Field'
 import { Tabs } from '../components/ui/Tabs'
 import { ClockTile } from '../components/layout/ClockTile'
 import type { ClockStyle } from '@shared/types/domain'
+import type { UpdateStatus } from '@shared/types/ipc'
 import { resolveTheme, useAppStore } from '../stores/appStore'
 import { api } from '../lib/ipc'
 import { cn, todayKey } from '../lib/utils'
@@ -280,8 +281,17 @@ function ThemePicker(props: {
 /** 版本更新日志（新版本发布时在最上方追加一条） */
 const CHANGELOG: { version: string; date: string; items: string[] }[] = [
   {
+    version: '1.2.8',
+    date: '2026-11-11',
+    items: [
+      '更新 · 启动后自动检查 GitHub Releases，设置页显示最新版本、下载进度与错误原因',
+      '更新 · 发现新版本后一键下载，通过 GitHub API 获取安装包并校验文件完整性；下载完成后可重启安装',
+      '更新 · 从 v1.2.7 升级到本版仍需手动安装一次，之后可在应用内更新'
+    ]
+  },
+  {
     version: '1.2.7',
-    date: '2026-10-11',
+    date: '2026-11-11',
     items: [
       "主题 · 默认主题的风格只保留 5 种配色：素白简约 / 极简黑白 / 宣纸暖白 / 靛青 / 苔原；8 种观感风格连同「配色 / 观感」分组一起下架，8 款皮肤不受影响",
       "主题 · 之前选过已下架风格时启动自动回到「素白简约」，界面与设置页不再对不上",
@@ -1232,9 +1242,13 @@ function AboutSection(): JSX.Element {
   const [version, setVersion] = useState('…')
   const [previousSeen, setPreviousSeen] = useState<string | null>(null)
   const [showHistory, setShowHistory] = useState(true)
+  const [update, setUpdate] = useState<UpdateStatus | null>(null)
 
   useEffect(() => {
     let active = true
+    const offUpdate = api.onUpdateStatus((status) => {
+      if (active) setUpdate(status)
+    })
     void api.app
       .diagnostics()
       .then((info) => {
@@ -1246,8 +1260,15 @@ function AboutSection(): JSX.Element {
         window.localStorage.setItem('workstation.last-seen-version', current)
       })
       .catch(() => undefined)
+    void api.app
+      .getUpdateStatus()
+      .then((status) => {
+        if (active) setUpdate(status)
+      })
+      .catch(() => undefined)
     return () => {
       active = false
+      offUpdate()
     }
   }, [])
 
@@ -1256,6 +1277,39 @@ function AboutSection(): JSX.Element {
   // 当前版本缺少独立日志时回退展示最新一条，保证任何版本都有更新信息可看
   const current = isMatched ? CHANGELOG[matchedIndex] : (CHANGELOG[0] ?? null)
   const history = CHANGELOG.filter((entry) => entry.version !== current?.version)
+  const updateBusy = update?.phase === 'checking' || update?.phase === 'downloading'
+  const updateMessage =
+    update?.message ??
+    (update?.supported === false ? '开发、自检和绿色版解包模式不检查自动更新。' : '启动后会自动检查 GitHub 上的最新版本。')
+
+  const runUpdateAction = (): void => {
+    const action =
+      update?.phase === 'downloaded'
+        ? api.app.installUpdate()
+        : update?.phase === 'available'
+          ? api.app.downloadUpdate()
+          : api.app.checkForUpdates()
+    void action.then(setUpdate).catch((error: unknown) => {
+      setUpdate((previous) =>
+        previous
+          ? { ...previous, phase: 'error', message: error instanceof Error ? error.message : String(error) }
+          : previous
+      )
+    })
+  }
+
+  const updateButtonLabel =
+    update?.phase === 'downloaded'
+      ? '重启并安装'
+      : update?.phase === 'available'
+        ? `下载 v${update.latestVersion ?? ''}`
+        : update?.phase === 'downloading'
+          ? `下载中 ${Math.round(update.percent)}%`
+          : update?.phase === 'checking'
+            ? '检查中…'
+            : update?.phase === 'error'
+              ? '重新检查'
+              : '检查更新'
 
   return (
     <div className="grid gap-4">
@@ -1269,10 +1323,70 @@ function AboutSection(): JSX.Element {
             已从 v{previousSeen} 更新
           </Badge>
         ) : (
-          <Badge tone="success" dot>
-            已是最新
+          <Badge tone="default" dot>
+            当前安装版
           </Badge>
         )}
+      </div>
+
+      <div className="rounded-xl border border-border bg-muted/25 p-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="flex flex-wrap items-center gap-2 text-xs font-semibold text-foreground">
+              自动更新
+              {update?.phase === 'available' || update?.phase === 'downloaded' ? (
+                <Badge tone="primary" dot>
+                  可更新至 v{update.latestVersion}
+                </Badge>
+              ) : update?.phase === 'not-available' ? (
+                <Badge tone="success" dot>
+                  已是最新
+                </Badge>
+              ) : update?.phase === 'error' ? (
+                <Badge tone="danger" dot>
+                  检查失败
+                </Badge>
+              ) : null}
+            </p>
+            <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">{updateMessage}</p>
+            {update?.releaseDate ? (
+              <p className="mt-1 text-[10px] text-muted-foreground">
+                发布时间 {new Date(update.releaseDate).toLocaleString('zh-CN')}
+              </p>
+            ) : null}
+          </div>
+          <Button
+            size="sm"
+            variant={update?.phase === 'available' || update?.phase === 'downloaded' ? 'primary' : 'outline'}
+            loading={updateBusy}
+            disabled={update?.supported === false || update?.phase === 'downloading'}
+            icon={update?.phase === 'available' || update?.phase === 'downloaded' ? <Download className="h-3.5 w-3.5" /> : <RefreshCw className="h-3.5 w-3.5" />}
+            onClick={runUpdateAction}
+          >
+            {updateButtonLabel}
+          </Button>
+        </div>
+        {update?.phase === 'downloading' ? (
+          <div className="mt-3">
+            <Progress value={update.percent} />
+            <p className="mt-1.5 text-[10px] text-muted-foreground">
+              {Math.round(update.percent)}%
+              {update.total > 0
+                ? ` · ${(update.transferred / 1024 / 1024).toFixed(1)} / ${(update.total / 1024 / 1024).toFixed(1)} MB`
+                : ''}
+              {update.bytesPerSecond > 0 ? ` · ${(update.bytesPerSecond / 1024 / 1024).toFixed(1)} MB/s` : ''}
+            </p>
+          </div>
+        ) : null}
+        {update?.phase === 'error' ? (
+          <button
+            type="button"
+            className="mt-2 text-[10px] text-primary hover:underline"
+            onClick={() => void api.app.openUpdatePage()}
+          >
+            打开 GitHub Releases
+          </button>
+        ) : null}
       </div>
 
       <div className="rounded-xl border border-border bg-muted/25 p-4">
@@ -1327,9 +1441,6 @@ function AboutSection(): JSX.Element {
         ) : null}
       </div>
 
-      <p className="text-[11px] leading-relaxed text-muted-foreground">
-        本地应用无在线更新源，发布新版本后重新安装即可。
-      </p>
     </div>
   )
 }

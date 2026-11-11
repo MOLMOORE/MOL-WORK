@@ -3,6 +3,7 @@ import { IPC_EVENTS } from '@shared/types/ipc'
 import type {
   CloseRequestPayload,
   ReminderPayload,
+  UpdateStatus,
   WindowStatePayload,
   WorkstationApi
 } from '@shared/types/ipc'
@@ -83,7 +84,12 @@ const api: WorkstationApi = {
     notify: (title: string, body: string) => invoke<void>('app:notify', title, body),
     hideWindow: () => invoke<void>('app:hide-window'),
     quitApp: () => invoke<void>('app:quit-app'),
-    diagnostics: () => invoke<Record<string, string>>('app:diagnostics')
+    diagnostics: () => invoke<Record<string, string>>('app:diagnostics'),
+    getUpdateStatus: () => invoke<UpdateStatus>('app:update-status'),
+    checkForUpdates: () => invoke<UpdateStatus>('app:update-check'),
+    downloadUpdate: () => invoke<UpdateStatus>('app:update-download'),
+    installUpdate: () => invoke<UpdateStatus>('app:update-install'),
+    openUpdatePage: () => invoke<boolean>('app:update-open-release')
   },
   project: {
     list: () => invoke<Project[]>('project:list'),
@@ -200,7 +206,9 @@ const api: WorkstationApi = {
   onCloseRequest: (callback: (payload: CloseRequestPayload) => void) =>
     subscribe<CloseRequestPayload>(IPC_EVENTS.closeRequest, callback),
   onWindowState: (callback: (payload: WindowStatePayload) => void) =>
-    subscribe<WindowStatePayload>(IPC_EVENTS.windowState, callback)
+    subscribe<WindowStatePayload>(IPC_EVENTS.windowState, callback),
+  onUpdateStatus: (callback: (payload: UpdateStatus) => void) =>
+    subscribe<UpdateStatus>(IPC_EVENTS.updateStatus, callback)
 }
 
 contextBridge.exposeInMainWorld('api', api)

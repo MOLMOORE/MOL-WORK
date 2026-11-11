@@ -3,8 +3,14 @@
 > 功能线速查：CHANGELOG.md + SettingsPage.tsx 的 CHANGELOG 常量 + package.json version
 > 记录格式见 `docs/modifications/README.md`；新改动**追加在本行下方的最前面**。
 
+## 2026-11-11 · v1.2.8 第 1 轮（自动更新发布链路）
+- 版本升到 v1.2.8，CHANGELOG 与应用内版本日志同步加入“启动自动检查、一键下载、重启安装”。
+- `electron-builder.yml` 增加 GitHub publish；从本版开始，Release 除 exe 与 blockmap 外还必须上传 `latest.yml`。
+- v1.2.7 发布日期校正为实际发布日 2026-11-11；发布后文档提交与安装包源码标签的关系改为准确表述。
+- 文档规则加入 `check-docs` / `fix-docs`，统一 UTF-8、CRLF、本地链接、容量与功能记录倒序检查。
+
 ## 2026-11-11 · v1.2.7 发布（十一轮合并收尾）
-- 版本构成：v1.2.7 共十一轮，最终源码提交 `926688a`；develop、main、v1.2.7 标签全部对齐到该提交。
+- 版本构成：v1.2.7 共十一轮，安装包对应源码提交 `926688a`；发布后文档提交推进了 develop / main，标签仍固定在实际构建提交。
 - 发布：代码冻结后重跑 dist，上传 Setup exe 与 blockmap；先建草稿并核对 GitHub Asset API 的 size / sha256，再转为公开并设为 Latest。
 - 核验：exe 101,825,883 B / sha256 `2db35c6a…b2ca15`，blockmap 107,939 B / sha256 `69c7e0b3…c466`；asar version 与三轮关键文案回读通过。
 - 环境：系统 TEMP 下 esbuild 临时文件两次清理失败，改用 `work/build-temp` 作为进程级 TEMP / TMP 后打包成功，不改业务源码。

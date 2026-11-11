@@ -12,6 +12,7 @@ import { emitToRenderer } from './services/bus'
 import { IPC_EVENTS, type WindowStatePayload } from '@shared/types/ipc'
 import { APP_NAME } from '@shared/constants'
 import { logger } from './utils/logger'
+import { initUpdateService, startAutomaticUpdateCheck } from './services/update.service'
 
 let mainWindow: BrowserWindow | null = null
 let tray: Tray | null = null
@@ -219,6 +220,11 @@ export function getMainWindowState(): WindowStatePayload {
   }
 }
 
+/** 自动更新安装前解除关闭拦截，让安装器可以正常结束进程 */
+export function installUpdateAndRestart(): void {
+  forceQuit = true
+}
+
 /**
  * 应用菜单：无边框窗口不再显示菜单栏，但保留编辑类快捷键（复制 / 粘贴 / 全选）。
  * 默认菜单里的 F11 全屏与 Ctrl+R 刷新会抢走软件自己的快捷键，所以这里整体替换掉。
@@ -301,6 +307,8 @@ if (!gotLock) {
     const catchUp = catchUpOnStartup()
     logger.info(`启动补算完成：${catchUp.missedReminders} 条待提醒`)
     createWindow()
+    initUpdateService()
+    startAutomaticUpdateCheck()
     startScheduler()
     startRecycleBinCleaner()
     createTray()

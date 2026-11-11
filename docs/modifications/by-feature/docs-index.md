@@ -3,6 +3,12 @@
 > 功能线速查：`AGENTS.md` 第 0 / 6 节、`docs/feature-index.md`、`docs/modifications/`
 > 记录格式见 `docs/modifications/README.md`；新改动**追加在本行下方的最前面**。
 
+## 2026-11-11 · v1.2.8 第 1 轮（文档入口、容量与自动检查）
+- 需求：修正过期与失序文档，统一 Markdown 编码和换行，建立防止 Markdown 继续错乱或无限增长的检查。
+- 改法：新增 `docs/README.md` 作为分层入口；`docs/modifications/README.md` 明确最新优先、容量上限与归档规则；新增 `scripts/check-docs.mjs` 和 `npm run check-docs` / `fix-docs`；AGENTS 的纯文档检查与 Release 资产要求同步更新。
+- 修复：README 的工具数 9 → 16、补齐当前工具表和 5 种配色；功能索引修复字面量换行粘行；转换工具记录按第 11 / 10 / 9 轮倒序；v1.2.7 发布日期与发布后分支/标签关系校正。
+- 验证：全部 Markdown 统一为 UTF-8 无 BOM、CRLF；`npm run check-docs` 为 0 错误 / 0 警告。
+
 ## 2026-10-10 · v1.2.6（发版保留规则修订）
 - 本地只留当前最新版（安装包 + win-unpacked 免安装版），新版经 GitHub 核对后删上一版；AGENTS 发版流程第 3 步与 README 同步改写（`by-version/v1.2.6-keep-latest.md`）。
 

@@ -45,21 +45,29 @@ out/       # 构建产物，不入库
 - 页面带今日时段分布、每日番茄数与近 7 天专注趋势
 
 ### 工具集
-内置 9 个工具，表单由工具清单自动渲染，执行结果和耗时都会记录：
+内置 16 个工具，表单由工具清单自动渲染，执行结果和耗时都会记录：
 
 | 工具 | 依赖 | 做什么 |
 | --- | --- | --- |
-| 文档转换 | Pandoc | md / docx / html / txt / epub / odt / tex 互转 |
+| 文档转换 | Pandoc / LibreOffice / pdf2docx | 文档格式互转、Office 转 PDF、PDF 重建 Word |
 | 图片转换 | FFmpeg | 常见图片格式互转 |
 | 音频转换 | FFmpeg | mp3 / wav / m4a 等互转 |
 | 视频转换 | FFmpeg | mp4 / gif / webm 等互转 |
 | 文件下载与整理 | yt-dlp | 下载网络音视频并归档，需要合流时自动找 FFmpeg |
 | 网页与截图提取 | Playwright | 无头浏览器渲染后抽取正文为 Markdown，或保存可视区/整页 PNG |
 | 单位换算 | 无 | 长度、质量、面积、数据存储等常用单位 |
-| 电路常用计算 | 无 | 阻抗、谐振频率、RC 时间常数等 |
-| 学习卡片制作 | 无 | 录入问答，直接生成带复习计划的笔记 |
+| 电路常用计算 | 无 | 欧姆定律、串并联、分压、LED 限流等 |
+| 滤波电路速算 | 无 | RC / LC / Sallen-Key / 双 T / 谐振 / dB |
+| 滤波电路仿真 | 无 | 扫频、极点零点、阶跃响应与 CSV 导出 |
+| 运放比较器速算 | 无 | 增益、GBW、压摆率、迟滞与热噪声 |
+| 整流滤波与电源电容 | 无 | 半波 / 中心抽头 / 桥式整流与滤波电容 |
+| 555 定时器速算 | 无 | 无稳态频率、占空比与单稳态延时 |
+| PCB 走线宽度速算 | 无 | IPC-2221 内外层载流与选填压降 |
+| 交流波形有效值换算 | 无 | 峰值、有效值、平均值与波形因数 |
+| 阻抗匹配速算 | 无 | L 型、π 型、单支节与 λ/4 变换 |
 
 - 工具集市支持分类筛选与关键词搜索，工具可停用、移除，也可一键恢复内置
+- 四个转换工具支持拖入和多文件批量处理，逐行显示进度、失败原因与产物
 - 依赖状态面板显示每个外部程序是否可用、版本号、实际解析到的可执行文件路径，可在文件夹中定位
 - 下拉选项能在运行时从数据库填充，比如「归属任务」这种
 - path 类型字段可以直接调起系统文件/目录选择框
@@ -84,7 +92,7 @@ out/       # 构建产物，不入库
 - 日期格式选「英文」时星期同步用英文显示，不出现中英混排
 - 主题分两层，每款都能切深浅两种模式：
   - 主题皮肤（8 款并列，改的是界面结构）：默认主题、纸间杂志（顶部刊头 + 细线卡片 + 衬线正文首字下沉）、琉璃极光（悬浮胶囊侧栏 + 毛玻璃 + 流动极光底）、荧光终端（等宽 + ASCII 双线面板 + 行号侧栏 + 状态行 + 扫描线）、粗野主义（顶部块状标签 + 3px 描边 + 硬投影）、数据驾驶舱（窄图标侧栏 + 四角括号 + 网格底 + 遥测状态栏）、奶油拟物（无描边双向柔光浮雕 + 全圆角）、复古桌面（卡片带窗口标题栏 + 立体斜边 + 方块滚动条）
-  - 默认主题下的风格（18 种，只改颜色与观感）：配色风格 10 种（素白简约、极简黑白、宣纸暖白、靛青、苔原、暮沙、石墨、午夜靛蓝、紫棠、墨绿夜色）+ 观感风格 8 种（Nord、Dracula、Gruvbox、Catppuccin、Tokyo Night、SynthWave、Neo-brutalism、CRT）
+  - 默认主题下的风格只保留 5 种配色：素白简约、极简黑白、宣纸暖白、靛青、苔原
   - 皮肤靠 `[data-skin]` 重排外壳（导航位置、卡片造型、状态栏），风格靠 `[data-preset]` 换色与观感旋钮，两者互不串台；默认主题的显示效果与旧版一致
 - 界面整体字号可调
 
@@ -145,6 +153,8 @@ winget install --id JohnMacFarlane.Pandoc
 winget install --id Gyan.FFmpeg
 winget install --id yt-dlp.yt-dlp
 npx playwright install chromium
+winget install --id TheDocumentFoundation.LibreOffice
+pip install --user pdf2docx
 ```
 
 访问 GitHub Releases 受限（winget 报 `InternetOpenUrl() failed`）时改走 PyPI，第 4、5 条解析规则就是为这种情况准备的：
@@ -159,7 +169,8 @@ pip install --user yt-dlp imageio-ffmpeg pypandoc_binary
 
 ```powershell
 npm run dist
-# 产物：release\PersonalWorkstation-Setup-1.2.7.exe（约 96 MB，NSIS 可选安装目录）
+# 产物：release\PersonalWorkstation-Setup-1.2.8.exe（约 96 MB，NSIS 可选安装目录）
+# 自动更新元数据：release\latest.yml 与同名 .blockmap
 ```
 
 electron-builder 需要下载 Electron 与 NSIS 二进制，网络不通时换国内镜像：
@@ -181,7 +192,8 @@ npm run dist
 
 ## 版本与更新
 
-完整历史更新日志见 `CHANGELOG.md`，软件内「设置 → 关于与版本」有一份相同的记录。
+应用启动后会检查 GitHub Releases；发现新版本时，可在「设置 → 关于与版本」下载并在下载完成后重启安装。
+完整历史更新日志见 `CHANGELOG.md`，软件内有同一份记录。`v1.2.7` 之前没有内置更新器，首次升级到首个带更新器的版本仍需手动安装一次。
 
 ## 已知边界
 

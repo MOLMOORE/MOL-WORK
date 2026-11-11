@@ -1,6 +1,6 @@
 {
   "name": "personal-workstation",
-  "version": "1.2.7",
+  "version": "1.2.8",
   "description": "集成化个人工作站 - 任务管理中枢 / 可插拔工具集 / 统计复盘 / 全局搜索",
   "main": "./out/main/index.js",
   "author": "Personal Workstation",
@@ -10,6 +10,8 @@
     "dev": "electron-vite dev",
     "preview": "electron-vite preview",
     "build": "electron-vite build",
+    "check-docs": "node scripts/check-docs.mjs",
+    "fix-docs": "node scripts/check-docs.mjs --fix",
     "check-tools": "node scripts/check-tools.mjs",
     "selftest": "electron-vite build && node scripts/selftest.mjs",
     "make-icon": "node scripts/make-icon.mjs",
@@ -18,13 +20,16 @@
   "dependencies": {
     "analog-filter-designer": "^1.0.1",
     "date-fns": "^4.1.0",
+    "electron-updater": "^6.8.11",
     "fast-xml-parser": "^4.5.0",
+    "js-yaml": "^4.3.2",
     "jszip": "^3.10.1",
     "pdf-lib": "^1.17.1",
     "pdfjs-dist": "^2.16.105",
     "playwright": "^1.49.1"
   },
   "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
     "@types/node": "^22.10.2",
     "@types/react": "^18.3.17",
     "@types/react-dom": "^18.3.5",
