@@ -1,208 +1,235 @@
-# MOL-WORK
+# MOL-WORK 个人工作站
 
-一款只在本地运行的个人工作站桌面软件，把学习、课程开发和日常项目要用的东西收在一个窗口里：
-任务、日程、番茄钟、笔记与复习、格式转换工具、投入统计。没有账号，没有云端，数据全在一个 SQLite 文件里。
+一款本地优先的 Windows 桌面工作站，把任务、日程、番茄钟、资料阅读、复习、统计分析、全局搜索和常用工具集中在一个程序里。没有账号系统，没有云端依赖，业务数据保存在本机 SQLite 数据库中。
 
-软件内部是一条闭环：任务挂上笔记，笔记生成复习计划，复习到点自动排进第二天的日程，调度器到点弹系统通知；
-专注记录和工具执行记录回流到统计层，最后汇总成趋势图和日报。
+[![Latest Release](https://img.shields.io/github/v/release/MOLMOORE/MOL-WORK?label=release)](https://github.com/MOLMOORE/MOL-WORK/releases/latest)
+[![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0078D4)](https://github.com/MOLMOORE/MOL-WORK/releases/latest)
+[![Electron](https://img.shields.io/badge/Electron-37-47848F)](https://www.electronjs.org/)
+[![License](https://img.shields.io/github/license/MOLMOORE/MOL-WORK)](LICENSE)
 
-## 目录结构
+## 下载
 
-```text
-src/       # main / preload / renderer / shared 四层
-docs/      # feature-index.md + modifications（by-version / by-feature）
-build/     # 图标与安装脚本
-scripts/   # check-tools / selftest / make-icon
-release/   # 当前最新版安装包、blockmap 和更新元数据
-work/      # 一次性取证与临时脚本，不入库
-out/       # 构建产物，不入库
-```
+当前版本：**v1.3.0**
 
-`release/` 本地只保留**当前最新版**的安装包、blockmap 和 `latest.yml`。打包生成的 `win-unpacked/` 会复制到 `C:\Users\15008\Desktop\testarea\` 做真实启动测试，通过后删除项目内的解包目录。历史版本以 GitHub Releases（v1.0.0 起）为权威副本。
+- [下载最新 Windows 安装包](https://github.com/MOLMOORE/MOL-WORK/releases/latest)
+- [查看完整更新日志](CHANGELOG.md)
+- [查看功能文件索引](docs/feature-index.md)
 
-## 功能
+安装包未做代码签名，Windows SmartScreen 第一次运行时可能显示“未知发布者”。确认文件来自本仓库 Releases 后，可以选择继续运行。
+
+## 主要功能
 
 ### 任务与日程
-- 任务支持项目/课程分组、优先级、进度、截止时间、标签，列表与看板两种视图，删除进回收站可恢复
-- 任务详情抽屉里能看到这条任务关联的日程、提醒、笔记资料、专注记录和复习条目
-- 延期与拖延分析：记录每次改期，算出拖延时长、拖延程度，以及「进入逾期」「完成超时」这类事件
-- 自研月视图与周视图日历，事件按类型着色，未排期的任务可以一键排进某天
-- 主进程每 30 秒轮询一次提醒与日程，错过时间的提醒在下次启动时补发；窗口最小化或失焦时改用系统通知
 
-### 笔记与复习
-- Markdown 编辑配实时预览，笔记可以挂到某个任务上作为资料
-- 导入外部文档成一本「书」：PDF、DOCX / DOC、PPTX / PPT、XLSX / XLS、EPUB、ODT / ODS / ODP、HTML、RTF、WPS、Markdown、纯文本、CSV / TSV、JSON 与常见源代码
-- 按格式分三种读法，不再一律压成 Markdown：PDF / Office / OpenDocument 转成原版式书页（图片、表格、排版都在）并只读；网页与 EPUB 打包成自包含 HTML 按原排版成书；Markdown / TXT / 代码 / CSV 等文本类保留可编辑正文
-- 解析与转换全部在本地完成：渲染件收进 `<userData>/library/<noteId>/`，原文件被移动或删除也照样能翻；缺 LibreOffice / Office 时自动退回「抽取文字」并说明代价
-- 阅读界面是独立全屏页（`/reader/:id`）：页面自适应原文件尺寸，适宽 / 适页 / 100% 等比缩放，单页 / 双页 / 连续三种摆放，5 种翻页动效（直切、淡入、推移、覆盖、仿真翻书），键盘全套翻页与缩放
-- 每份资料都像一本书：目录（PDF 书签 / HTML 标题 / Markdown 标题）、页面缩略图、全文逐页查找、书签、重点页、带原文摘录的页内注释，并自动记住读到第几页
-- 支持一次多选、也可以把文件直接拖进笔记列表；自动识别 UTF-8 / GBK / UTF-16 编码，超长正文截断保护，可按一级标题把长文档拆成多条笔记，笔记里保留来源文件并可一键打开
-- 保存笔记自动生成复习条目。复习引擎两种模式可选：SM-2 自适应（按 ease / interval / repetitions / lapses / stage 调间隔）和艾宾浩斯固定间隔
-- 复习到期后自动写入次日日程，到点提醒，复习评分按五档回到曲线
+- 项目、课程或一般事项分组，支持优先级、进度、截止时间、标签和备注
+- 列表与看板视图，删除后进入回收站，可在保留期内恢复
+- 月视图和周视图日历，任务可安排到具体日期并设置提醒
+- 记录任务延期、逾期和完成超时，统计页给出拖延时长与严重程度
+- 后台调度器负责补发错过的提醒，并在窗口失去焦点时使用系统通知
 
-### 番茄钟
-- 专注与休息循环，环形进度盘，结束后写入专注记录并计入当日统计
-- 页面带今日时段分布、每日番茄数与近 7 天专注趋势
+### 笔记、资料与阅读器
+
+- Markdown 笔记编辑与实时预览，资料可以关联任务、项目和复习计划
+- 支持 PDF、Word、PowerPoint、Excel、EPUB、HTML、Markdown、纯文本、CSV 和常见源代码格式
+- 文档按格式选择书页、富文本或可编辑文本模式，渲染件保存在本地书库
+- 阅读器支持单页、双页、连续模式，多档缩放和五种翻页动画
+- 目录、缩略图、全文查找、书签、重点页、文字高亮、页面圈画和旁注
+- 自动保存阅读进度、阅读时长、笔记排序和批注位置
+
+### 复习
+
+- 保存笔记后可生成复习计划
+- 支持 SM-2 自适应间隔和艾宾浩斯固定间隔
+- 到期复习可自动排入次日日程并发送提醒
+- 复习评分、掌握程度和历史间隔保存在 SQLite 中
+
+### 番茄钟与统计
+
+- 工作、短休息、长休息三种阶段，可自定义时长和节奏
+- 专注结束后写入专注记录，统计每日时长、时段分布和近 7 天趋势
+- 汇总任务完成、复习、工具调用、项目投入与拖延情况
+- 支持每日报告预览、Markdown 导出和文件定位
 
 ### 工具集
-内置 16 个工具，表单由工具清单自动渲染，执行结果和耗时都会记录：
 
-| 工具 | 依赖 | 做什么 |
-| --- | --- | --- |
-| 文档转换 | Pandoc / LibreOffice / pdf2docx | 文档格式互转、Office 转 PDF、PDF 重建 Word |
-| 图片转换 | FFmpeg | 常见图片格式互转 |
-| 音频转换 | FFmpeg | mp3 / wav / m4a 等互转 |
-| 视频转换 | FFmpeg | mp4 / gif / webm 等互转 |
-| 文件下载与整理 | yt-dlp | 下载网络音视频并归档，需要合流时自动找 FFmpeg |
-| 网页与截图提取 | Playwright | 无头浏览器渲染后抽取正文为 Markdown，或保存可视区/整页 PNG |
-| 单位换算 | 无 | 长度、质量、面积、数据存储等常用单位 |
-| 电路常用计算 | 无 | 欧姆定律、串并联、分压、LED 限流等 |
-| 滤波电路速算 | 无 | RC / LC / Sallen-Key / 双 T / 谐振 / dB |
-| 滤波电路仿真 | 无 | 扫频、极点零点、阶跃响应与 CSV 导出 |
-| 运放比较器速算 | 无 | 增益、GBW、压摆率、迟滞与热噪声 |
-| 整流滤波与电源电容 | 无 | 半波 / 中心抽头 / 桥式整流与滤波电容 |
-| 555 定时器速算 | 无 | 无稳态频率、占空比与单稳态延时 |
-| PCB 走线宽度速算 | 无 | IPC-2221 内外层载流与选填压降 |
-| 交流波形有效值换算 | 无 | 峰值、有效值、平均值与波形因数 |
-| 阻抗匹配速算 | 无 | L 型、π 型、单支节与 λ/4 变换 |
+内置 16 个工具，工具清单同时驱动页面表单、依赖检测、运行历史和质量检查：
 
-- 工具集市支持分类筛选与关键词搜索，工具可停用、移除，也可一键恢复内置
-- 四个转换工具支持拖入和多文件批量处理，逐行显示进度、失败原因与产物
-- 依赖状态面板显示每个外部程序是否可用、版本号、实际解析到的可执行文件路径，可在文件夹中定位
-- 设置页与工具页可在应用内勾选下载便携依赖：FFmpeg、yt-dlp、Pandoc 和 Playwright Chromium 下载后自动配置；LibreOffice 下载官方安装包，pdf2docx 提供 Python 安装入口
-- 下拉选项能在运行时从数据库填充，比如「归属任务」这种
-- path 类型字段可以直接调起系统文件/目录选择框
-- 每次执行都记录输入摘要、耗时、状态、结果路径与错误，结果能打开文件或定位到文件夹
-
-### 统计与日报
-- 投入趋势：每天专注时长与工具耗时的面积图、折线图
-- 产出趋势：每天完成任务数、复习条数的柱状图，叠加工具调用折线
-- 单日时段分布：24 小时每小时的专注与工具调用
-- 环形图：项目/课程投入占比、工具调用类别占比（附执行成功率）
-- 拖延分析：严重度分布，点条目直接跳到任务详情
-- 区间能在 7 / 14 / 30 / 90 天之间切换，支持前后翻页与回到今天
-- 日报有结构化视图和 Markdown 视图，可导出到 reports 目录并自动定位文件
-
-### 全局搜索
-顶栏常驻搜索框，用 SQLite FTS5 的 trigram 分词做中文子串检索，覆盖任务、笔记、复习、日程、项目、工具六类结果，少于 3 个字符自动退化为 LIKE。
-
-### 界面布局与主题
-- 页面由可拖拽、可缩放的模块方块组成，支持拖动排布、一键排列、清空、保存为自定义默认布局
-- 时钟方块有数字翻转、极简、环形、指针、点阵、堆叠、终端等风格，横向纵向摆放和字形形状都能调
-- 时钟的字号、笔画、宽高、字距、日期格式都按档位调节，不做无级滑块；笔画六档（细 / 常规 / 中等 / 半粗 / 粗 / 特粗）由内置可变字体驱动，每档都是真实字重
-- 日期格式选「英文」时星期同步用英文显示，不出现中英混排
-- 主题分两层，每款都能切深浅两种模式：
-  - 主题皮肤（8 款并列，改的是界面结构）：默认主题、纸间杂志（顶部刊头 + 细线卡片 + 衬线正文首字下沉）、琉璃极光（悬浮胶囊侧栏 + 毛玻璃 + 流动极光底）、荧光终端（等宽 + ASCII 双线面板 + 行号侧栏 + 状态行 + 扫描线）、粗野主义（顶部块状标签 + 3px 描边 + 硬投影）、数据驾驶舱（窄图标侧栏 + 四角括号 + 网格底 + 遥测状态栏）、奶油拟物（无描边双向柔光浮雕 + 全圆角）、复古桌面（卡片带窗口标题栏 + 立体斜边 + 方块滚动条）
-  - 默认主题下的风格只保留 5 种配色：素白简约、极简黑白、宣纸暖白、靛青、苔原
-  - 皮肤靠 `[data-skin]` 重排外壳（导航位置、卡片造型、状态栏），风格靠 `[data-preset]` 换色与观感旋钮，两者互不串台；默认主题的显示效果与旧版一致
-- 界面整体字号可调
-
-## 技术栈
-
-| 层 | 选型 |
+| 分类 | 工具 |
 | --- | --- |
-| 桌面容器 | Electron 37，contextIsolation 开启、nodeIntegration 关闭 |
-| 构建 | electron-vite 2 + Vite 5，三入口分别构建主进程 / preload / 渲染层 |
-| 渲染层 | React 18 + TypeScript 5，Zustand 5 按域拆分 store |
-| 样式 | Tailwind CSS 3.4，配色走 CSS 变量令牌 |
-| 存储 | Electron 内置 node:sqlite，WAL + 外键 + FTS5，无原生编译依赖 |
-| 图表 | recharts |
-| Markdown | react-markdown + remark-gfm |
+| 媒体转换 | 图片转换、音频转换、视频转换 |
+| 文档与网页 | 文档转换、文件下载与整理、网页与截图提取 |
+| 单位与电路 | 单位换算、电路常用计算、滤波电路速算、滤波电路仿真 |
+| 器件与工程 | 运放比较器、整流滤波、555 定时器、PCB 走线、交流波形、阻抗匹配 |
 
-## 快速开始
+所有工具运行都会记录输入摘要、耗时、状态、结果路径和错误信息。图片、音频、视频和文档转换支持文件拖入与多文件批量处理。
 
-```bash
-npm install         # 安装依赖
-npm run dev         # 开发模式，主进程改动自动重启，渲染层热更新
-npm run build       # 构建到 out/
-npx electron .      # 本地运行构建产物
-npm run check-tools # 检测工具集的外部依赖，与应用内解析逻辑同一套
-npm run selftest    # 真实执行全部工具做端到端自检，数据写到系统临时目录
-npm run dist        # 构建并打包 Windows 安装包到 release/
+## 外部依赖下载
+
+基础任务、资料阅读、统计和内置计算工具不需要额外安装外部程序。格式转换、音视频处理和网页提取会按需调用外部工具。
+
+设置页的“外部工具依赖”和工具页依赖面板支持逐项下载：
+
+| 依赖 | 软件内处理方式 |
+| --- | --- |
+| FFmpeg | 下载官方 Windows essentials 包，SHA-256 校验后解压到 `<userData>/bin` |
+| yt-dlp | 下载 GitHub 最新版，SHA-256 校验后保存到 `<userData>/bin` |
+| Pandoc | 从 GitHub Release 获取 Windows 包，校验并解压 `pandoc.exe` |
+| Playwright Chromium | 调用随应用分发的 Playwright CLI 下载浏览器 |
+| LibreOffice | 下载官方 Windows MSI，校验后由用户打开安装 |
+| pdf2docx | 打开 PyPI 安装说明，需要 Python 3.10 或更高版本 |
+
+便携依赖下载完成后会自动重新检测。下载过程提供百分比、文件大小、速度和取消操作。
+
+软件查找外部程序时依次检查：
+
+1. `<userData>/bin`
+2. 系统 `PATH`
+3. winget 链接目录
+4. pip 脚本目录
+5. Python 包内部附带的二进制
+6. LibreOffice 的常见安装目录
+
+## 全局搜索与界面
+
+- 使用 SQLite FTS5 trigram 索引搜索任务、笔记、复习、日程、项目和工具
+- 少于 3 个字符时自动回退到 `LIKE` 查询
+- 页面由可拖拽、可缩放的模块组成，可保存自定义布局
+- 提供 8 款界面皮肤和 5 套默认配色，均支持深色与浅色模式
+- 时钟模块支持翻页、极简、秒环、指针、点阵、堆叠和终端风格
+- 应用内字号、字重、宽高、日期格式和字距均可调整
+
+## 技术架构
+
+```text
+React 页面 (renderer)
+        │
+        │ window.api
+        ▼
+preload / contextBridge
+        │
+        │ ipcRenderer.invoke
+        ▼
+Electron 主进程 (main)
+        │
+        ├─ services：业务规则、文件与外部进程
+        ├─ repositories：SQL 和数据映射
+        ├─ IPC handlers：统一参数与错误信封
+        └─ scheduler / updater / tray
+        │
+        ▼
+SQLite + 本地文件
 ```
 
-首次启动且任务表为空时，会写入一批示例数据（项目、任务、笔记与复习、日程、专注记录），方便直接看完整流程。
+- `src/main` 运行在 Node.js 环境，负责窗口、数据库、文件、调度器和自动更新
+- `src/preload` 通过 `contextBridge` 暴露受限 API，页面不能直接访问 Node.js
+- `src/renderer` 使用 React 构建页面、状态和交互
+- `src/shared` 保存三层共用的领域类型、IPC 契约和常量
+- `contextIsolation` 开启，`nodeIntegration` 关闭
 
-> 本机 npm 默认拦截依赖的 install 脚本。装完如果 Electron 二进制没下载下来，执行 `npm install-scripts approve electron` 和 `npm install-scripts approve esbuild`。
+| 层 | 技术 |
+| --- | --- |
+| 桌面容器 | Electron 37 |
+| 构建 | electron-vite 2、Vite 5 |
+| 界面 | React 18、TypeScript 5、Zustand 5 |
+| 样式 | Tailwind CSS 3.4、主题 CSS 变量 |
+| 数据库 | Electron 内置 `node:sqlite`、WAL、外键、FTS5 |
+| 图表 | Recharts |
+| 文档处理 | PDF.js、PDF-lib、JSZip、fast-xml-parser |
+| 外部引擎 | FFmpeg、yt-dlp、Pandoc、LibreOffice、pdf2docx、Playwright |
 
-## 数据放在哪里
+## 数据与隐私
+
+默认数据目录：
+
+```text
+%APPDATA%\personal-workstation\
+```
 
 | 内容 | 路径 |
 | --- | --- |
-| 数据库 | `%APPDATA%\personal-workstation\workstation.db` |
-| 日志 | `%APPDATA%\personal-workstation\logs\workstation-YYYY-MM-DD.log` |
-| 工具输出 | `%APPDATA%\personal-workstation\outputs\` |
-| 日报导出 | `%APPDATA%\personal-workstation\reports\` |
-| 笔记书库 | `%APPDATA%\personal-workstation\library\<笔记 id>\document.pdf\|html`（导入资料的原版式渲染件） |
+| 数据库 | `workstation.db` |
+| 日志 | `logs\workstation-YYYY-MM-DD.log` |
+| 工具输出 | `outputs\` |
+| 日报 | `reports\` |
+| 笔记书库 | `library\<noteId>\` |
+| 托管外部程序 | `bin\` |
+| 下载的安装包 | `downloads\` |
 
-前四个目录能在「设置 → 数据与维护」里一键打开；书库随笔记删除自动清理。
+任务、笔记、复习、日程、专注和工具历史都保存在同一个 SQLite 文件中。PDF、Word、HTML 等大文件保存在书库目录，数据库只记录路径和结构化信息。
 
-## 外部工具依赖
+软件不包含账号、遥测或云端同步。网络只用于用户主动触发的资源下载、工具运行和应用更新。
 
-只有格式转换、下载、网页提取这几个工具需要外部程序，软件不要求它们必须在系统 PATH 中，会按下面的顺序找：
+## 本地开发
 
-1. `<userData>/bin`，工作站托管目录，优先级最高，可以手动放绿色版程序
-2. 系统 PATH
-3. winget 软链目录 `%LOCALAPPDATA%\Microsoft\WinGet\Links`
-4. pip 脚本目录 `%APPDATA%\Python\Python3XX\Scripts`
-5. Python 包自带的二进制：`pypandoc/files/pandoc.exe`、`imageio_ffmpeg/binaries/ffmpeg-*.exe`
+建议使用 Node.js 22 或更高版本。
 
-安装用官方渠道：
-
-```powershell
-winget install --id JohnMacFarlane.Pandoc
-winget install --id Gyan.FFmpeg
-winget install --id yt-dlp.yt-dlp
-npx playwright install chromium
-winget install --id TheDocumentFoundation.LibreOffice
-pip install --user pdf2docx
+```bash
+npm install
+npm run dev
 ```
 
-访问 GitHub Releases 受限（winget 报 `InternetOpenUrl() failed`）时改走 PyPI，第 4、5 条解析规则就是为这种情况准备的：
+常用检查命令：
 
-```powershell
-pip install --user yt-dlp imageio-ffmpeg pypandoc_binary
+```bash
+npm run build       # 构建主进程、preload 和渲染层
+npm run check-docs  # 检查项目文档格式
+npm run check-deps  # 测试依赖下载解析、本地下载和取消
+npm run check-tools # 检测外部工具是否可用
+npm run selftest    # 执行工具集端到端自检
+npm run dist        # 生成 Windows NSIS 安装包
 ```
 
-缺依赖不影响其他功能。工具只在真正执行时才调用外部程序。设置页和工具页提供逐项下载入口：便携工具校验后放入 `<userData>/bin`，LibreOffice 下载官方安装包，pdf2docx 打开 Python 安装页。
+如果 npm 拦截了依赖安装脚本，可执行：
 
-## 打包发布
+```powershell
+npm install-scripts approve electron
+npm install-scripts approve esbuild
+```
+
+## 打包与发布
 
 ```powershell
 npm run dist
-# 产物：release\PersonalWorkstation-Setup-1.3.0.exe（约 96 MB，NSIS 可选安装目录）
-# 自动更新元数据：release\latest.yml 与同名 .blockmap
 ```
 
-electron-builder 需要下载 Electron 与 NSIS 二进制，网络不通时换国内镜像：
+产物写入 `release/`：
 
-```powershell
-$env:ELECTRON_MIRROR='https://npmmirror.com/mirrors/electron/'
-$env:ELECTRON_BUILDER_BINARIES_MIRROR='https://npmmirror.com/mirrors/electron-builder-binaries/'
-npm run dist
+- `PersonalWorkstation-Setup-{version}.exe`
+- `PersonalWorkstation-Setup-{version}.exe.blockmap`
+- `latest.yml`
+
+发布流程会同步更新 `package.json`、`CHANGELOG.md` 和应用内版本日志，然后推送 `develop`、`main` 与版本标签，并上传 GitHub Release 资产。
+
+应用启动约 12 秒后自动检查 GitHub 最新正式 Release，通过 `api.github.com` 读取 Release 和 `latest.yml`。发现新版本后由用户确认下载，下载完成可重启安装。
+
+## 项目结构
+
+```text
+src/
+  main/       Electron 主进程、数据库、服务、IPC、工具 runner
+  preload/    contextBridge API
+  renderer/   React 页面、组件、状态和样式
+  shared/     共享类型、IPC 契约和常量
+docs/
+  feature-index.md
+  modifications/
+  superpowers/
+build/        图标与 NSIS 安装脚本
+scripts/      文档、工具、自检和打包辅助脚本
+release/      当前版本的安装包与更新元数据（Git 忽略）
+out/          构建产物（Git 忽略）
 ```
-
-几个会影响打包结果的点：
-- 数据库用的是 Electron 内置 node:sqlite，没有原生模块，配置里 `npmRebuild: false` 跳过依赖重建
-- `playwright` / `playwright-core` 通过 `asarUnpack` 解包到磁盘，否则打包后起不了 Chromium
-- 笔记导入依赖 `pdfjs-dist`（只保留 legacy 构建 + 中文字形映射 cmaps + 标准字体）、`jszip` 与 `fast-xml-parser`，其余目录已在 `files` 里排除，三项合计让安装包只增约 2 MB
-- 阅读界面的 pdf.js 由 Vite 打进渲染层 bundle（含 worker 模块，走主线程假 worker），因此不依赖 asar 内的 worker 文件；中文字形映射仍从 asar 由主进程代读
-- 图标是 `build/icon.png`（透明底）、`build/icon.ico`（7 个尺寸）和 `build/tray.png`（16×16 单色），改完执行 `npm run make-icon` 重新生成
-- `build/installer.nsh` 在 customInstall 里刷新图标缓存，避免升级后桌面还是旧图标
-- 打包产物也能跑自检：复制到 `C:\Users\15008\Desktop\testarea\` 后执行
-  `$env:WORKSTATION_SELFTEST='1'; C:\Users\15008\Desktop\testarea\个人工作站.exe`
-
-## 版本与更新
-
-应用启动后会检查 GitHub Releases；发现新版本时，可在「设置 → 关于与版本」下载并在下载完成后重启安装。
-完整历史更新日志见 `CHANGELOG.md`，软件内有同一份记录。`v1.2.7` 之前没有内置更新器，首次升级到首个带更新器的版本仍需手动安装一次。
 
 ## 已知边界
 
-- 扫描版 PDF（整页是图片）能正常翻阅与批注，但全文查找搜不到字——那需要 OCR
-- 原版式书页依赖本机装有 LibreOffice 或 Microsoft Office（PDF、网页、EPUB 不依赖）；两者都没有时 Word / PPT / Excel 会退回「只抽文字」，版式与图片会丢
-- 只读资料的正文仍会抽出来存着，用于全局搜索与列表摘要，但不能在应用里改原版式内容
-- 超长正文按 30 万字上限截断；书库渲染件目前不自动清理，删除笔记时会连同它的书库目录一起删
-- 安装包没有代码签名，Windows SmartScreen 第一次运行会提示未知发布者
-- 网络下载能不能成功取决于目标站点可达性
-- 数据库迁移按版本号顺序追加，打开旧数据文件时会就地升级并先备份
+- 当前正式安装包只提供 Windows x64 版本
+- 扫描版 PDF 没有 OCR，全文查找无法识别图片中的文字
+- Word、PowerPoint、Excel 的原版式渲染依赖 LibreOffice 或 Microsoft Office
+- pdf2docx 依赖本机 Python 环境
+- 安装包尚未配置 Windows 代码签名
+- 应用内下载能否完成取决于对应官方站点和本机网络
+- 数据库迁移会就地升级旧数据库；升级前请保留数据目录备份
+
+## 许可证
+
+本项目使用 [MIT License](LICENSE)。
