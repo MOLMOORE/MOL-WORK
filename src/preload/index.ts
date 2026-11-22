@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import { IPC_EVENTS } from '@shared/types/ipc'
 import type {
   CloseRequestPayload,
+  DependencyDownloadStatus,
   ReminderPayload,
   UpdateStatus,
   WindowStatePayload,
@@ -11,6 +12,7 @@ import type {
   AppSettings,
   DailyReport,
   DailyStats,
+  DependencyId,
   DependencyStatus,
   FocusSession,
   Note,
@@ -79,6 +81,13 @@ const api: WorkstationApi = {
     pickPath: (mode) => invoke<string | null>('app:pick-path', mode),
     pickFileList: () => invoke<string[]>('app:pick-files'),
     checkDependencies: (force?: boolean) => invoke<DependencyStatus[]>('app:check-deps', force),
+    getDependencyDownloads: () =>
+      invoke<DependencyDownloadStatus[]>('app:get-dependency-downloads'),
+    downloadDependency: (id: DependencyId) =>
+      invoke<DependencyDownloadStatus>('app:download-dependency', id),
+    cancelDependencyDownload: (id: DependencyId) =>
+      invoke<void>('app:cancel-dependency-download', id),
+    openExternal: (url: string) => invoke<boolean>('app:open-external', url),
     exportReport: (date) => invoke<{ path: string; content: string }>('app:export-report', date),
     seedDemo: () => invoke<{ created: boolean }>('app:seed-demo'),
     notify: (title: string, body: string) => invoke<void>('app:notify', title, body),
@@ -201,6 +210,8 @@ const api: WorkstationApi = {
   },
   onNoteImportProgress: (callback: (payload: NoteImportProgress) => void) =>
     subscribe<NoteImportProgress>(IPC_EVENTS.noteImport, callback),
+  onDependencyDownload: (callback: (payload: DependencyDownloadStatus) => void) =>
+    subscribe<DependencyDownloadStatus>(IPC_EVENTS.dependencyDownload, callback),
   onReminder: (callback: (payload: ReminderPayload) => void) => subscribe<ReminderPayload>(IPC_EVENTS.reminder, callback),
   onDataChanged: (callback: (scope: string) => void) => subscribe<string>(IPC_EVENTS.dataChanged, callback),
   onCloseRequest: (callback: (payload: CloseRequestPayload) => void) =>

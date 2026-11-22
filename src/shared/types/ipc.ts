@@ -2,6 +2,7 @@ import type {
   AppSettings,
   DailyReport,
   DailyStats,
+  DependencyId,
   DependencyStatus,
   FocusSession,
   Note,
@@ -44,6 +45,7 @@ export const IPC_EVENTS = {
   reviewAutoScheduled: 'event:review-auto-scheduled',
   closeRequest: 'event:close-request',
   noteImport: 'event:note-import-progress',
+  dependencyDownload: 'event:dependency-download',
   windowState: 'event:window-state',
   updateStatus: 'event:update-status'
 } as const
@@ -91,6 +93,28 @@ export interface UpdateStatus {
   message: string | null
 }
 
+export type DependencyDownloadPhase =
+  | 'idle'
+  | 'resolving'
+  | 'downloading'
+  | 'verifying'
+  | 'installing'
+  | 'done'
+  | 'manual'
+  | 'cancelled'
+  | 'error'
+
+export interface DependencyDownloadStatus {
+  id: DependencyId
+  phase: DependencyDownloadPhase
+  percent: number
+  transferred: number
+  total: number
+  bytesPerSecond: number
+  message: string
+  resultPath: string | null
+}
+
 export interface WorkstationApi {
   app: {
     getSettings(): Promise<AppSettings>
@@ -102,6 +126,10 @@ export interface WorkstationApi {
     pickPath(mode: 'file' | 'directory'): Promise<string | null>
     pickFileList(): Promise<string[]>
     checkDependencies(force?: boolean): Promise<DependencyStatus[]>
+    getDependencyDownloads(): Promise<DependencyDownloadStatus[]>
+    downloadDependency(id: DependencyId): Promise<DependencyDownloadStatus>
+    cancelDependencyDownload(id: DependencyId): Promise<void>
+    openExternal(url: string): Promise<boolean>
     exportReport(date: string): Promise<{ path: string; content: string }>
     seedDemo(): Promise<{ created: boolean }>
     /** 系统级弹窗提醒（后台可见，点击聚焦窗口） */
@@ -263,6 +291,8 @@ export interface WorkstationApi {
   onCloseRequest(callback: (payload: CloseRequestPayload) => void): () => void
   /** 文档导入进度（进度条） */
   onNoteImportProgress(callback: (payload: NoteImportProgress) => void): () => void
+  /** 外部依赖下载进度 */
+  onDependencyDownload(callback: (payload: DependencyDownloadStatus) => void): () => void
   /** 窗口状态变化（最大化 / 全屏），自绘标题栏据此更新图标与高度 */
   onWindowState(callback: (payload: WindowStatePayload) => void): () => void
   /** 自动更新状态变化 */

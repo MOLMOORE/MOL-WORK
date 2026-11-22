@@ -36,6 +36,7 @@ import { Button } from '../components/ui/Button'
 import { Field, Input, Select, Switch } from '../components/ui/Field'
 import { Tabs } from '../components/ui/Tabs'
 import { ClockTile } from '../components/layout/ClockTile'
+import { DependencyManager } from '../components/tool/DependencyManager'
 import type { ClockStyle } from '@shared/types/domain'
 import type { UpdateStatus } from '@shared/types/ipc'
 import { resolveTheme, useAppStore } from '../stores/appStore'
@@ -48,7 +49,7 @@ const SECTIONS: { key: string; title: string; description: string; icon: typeof 
   { key: 'review', title: '复习与计划', description: '复习算法、每日上限与自动排程', icon: Repeat },
   { key: 'notify', title: '提醒与通知', description: '提醒提前量与截止提醒提示音', icon: Bell },
   { key: 'pomodoro', title: '番茄钟', description: '专注时长、休息节奏与阶段提示音', icon: Timer },
-  { key: 'deps', title: '外部工具依赖', description: '外部工具检测与排查', icon: Terminal },
+  { key: 'deps', title: '外部工具依赖', description: '逐项下载、配置与重新检测', icon: Terminal },
   { key: 'data', title: '数据与维护', description: '数据目录、日报导出与示例数据', icon: Database },
   { key: 'about', title: '关于与版本', description: '当前版本与更新历史', icon: Info }
 ]
@@ -280,6 +281,23 @@ function ThemePicker(props: {
 
 /** 版本更新日志（新版本发布时在最上方追加一条） */
 const CHANGELOG: { version: string; date: string; items: string[] }[] = [
+  {
+    version: '1.3.0',
+    date: '2026-11-22',
+    items: [
+      '工具 · 外部依赖新增应用内下载：可勾选 FFmpeg、yt-dlp、Pandoc 和 Playwright Chromium，下载后自动配置并重新检测',
+      '工具 · LibreOffice 可下载官方安装包，pdf2docx 提供安装入口',
+      '工具 · 依赖下载显示进度、速度、错误原因，并支持取消'
+    ]
+  },
+  {
+    version: '1.2.9',
+    date: '2026-11-16',
+    items: [
+      '工具 · 更新 PCB 走线、波形有效值、单位换算、整流滤波和电路常用计算代码，输入字段和计算结果保持不变',
+      '工具 · 更新五个计算工具对应的电路图和概念示意图'
+    ]
+  },
   {
     version: '1.2.8',
     date: '2026-11-11',
@@ -1083,45 +1101,11 @@ export function SettingsPage(): JSX.Element {
         )
       case 'deps':
         return (
-          <div className="grid gap-3">
-            <div className="flex justify-end">
-              <Button size="sm" variant="secondary" icon={<RefreshCw className="h-3.5 w-3.5" />} loading={checking} onClick={handleCheck}>
-                重新检测
-              </Button>
-            </div>
-            <div className="flex flex-col gap-2">
-              {dependencies.map((dependency) => (
-                <div key={dependency.id} className="rounded-xl border border-border bg-muted/25 p-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="flex items-center gap-2 text-xs font-medium text-foreground">
-                      <Terminal className="h-3.5 w-3.5 text-muted-foreground" />
-                      {dependency.label}
-                    </span>
-                    <Badge tone={dependency.available ? 'success' : 'warning'} dot>
-                      {dependency.available ? '可用' : '未安装'}
-                    </Badge>
-                  </div>
-                  {dependency.version ? (
-                    <p className="mt-1.5 truncate text-[11px] text-muted-foreground">{dependency.version}</p>
-                  ) : (
-                    <code className="mt-1.5 block overflow-x-auto rounded-lg bg-background/70 px-2 py-1 text-[10px] text-muted-foreground">
-                      {dependency.installHint}
-                    </code>
-                  )}
-                  {dependency.resolvedPath ? (
-                    <button
-                      type="button"
-                      className="mt-1 block max-w-full truncate text-left text-[10px] text-muted-foreground/80 hover:text-foreground"
-                      title="在文件夹中显示"
-                      onClick={() => void api.app.showItemInFolder(dependency.resolvedPath as string)}
-                    >
-                      {dependency.resolvedPath}
-                    </button>
-                  ) : null}
-                </div>
-              ))}
-            </div>
-          </div>
+          <DependencyManager
+            dependencies={dependencies}
+            checking={checking}
+            onCheck={handleCheck}
+          />
         )
       case 'data':
         return (

@@ -73,6 +73,7 @@
 ## 7. 工具集 / 任务 / 统计 / 番茄（速查）
 - 工具：`src/main/tools/registry.ts`（注册即生效）、`tools/runners/*.runner.ts`（内置 16 个；计算类 10 个：unit-convert / circuit-calc / filter-calc / opamp-calc / filter-sim / rect-calc / timer-555 / trace-calc / wave-rms / match-calc）
 - 文档转换引擎路由（v1.2.7 r9）：`doc-convert.runner.ts#sofficeConvert`（LibreOffice 无头，独立 lo-profile 防实例转交）+ `convert-shared.ts#runConversion`（engine 含 pdf2docx）；新依赖探测三处同步：`utils/binaries.ts#probeLibreOffice`、`utils/dependency-check.ts#PROBE_ARGS`、`scripts/check-tools.mjs`、`src/main/utils/{binaries,command,dependency-check}.ts`、页面 `ToolsPage.tsx`（看板 `workstation.grid.tools.v5`）+ `components/tool/*`
+- 外部依赖下载（v1.3.0）：`services/dependency-download.service.ts`（来源解析、SHA-256、解压、Playwright 安装）、`dependency-download.io.ts`（流式下载与取消）、`dependency-download.helpers.ts`（版本/压缩包选择）、`components/tool/DependencyManager.tsx`（勾选、进度与打开结果）；IPC 为 `app:get-dependency-downloads` / `app:download-dependency` / `app:cancel-dependency-download` / `event:dependency-download`
 - 工具批量转换（v1.2.7 r10 / r11）：manifest `supportsBatch`（四个转换工具）→ `ToolRunPage.tsx`「转换文件」卡：拖放条（`handleFormDrop` / `dragIn`）+ 一列文档名（`BatchRow`、`BATCH_STATE_LABELS`/`BATCH_STATE_TONES`、`fileNameOf`/`dirNameOf`）+ `addBatchFiles`/`removeBatchFile`/`startBatch` + `Progress`；拖入取路径走 `window.nativeFiles.pathForFile`（无扩展名按文件夹忽略并 toast）；多选对话框 IPC `app:pick-files`（三处同步：ipc.ts#pickFileList / preload / app.ipc.ts）；表单多选键 `ToolRunnerForm` batchField/onBatchFiles
 - 工具运行页（v1.2.7，取代 ToolDetailDrawer 抽屉）：路由 `/tools/:toolId` → `pages/ToolRunPage.tsx`（宽屏双栏：左 = 表单 + 最近结果，右 = 配图 + 该工具历史；页头一卡含返回键与工具信息；入口：工具卡片 / 执行键 / 运行记录行 / 已注册工具清单 / GlobalSearch 直跳）
 - 计算类共用件：`src/main/tools/engineering.ts`（`parseQty` 工程计数法 / `fmtQty` / `E24·E12·nearestSeries·standardText`）；多模式表单按 `ToolField.visibleWhen` 只显示当前模式的输入项（`ToolRunnerForm.tsx#visibleFields`）
@@ -88,7 +89,7 @@
 - `CHANGELOG.md`（顶部追加）与 `src/renderer/src/pages/SettingsPage.tsx` 的 `CHANGELOG` 常量（顶部追加同一条）
 - `package.json` 的 `version`；发布配置 `electron-builder.yml#publish`
 - 发布资产：`PersonalWorkstation-Setup-{version}.exe`、`.exe.blockmap`、`latest.yml`
-- 本地只保留当前版 `release/` 资产与 `win-unpacked/`；历史版本以 GitHub Releases 为唯一权威副本
+- `release/` 只保留安装包、blockmap 与 `latest.yml`；直接测试版固定复制到 `Desktop/testarea` 后再删除 `release/win-unpacked/`
 
 ## 9. 修改记录
 - 按版本：`docs/modifications/by-version/`（一次提交一篇）

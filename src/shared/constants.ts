@@ -207,32 +207,62 @@ export const TOOL_CATEGORY_META: Record<ToolCategory, { label: string; color: st
   calc: { label: '计算', color: '#F59E0B', description: '单位换算与电路速算' }
 }
 
-export const DEPENDENCY_META: Record<DependencyId, { label: string; installHint: string }> = {
+export interface DependencyMeta {
+  label: string
+  installHint: string
+  installMode: 'auto' | 'installer' | 'guide'
+  actionLabel: string
+  sizeHint: string
+  guideUrl?: string
+}
+
+export const DEPENDENCY_META: Record<DependencyId, DependencyMeta> = {
   pandoc: {
     label: 'Pandoc',
-    installHint: '文档格式转换引擎。Windows 可执行：winget install --id JohnMacFarlane.Pandoc'
+    installHint: '文档格式转换引擎。Windows 可执行：winget install --id JohnMacFarlane.Pandoc',
+    installMode: 'auto',
+    actionLabel: '下载并配置',
+    sizeHint: '约 44 MB'
   },
   ffmpeg: {
     label: 'FFmpeg',
-    installHint: '音视频转换与截帧引擎。Windows 可执行：winget install --id Gyan.FFmpeg'
+    installHint: '音视频转换与截帧引擎。Windows 可执行：winget install --id Gyan.FFmpeg',
+    installMode: 'auto',
+    actionLabel: '下载并配置',
+    sizeHint: '约 100 MB'
   },
   'yt-dlp': {
     label: 'yt-dlp',
-    installHint: '资源下载引擎。Windows 可执行：winget install --id yt-dlp.yt-dlp'
+    installHint: '资源下载引擎。Windows 可执行：winget install --id yt-dlp.yt-dlp',
+    installMode: 'auto',
+    actionLabel: '下载并配置',
+    sizeHint: '约 24 MB'
   },
   playwright: {
     label: 'Playwright',
-    installHint: '网页渲染与截图引擎。安装后需执行：npx playwright install chromium'
+    installHint: '网页渲染与截图引擎。安装后需执行：npx playwright install chromium',
+    installMode: 'auto',
+    actionLabel: '下载 Chromium',
+    sizeHint: '约 300 MB'
   },
   soffice: {
     label: 'LibreOffice',
-    installHint: 'Word / 文档转 PDF 排版引擎。Windows 可执行：winget install --id TheDocumentFoundation.LibreOffice'
+    installHint: 'Word / 文档转 PDF 排版引擎。下载后需要运行安装包',
+    installMode: 'installer',
+    actionLabel: '下载安装包',
+    sizeHint: '约 350 MB'
   },
   pdf2docx: {
     label: 'pdf2docx',
-    installHint: 'PDF 转 Word 引擎（需 Python 3.10+）。可执行：pip install pdf2docx'
+    installHint: 'PDF 转 Word 引擎（需 Python 3.10+）。可执行：pip install pdf2docx',
+    installMode: 'guide',
+    actionLabel: '查看安装方法',
+    sizeHint: '需 Python 3.10+',
+    guideUrl: 'https://pypi.org/project/pdf2docx/'
   }
 }
+
+export const RECOMMENDED_DEPENDENCIES: DependencyId[] = ['ffmpeg', 'yt-dlp', 'pandoc', 'playwright']
 
 /**
  * 时钟形状档位：全部改成「点一下就是一个确定值」的预设档位，

@@ -7,17 +7,34 @@ interface UnitDef {
   fromBase: (value: number) => number
 }
 
+interface OutputLine {
+  label: string
+  value: string
+}
+
 function linear(factor: number): Pick<UnitDef, 'toBase' | 'fromBase'> {
-  return { toBase: (v) => v * factor, fromBase: (v) => v / factor }
+  // 线性单位换算函数
+  return {
+    toBase: (value) => value * factor,
+    fromBase: (value) => value / factor
+  }
 }
 
 const CELSIUS: Pick<UnitDef, 'toBase' | 'fromBase'> = {
-  toBase: (c) => c + 273.15,
-  fromBase: (k) => k - 273.15
+  toBase(celsius) {
+    return celsius + 273.15
+  },
+  fromBase(kelvin) {
+    return kelvin - 273.15
+  }
 }
 const FAHRENHEIT: Pick<UnitDef, 'toBase' | 'fromBase'> = {
-  toBase: (f) => (f - 32) / 1.8 + 273.15,
-  fromBase: (k) => (k - 273.15) * 1.8 + 32
+  toBase(fahrenheit) {
+    return (fahrenheit - 32) / 1.8 + 273.15
+  },
+  fromBase(kelvin) {
+    return (kelvin - 273.15) * 1.8 + 32
+  }
 }
 
 export const UNITS: Record<string, UnitDef> = {
@@ -100,6 +117,7 @@ export const UNITS: Record<string, UnitDef> = {
   rad: { category: '角度', label: '弧度 (rad)', ...linear(57.29577951) },
   grad: { category: '角度', label: '百分度 (grad)', ...linear(0.9) },
 
+  // 温度换算带偏移，需单独实现
   C: { category: '温度', label: '摄氏度 (°C)', ...CELSIUS },
   F: { category: '温度', label: '华氏度 (°F)', ...FAHRENHEIT },
   K: { category: '温度', label: '开尔文 (K)', ...linear(1) }
@@ -108,10 +126,25 @@ export const UNITS: Record<string, UnitDef> = {
 const OPTIONS = Object.entries(UNITS).map(([value, def]) => ({ label: def.label, value }))
 
 function formatNumber(value: number): string {
+  // 大数和小数使用科学计数法
   if (!Number.isFinite(value)) return '—'
   const abs = Math.abs(value)
   if (abs !== 0 && (abs >= 1e9 || abs < 1e-4)) return value.toExponential(6)
   return String(Number(value.toPrecision(10)))
+}
+
+function makeOutputLine(label: string, value: string): OutputLine {
+  return { label, value }
+}
+
+function convertValue(
+  value: number,
+  fromUnit: UnitDef,
+  toUnit: UnitDef
+): number {
+  // 先转基准单位，再转目标单位
+  const baseValue = fromUnit.toBase(value)
+  return toUnit.fromBase(baseValue)
 }
 
 export const unitConvertTool: ToolDefinition = {
@@ -132,29 +165,43 @@ export const unitConvertTool: ToolDefinition = {
   },
 
   async run(payload, ctx) {
+    // 读取输入
     const value = ctx.getNumber(payload, 'value', Number.NaN)
     const fromUnit = ctx.getString(payload, 'fromUnit', 'm')
     const toUnit = ctx.getString(payload, 'toUnit', 'm')
 
-    if (!Number.isFinite(value)) return { ok: false, error: '请填写有效的数值' }
-    const from = UNITS[fromUnit]
-    const to = UNITS[toUnit]
-    if (!from || !to) return { ok: false, error: `未知单位：${!from ? fromUnit : toUnit}` }
-    if (from.category !== to.category) {
-      return { ok: false, error: `单位类别不一致：${fromUnit} 属于「${from.category}」，${toUnit} 属于「${to.category}」` }
+    if (!Number.isFinite(value)) {
+      return { ok: false, error: '请填写有效的数值' }
     }
 
-    const converted = to.fromBase(from.toBase(value))
-    const readable = formatNumber(converted)
-    return {
-      ok: true,
-      resultSummary: `${formatNumber(value)} ${fromUnit} = ${readable} ${toUnit}`,
-      outputs: [
-        { label: '单位类别', value: from.category },
-        { label: '输入', value: `${formatNumber(value)} ${from.label}` },
-        { label: '结果', value: `${readable} ${to.label}` }
-      ],
-      preview: `${formatNumber(value)} ${fromUnit} = ${readable} ${toUnit}`
+    const from = UNITS[fromUnit]
+    const to = UNITS[toUnit]
+
+    if (!from || !to) {
+      let unknownUnit = toUnit
+      if (!from) unknownUnit = fromUnit
+      return { ok: false, error: `未知单位：${unknownUnit}` }
     }
+
+    // 检查单位类别
+    if (from.category !== to.category) {
+      return {
+        ok: false,
+        error:
+          `单位类别不一致：${fromUnit} 属于「${from.category}」，` +
+          `${toUnit} 属于「${to.category}」`
+      }
+    }
+
+    const converted = convertValue(value, from, to)
+    const inputText = formatNumber(value)
+    const readable = formatNumber(converted)
+
+    // 生成摘要和结果
+    const summary = `${inputText} ${fromUnit} = ${readable} ${toUnit}`
+    const outputs: OutputLine[] = [makeOutputLine('单位类别', from.category),
+      makeOutputLine('输入', `${inputText} ${from.label}`), makeOutputLine('结果', `${readable} ${to.label}`)]
+
+    return { ok: true, resultSummary: summary, outputs, preview: summary }
   }
 }

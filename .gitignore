@@ -10,7 +10,5 @@ release
 .dsh-edit-review*.json
 .deepseek-harness/
 
-AGENTS.md
-
 # 临时取证/脚本目录（见 AGENTS.md 第 4 节 L0+）
 work/

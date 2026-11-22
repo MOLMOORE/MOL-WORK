@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Boxes,
-  CheckCircle2,
   Clock4,
   FolderOpen,
   Play,
@@ -11,7 +10,6 @@ import {
   Sparkles,
   Terminal,
   Trash2,
-  TriangleAlert,
   Wrench
 } from 'lucide-react'
 import type { ToolCategory, ToolManifest } from '@shared/types/domain'
@@ -25,6 +23,7 @@ import { ConfirmDialog, Modal } from '../components/ui/Overlay'
 import { PageGrid } from '../components/layout/PageGrid'
 import type { GridEntry } from '../components/layout/GridBoard'
 import { ToolIcon } from '../components/tool/ToolIcon'
+import { DependencyManager } from '../components/tool/DependencyManager'
 import { useToolStore } from '../stores/toolStore'
 import { useAppStore } from '../stores/appStore'
 import { formatDateTime, formatDurationMs, formatMinutes, todayKey } from '../lib/utils'
@@ -131,27 +130,12 @@ export function ToolsPage(): JSX.Element {
     }
     if (statDetail === 'deps') {
       return (
-        <div className="flex max-h-[58vh] flex-col gap-2 overflow-y-auto pr-1">
-          {dependencies.map((dependency) => (
-            <div key={dependency.id} className="rounded-xl border border-border bg-muted/25 p-3">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-xs font-medium text-foreground">{dependency.label}</span>
-                <Badge tone={dependency.available ? 'success' : 'warning'} dot>
-                  {dependency.available ? '可用' : '未安装'}
-                </Badge>
-              </div>
-              <p className="mt-1 break-all text-[11px] text-muted-foreground">{dependency.version ?? dependency.installHint}</p>
-              {dependency.resolvedPath ? (
-                <button
-                  type="button"
-                  className="mt-1 block max-w-full truncate text-left text-[10px] text-muted-foreground/80 hover:text-foreground"
-                  onClick={() => void api.app.showItemInFolder(dependency.resolvedPath as string)}
-                >
-                  {dependency.resolvedPath}
-                </button>
-              ) : null}
-            </div>
-          ))}
+        <div className="max-h-[58vh] overflow-y-auto pr-1">
+          <DependencyManager
+            dependencies={dependencies}
+            checking={checking}
+            onCheck={() => refreshDependencies(true)}
+          />
         </div>
       )
     }
@@ -297,7 +281,7 @@ export function ToolsPage(): JSX.Element {
         <Card className="flex h-full flex-col overflow-y-auto">
         <SectionHeader
           title="外部依赖状态"
-          description="托管目录 → PATH → winget → pip 依次解析"
+          description="勾选下载，软件自动放入托管目录"
           action={
             missingDependencies.length === 0 ? (
               <Badge tone="success" dot>
@@ -310,35 +294,12 @@ export function ToolsPage(): JSX.Element {
             )
           }
         />
-        <div className="flex flex-col gap-1">
-          {dependencies.map((dependency) => (
-            <div
-              key={dependency.id}
-              className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-muted/40"
-              title={dependency.resolvedPath ?? dependency.installHint}
-            >
-              {dependency.available ? (
-                <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-success" />
-              ) : (
-                <TriangleAlert className="h-3.5 w-3.5 shrink-0 text-warning" />
-              )}
-              <span className="w-20 shrink-0 truncate text-xs font-medium text-foreground">{dependency.label}</span>
-              <span className="min-w-0 flex-1 truncate text-[11px] text-muted-foreground">
-                {dependency.version ?? '未检测到'}
-              </span>
-              {dependency.resolvedPath ? (
-                <IconButton
-                  label="在文件夹中显示"
-                  onClick={() => void api.app.showItemInFolder(dependency.resolvedPath as string)}
-                >
-                  <FolderOpen className="h-3.5 w-3.5" />
-                </IconButton>
-              ) : (
-                <Badge tone="warning">缺失</Badge>
-              )}
-            </div>
-          ))}
-        </div>
+        <DependencyManager
+          dependencies={dependencies}
+          checking={checking}
+          onCheck={() => refreshDependencies(true)}
+          compact
+        />
           </Card>
         )
       },

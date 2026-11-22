@@ -67,6 +67,7 @@ function sitePackageDirs() {
 
 function candidateDirs() {
   return [
+    join(appDataDir, 'personal-workstation', 'bin'),
     join(localAppDataDir, 'Microsoft', 'WinGet', 'Links'),
     ...pipScriptDirs(),
     ...pythonInstallRoots().map((root) => join(root, 'Scripts'))

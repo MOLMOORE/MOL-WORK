@@ -13,12 +13,12 @@ src/       # main / preload / renderer / shared 四层
 docs/      # feature-index.md + modifications（by-version / by-feature）
 build/     # 图标与安装脚本
 scripts/   # check-tools / selftest / make-icon
-release/   # 当前最新版安装包 + win-unpacked 解包版；新版核对后删旧版
+release/   # 当前最新版安装包、blockmap 和更新元数据
 work/      # 一次性取证与临时脚本，不入库
 out/       # 构建产物，不入库
 ```
 
-`release/` 本地只保留**当前最新版**（安装包 + `win-unpacked/` 免安装版）；新版本完成并经 GitHub 核对后删除上一版本。历史版本以 GitHub Releases（v1.0.0 起）为权威副本。
+`release/` 本地只保留**当前最新版**的安装包、blockmap 和 `latest.yml`。打包生成的 `win-unpacked/` 会复制到 `C:\Users\15008\Desktop\testarea\` 做真实启动测试，通过后删除项目内的解包目录。历史版本以 GitHub Releases（v1.0.0 起）为权威副本。
 
 ## 功能
 
@@ -69,6 +69,7 @@ out/       # 构建产物，不入库
 - 工具集市支持分类筛选与关键词搜索，工具可停用、移除，也可一键恢复内置
 - 四个转换工具支持拖入和多文件批量处理，逐行显示进度、失败原因与产物
 - 依赖状态面板显示每个外部程序是否可用、版本号、实际解析到的可执行文件路径，可在文件夹中定位
+- 设置页与工具页可在应用内勾选下载便携依赖：FFmpeg、yt-dlp、Pandoc 和 Playwright Chromium 下载后自动配置；LibreOffice 下载官方安装包，pdf2docx 提供 Python 安装入口
 - 下拉选项能在运行时从数据库填充，比如「归属任务」这种
 - path 类型字段可以直接调起系统文件/目录选择框
 - 每次执行都记录输入摘要、耗时、状态、结果路径与错误，结果能打开文件或定位到文件夹
@@ -163,13 +164,13 @@ pip install --user pdf2docx
 pip install --user yt-dlp imageio-ffmpeg pypandoc_binary
 ```
 
-缺依赖不影响其他功能。工具只在真正执行时才调用外部程序，缺失时返回带安装指引的错误信息，同样记进运行历史。
+缺依赖不影响其他功能。工具只在真正执行时才调用外部程序。设置页和工具页提供逐项下载入口：便携工具校验后放入 `<userData>/bin`，LibreOffice 下载官方安装包，pdf2docx 打开 Python 安装页。
 
 ## 打包发布
 
 ```powershell
 npm run dist
-# 产物：release\PersonalWorkstation-Setup-1.2.8.exe（约 96 MB，NSIS 可选安装目录）
+# 产物：release\PersonalWorkstation-Setup-1.3.0.exe（约 96 MB，NSIS 可选安装目录）
 # 自动更新元数据：release\latest.yml 与同名 .blockmap
 ```
 
@@ -188,7 +189,8 @@ npm run dist
 - 阅读界面的 pdf.js 由 Vite 打进渲染层 bundle（含 worker 模块，走主线程假 worker），因此不依赖 asar 内的 worker 文件；中文字形映射仍从 asar 由主进程代读
 - 图标是 `build/icon.png`（透明底）、`build/icon.ico`（7 个尺寸）和 `build/tray.png`（16×16 单色），改完执行 `npm run make-icon` 重新生成
 - `build/installer.nsh` 在 customInstall 里刷新图标缓存，避免升级后桌面还是旧图标
-- 打包产物也能跑自检：`$env:WORKSTATION_SELFTEST='1'; .\release\win-unpacked\个人工作站.exe`
+- 打包产物也能跑自检：复制到 `C:\Users\15008\Desktop\testarea\` 后执行
+  `$env:WORKSTATION_SELFTEST='1'; C:\Users\15008\Desktop\testarea\个人工作站.exe`
 
 ## 版本与更新
 

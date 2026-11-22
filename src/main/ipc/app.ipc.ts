@@ -1,8 +1,8 @@
 import { app, dialog, shell } from 'electron'
 import { writeFileSync } from 'node:fs'
 import { basename, join } from 'node:path'
-import type { AppSettings, DependencyStatus, OverviewData } from '@shared/types/domain'
-import type { WindowStatePayload } from '@shared/types/ipc'
+import type { AppSettings, DependencyId, DependencyStatus, OverviewData } from '@shared/types/domain'
+import type { DependencyDownloadStatus, WindowStatePayload } from '@shared/types/ipc'
 import { handle } from './handle'
 import { dataDir, readSettings, writeSettings } from '../services/settings.service'
 import { overview } from '../services/overview.service'
@@ -20,6 +20,11 @@ import {
   installDownloadedUpdate,
   openUpdatePage
 } from '../services/update.service'
+import {
+  cancelDependencyDownload,
+  dependencyDownloadStatuses,
+  downloadDependency
+} from '../services/dependency-download.service'
 import {
   closeMainWindow,
   getMainWindowState,
@@ -44,6 +49,15 @@ export function registerAppIpc(): void {
   handle<OverviewData>('app:overview', () => overview())
 
   handle<string>('app:data-dir', () => dataDir())
+
+  handle<boolean>('app:open-external', async (url: string) => {
+    const parsed = new URL(url)
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      throw new Error('只允许打开 HTTP 或 HTTPS 地址')
+    }
+    await shell.openExternal(parsed.toString())
+    return true
+  })
 
   handle<boolean>('app:open-path', async (target: string) => {
     const resolved = resolveUserPath(target)
@@ -79,6 +93,18 @@ export function registerAppIpc(): void {
   handle<DependencyStatus[]>('app:check-deps', (force?: boolean) => {
     if (force) invalidateDependencyCache()
     return checkDependencies(Boolean(force))
+  })
+
+  handle<DependencyDownloadStatus[]>('app:get-dependency-downloads', () =>
+    dependencyDownloadStatuses()
+  )
+
+  handle<DependencyDownloadStatus>('app:download-dependency', (id: DependencyId) =>
+    downloadDependency(id)
+  )
+
+  handle<void>('app:cancel-dependency-download', (id: DependencyId) => {
+    cancelDependencyDownload(id)
   })
 
   handle<{ path: string; content: string }>('app:export-report', (dateKey: string) => {

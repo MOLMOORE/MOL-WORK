@@ -3,6 +3,15 @@
 > 功能线速查：`src/main/tools/`（registry + runners + engineering.ts + mna.ts）+ `pages/ToolsPage.tsx` + `components/tool/*`（diagrams/ = 计算工具电路配图）
 > 记录格式见 `docs/modifications/README.md`；新改动**追加在本行下方的最前面**。
 
+## 2026-11-20 · v1.2.9（基础计算工具代码更新）
+- 需求：更新 `trace-calc`、`wave-rms`、`unit-convert`、`rect-calc`、`circuit-calc` 的计算代码和对应示意图，保持原有工具 ID、字段、错误文案、输出顺序和计算结果
+- 改法：runner 拆分输入读取、参数校验、公式计算和结果组装；示意图拆分公共 SVG 元件与场景绘制
+- 位置：`runners/{trace-calc,wave-rms,unit-convert,rect-calc,circuit-calc}.runner.ts`、`diagrams/{trace-calc,wave-rms,unit-convert,rect-calc,circuit-calc}.diagram.tsx`
+- 参考：保留 IPC-2221 经验式、教材波形系数、单位换算表、整流近似、E6 标准值以及欧姆定律、功率、串并联、分压、RL、储能和 LED 公式
+- 验证：26 组 runner 输入输出摘要哈希保持 `1fbd89d36f3b7b5bd50cf29e1b77616a17de089dd6b2903d8ffe60d40b720a73`，20 个示意图渲染测试生成 SVG，三端构建和文档检查通过
+- 遗留：滤波速算、运放、滤波仿真和阻抗匹配保持原实现
+- 详细记录：`docs/modifications/by-version/v1.2.9-tools-update.md`
+
 ## 2026-10-11 · v1.2.7 第 7 轮（阻抗匹配速算 match-calc）
 - 需求：参考 mwstore 阻抗匹配计算器方向，新增匹配网络速算工具。
 - 改法：`runners/match-calc.runner.ts`（L 型 AD-CN0300 式含反接对偶、π 型虚电阻法、单支节 Pozar 二次方程、λ/4 含 ρ=0.2 带宽式；本地 parseZ 复数解析）+ `diagrams/match-calc.diagram.tsx` 四拓扑整页切换；registry/index 各 +1。2 子 agent 并行（runner/diagram 写入集不重叠），主线修 3 处（JSX dot 调用 ×2 属编译期、lmatch G=1/Z0 与 stub 纯电抗退化分支为数值复核发现的逻辑洞）。
